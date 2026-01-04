@@ -1,9 +1,9 @@
 # Nano Banana Pro Web (纳米香蕉图片生成平台)
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![React](https://img.shields.io/badge/React-18.3-blue.svg)
-![Go](https://img.shields.io/badge/Go-1.21+-00ADD8.svg)
-![Gemini](https://img.shields.io/badge/AI-Google%20Gemini-orange.svg)
+![React](https://img.shields.io/badge/React-18.3.1-blue.svg)
+![Go](https://img.shields.io/badge/Go-1.24.3-00ADD8.svg)
+![Gemini](https://img.shields.io/badge/GenAI%20SDK-1.40.0-orange.svg)
 
 Nano Banana Pro Web 是一个高性能、易扩展的批量图片生成平台，专为创意工作者设计。它基于 Google Gemini API，支持高分辨率（最高 4K）的文生图与图生图功能，并提供直观的批量任务管理界面。
 
@@ -19,19 +19,21 @@ Nano Banana Pro Web 是一个高性能、易扩展的批量图片生成平台，
 ## 🛠️ 技术栈
 
 ### 后端 (Backend)
-- **语言**: Go (Golang)
-- **框架**: Gin (高性能 Web 框架)
-- **模型**: Google Gemini API (Pro / Flash)
-- **存储**: 支持本地存储与阿里云 OSS (可配置)
-- **并发**: 基于 Channel 的 Worker Pool 模型
+- **语言**: Go v1.24.3
+- **框架**: Gin v1.11.0
+- **模型集成**: Google GenAI SDK v1.40.0
+- **数据库**: SQLite + GORM v1.25.12
+- **存储**: 阿里云 OSS SDK v3.0.2 / 本地存储
+- **配置管理**: Viper v1.21.0
 
 ### 前端 (Frontend)
-- **框架**: React 18 + TypeScript
-- **构建**: Vite
-- **状态管理**: Zustand (轻量级响应式状态)
-- **样式**: Tailwind CSS
-- **图标**: Lucide React
-- **网络**: Axios + React Query
+- **框架**: React v18.3.1
+- **构建工具**: Vite v6.0.7
+- **状态管理**: Zustand v5.0.2
+- **样式**: Tailwind CSS v3.4.17
+- **图标**: Lucide React v0.468.0
+- **网络请求**: Axios v1.7.7 + React Query v5.59.20
+- **类型系统**: TypeScript v5.6.3
 
 ## 🚀 快速开始
 
