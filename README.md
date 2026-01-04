@@ -16,7 +16,14 @@ Banana Pro Web 是一个高性能、易扩展的批量图片生成平台，专�
 - **💾 历史记录管理**：完整的任务历史追踪，支持失败任务一键重试与本地缓存恢复。
 - **🔌 灵活扩展**：模块化 Provider 设计，可轻松接入其他主流 AI 模型。
 
-## 🛠️ 技术栈
+## �️ 界面预览
+
+系统采用经典的**三栏式响应式布局**：
+1. **左侧配置面板**：实时调整模型参数（比例、分辨率、生成数量、参考图上传）。
+2. **中间生成区域**：展示当前生成任务的实时状态、倒计时、进度条及生成结果。
+3. **右侧历史面板**：持久化存储历史生成记录，支持瀑布流预览、大图查看及记录删除。
+
+## �🛠️ 技术栈
 
 ### 后端 (Backend)
 - **语言**: Go v1.24.3 (高性能逻辑处理)
@@ -43,17 +50,16 @@ git clone git@github.com:ShellMonster/Nano_Banana_Pro_Web.git
 cd Nano_Banana_Pro_Web
 ```
 
-### 2. 后端启动
+### 2. 后端启动 (开发环境)
 ```bash
 cd backend
-# 复制并配置环境 (如有 .env 或 config.yaml)
-# 修改 internal/config/config.yaml 中的 Gemini API Key
+# 修改 internal/config/config.yaml 中的 providers.gemini.api_key
 go mod download
 go run cmd/server/main.go
 ```
 后端服务默认运行在 `http://localhost:8080`。
 
-### 3. 前端启动
+### 3. 前端启动 (开发环境)
 ```bash
 cd frontend
 npm install
@@ -61,51 +67,95 @@ npm run dev
 ```
 前端开发环境默认运行在 `http://localhost:5173`。
 
-## ⚙️ 配置说明
+### 4. 生产环境部署
+**后端编译：**
+```bash
+cd backend
+go build -o server cmd/server/main.go
+./server
+```
+**前端打包：**
+```bash
+cd frontend
+npm run build
+# 产物在 dist 目录，可使用 Nginx 托管
+```
 
-项目通过配置文件进行管理，主要包含以下核心配置 Key：
+## ⚙️ 配置说明
 
 ### 后端配置 (`backend/configs/config.yaml`)
 
 | 配置项 | 描述 | 默认值 / 示例 |
 | :--- | :--- | :--- |
 | `server.port` | 后端服务监听端口 | `8080` |
-| `database.path` | SQLite 数据库文件存储路径 | `storage/local/service.db` |
-| `storage.local_dir` | 本地图片文件存储根目录 | `storage/local` |
-| `storage.oss.enabled` | 是否启用阿里云 OSS 存储 | `false` |
-| `storage.oss.endpoint` | OSS 访问域名 | `oss-cn-hangzhou.aliyuncs.com` |
-| `storage.oss.access_key_id` | 阿里云 AccessKey ID | `""` |
-| `storage.oss.access_key_secret` | 阿里云 AccessKey Secret | `""` |
-| `storage.oss.bucket_name` | OSS Bucket 名称 | `""` |
-| `providers.gemini.api_key` | **[必填]** Google Gemini API Key | `"YOUR_GEMINI_API_KEY"` |
-| `providers.gemini.api_base` | Gemini API 基础地址 | `https://generativelanguage.googleapis.com` |
+| `database.path` | SQLite 数据库文件路径 | `storage/local/service.db` |
+| `storage.local_dir` | 本地图片存储根目录 | `storage/local` |
+| `storage.oss.enabled` | 是否启用阿里云 OSS | `false` |
+| `providers.gemini.api_key` | **[必填]** Google Gemini API Key | `"YOUR_KEY"` |
+| `providers.gemini.api_base` | Gemini API 代理地址 | `https://...` |
 
 ### 前端配置 (`frontend/.env.development`)
 
 | 配置项 | 描述 | 示例 |
 | :--- | :--- | :--- |
 | `VITE_API_URL` | 后端 API 服务地址 | `http://localhost:8080/api/v1` |
-| `VITE_WS_URL` | WebSocket 通信地址 (可选) | `ws://localhost:8080/api/v1` |
+| `VITE_WS_URL` | WebSocket 通信地址 | `ws://localhost:8080/api/v1` |
+
+## 📡 API 接口概览
+
+| 路径 | 方法 | 描述 |
+| :--- | :--- | :--- |
+| `/health` | `GET` | 健康检查 |
+| `/api/v1/tasks/generate` | `POST` | 文生图任务提交 (JSON) |
+| `/api/v1/tasks/generate-with-images` | `POST` | 图生图任务提交 (Multipart) |
+| `/api/v1/tasks/:task_id` | `GET` | 获取任务实时进度 |
+| `/api/v1/images` | `GET` | 获取历史图片列表 |
+| `/api/v1/images/:id` | `DELETE` | 删除单张图片记录 |
+| `/storage/*` | `GET` | 静态图片资源访问 |
 
 ## 📂 项目结构
 
 ```text
 .
 ├── backend/               # Go 后端代码
-│   ├── cmd/               # 入口程序
-│   ├── internal/          # 内部业务逻辑 (API, Provider, Model等)
-│   ├── scripts/           # 工具脚本与测试
-│   └── storage/           # 本地图片存储目录
-├── frontend/              # React 前端代码
-│   ├── src/
-│   │   ├── components/    # UI 组件
-│   │   ├── hooks/         # 自定义 React Hooks
-│   │   ├── services/      # API 请求层
-│   │   └── store/         # Zustand 状态库
-│   └── tailwind.config.js # 样式配置
-└── README.md              # 项目文档
+│   ├── cmd/               # 程序入口
+│   ├── configs/           # 配置文件 (YAML)
+│   ├── internal/          # 核心业务逻辑
+│   │   ├── api/           # API 处理器
+│   │   ├── model/         # 数据库模型与 GORM
+│   │   ├── provider/      # AI 模型适配器 (Gemini 等)
+│   │   └── worker/        # 并发任务执行池
+│   └── storage/           # 数据与图片持久化目录
+└── frontend/              # React 前端代码
+    ├── src/
+    │   ├── components/    # UI 组件 (生成区、历史区等)
+    │   ├── hooks/         # 自定义 Hook (生成逻辑封装)
+    │   ├── services/      # API 请求封装
+    │   └── store/         # Zustand 状态管理
+    └── public/            # 静态资源
 ```
 
-## 📝 许可证
+## 🛠️ 开发与扩展
 
-本项目采用 MIT 许可证。
+### 如何添加新的 AI 模型 Provider？
+1. 在 `backend/internal/provider/` 下实现 `Provider` 接口。
+2. 在 `provider.go` 的 `InitProviders` 函数中添加对应的工厂分支。
+3. 在配置文件中添加相应的配置项。
+
+### 并发性能优化
+可以通过修改 `backend/cmd/server/main.go` 中的 `worker.InitPool` 参数来调整并发线程数。推荐设置为 CPU 核心数的 2-3 倍。
+
+## ❓ 常见问题 (FAQ)
+
+**Q: 为什么生成提示 429 Too Many Requests？**
+A: 这是 Gemini API 的频率限制。请检查 API Key 的配额，或在后端配置中更换更高级别的 API Key。
+
+**Q: 图片生成成功但前端不显示？**
+A: 请检查后端 `storage` 目录的读写权限，以及前端 `.env` 中的 `VITE_API_URL` 是否正确指向了后端地址。
+
+## � 开源协议
+
+本项目采用 [MIT License](LICENSE) 协议开源。
+
+---
+*Created by [ShellMonster](https://github.com/ShellMonster)*
