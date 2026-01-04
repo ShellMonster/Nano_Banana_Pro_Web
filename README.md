@@ -61,6 +61,32 @@ npm run dev
 ```
 前端开发环境默认运行在 `http://localhost:5173`。
 
+## ⚙️ 配置说明
+
+项目通过配置文件进行管理，主要包含以下核心配置 Key：
+
+### 后端配置 (`backend/configs/config.yaml`)
+
+| 配置项 | 描述 | 默认值 / 示例 |
+| :--- | :--- | :--- |
+| `server.port` | 后端服务监听端口 | `8080` |
+| `database.path` | SQLite 数据库文件存储路径 | `storage/local/service.db` |
+| `storage.local_dir` | 本地图片文件存储根目录 | `storage/local` |
+| `storage.oss.enabled` | 是否启用阿里云 OSS 存储 | `false` |
+| `storage.oss.endpoint` | OSS 访问域名 | `oss-cn-hangzhou.aliyuncs.com` |
+| `storage.oss.access_key_id` | 阿里云 AccessKey ID | `""` |
+| `storage.oss.access_key_secret` | 阿里云 AccessKey Secret | `""` |
+| `storage.oss.bucket_name` | OSS Bucket 名称 | `""` |
+| `providers.gemini.api_key` | **[必填]** Google Gemini API Key | `"YOUR_GEMINI_API_KEY"` |
+| `providers.gemini.api_base` | Gemini API 基础地址 | `https://generativelanguage.googleapis.com` |
+
+### 前端配置 (`frontend/.env.development`)
+
+| 配置项 | 描述 | 示例 |
+| :--- | :--- | :--- |
+| `VITE_API_URL` | 后端 API 服务地址 | `http://localhost:8080/api/v1` |
+| `VITE_WS_URL` | WebSocket 通信地址 (可选) | `ws://localhost:8080/api/v1` |
+
 ## 📂 项目结构
 
 ```text
