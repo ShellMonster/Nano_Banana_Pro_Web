@@ -1,11 +1,11 @@
-# Nano Banana Pro Web (纳米香蕉图片生成平台)
+# Banana Pro Web (大香蕉图片生成工具)
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![React](https://img.shields.io/badge/React-18.3.1-blue.svg)
 ![Go](https://img.shields.io/badge/Go-1.24.3-00ADD8.svg)
 ![Gemini](https://img.shields.io/badge/GenAI%20SDK-1.40.0-orange.svg)
 
-Nano Banana Pro Web 是一个高性能、易扩展的批量图片生成平台，专为创意工作者设计。它基于 Google Gemini API，支持高分辨率（最高 4K）的文生图与图生图功能，并提供直观的批量任务管理界面。
+Banana Pro Web 是一个高性能、易扩展的批量图片生成平台，专为创意工作者设计。它基于 Google Gemini API，支持高分辨率（最高 4K）的文生图与图生图功能，并提供直观的批量任务管理界面。
 
 ## 🌟 核心特性
 

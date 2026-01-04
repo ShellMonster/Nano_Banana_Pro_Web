@@ -20,7 +20,7 @@ export function Header() {
         <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
             <span className="text-white font-bold text-lg sm:text-xl tracking-tighter">B</span>
         </div>
-        <h1 className="text-sm sm:text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 hidden xs:block">NanoBananaPro</h1>
+        <h1 className="text-sm sm:text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 hidden xs:block">BananaPro</h1>
       </div>
 
       {/* 移动端：Tab 切换 (只在小屏幕显示) */}
