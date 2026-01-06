@@ -13,7 +13,7 @@ interface HistoryState {
   total: number;
   searchKeyword: string;
 
-  loadHistory: (reset?: boolean) => Promise<void>;
+  loadHistory: (reset?: boolean, options?: { silent?: boolean }) => Promise<void>;
   loadMore: () => Promise<void>;
   setSearchKeyword: (keyword: string) => void;
   deleteItem: (id: string) => Promise<void>;
@@ -32,7 +32,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   total: 0,
   searchKeyword: '',
 
-  loadHistory: async (reset = false) => {
+  loadHistory: async (reset = false, options) => {
     // 请求序号：防止慢请求覆盖快请求（搜索/翻页/重置时常见）
     const requestId = ++latestHistoryRequestId;
 
@@ -122,7 +122,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
 
         // 如果是重置加载（如切换 Tab 或手动刷新），默认提示成功；
         // 但在非历史页（例如点击“开始生成”触发的后台同步）不打扰用户。
-        if (reset) {
+        if (reset && !options?.silent) {
             const currentTab = useGenerateStore.getState().currentTab;
             if (currentTab === 'history') {
               toast.success('历史记录已更新');
@@ -151,7 +151,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
 
   setSearchKeyword: (searchKeyword) => {
       set({ searchKeyword });
-      get().loadHistory(true); // 搜索时重置并重新加载
+      get().loadHistory(true, { silent: true }); // 搜索时重置并重新加载（不弹“已更新”提示）
   },
 
   deleteItem: async (id) => {
@@ -221,7 +221,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
           toast.success('图片已删除');
 
           // 后台刷新列表以同步后端状态
-          await get().loadHistory(true);
+          await get().loadHistory(true, { silent: true });
       } catch (error) {
           console.error('Failed to delete image:', error);
           const errorMessage = error instanceof Error ? error.message : '删除图片失败';

@@ -9,11 +9,23 @@ permissions:
 
 jobs:
   build-and-release:
-    name: 构建并发布 - ${{ matrix.platform }}
+    name: 构建并发布 - ${{ matrix.name }}
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, windows-latest]
+        include:
+          # macOS Apple Silicon 包（原生）
+          - name: macOS (Apple Silicon)
+            platform: macos-latest
+            tauriArgs: '--target aarch64-apple-darwin'
+          # macOS 通用包（Universal 2：arm64 + x86_64）
+          - name: macOS (Universal)
+            platform: macos-latest
+            tauriArgs: '--target universal-apple-darwin'
+          # Windows 安装包（使用 NSIS，避免 WiX/Light.exe 失败导致整条流水线挂掉）
+          - name: Windows (x64)
+            platform: windows-latest
+            tauriArgs: '--bundles nsis'
     runs-on: ${{ matrix.platform }}
 
     steps:
@@ -35,6 +47,9 @@ jobs:
 
       - name: 安装 Rust 环境
         uses: dtolnay/rust-toolchain@stable
+        with:
+          # macOS 通用包需要同时具备 arm64 + x86_64 两个 target
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Rust 缓存
         uses: swatinem/rust-cache@v2
@@ -56,6 +71,15 @@ jobs:
           else
             cd backend && GOOS=darwin GOARCH=arm64 go build -o ../desktop/src-tauri/bin/server-aarch64-apple-darwin cmd/server/main.go
             cd .. && cd backend && GOOS=darwin GOARCH=amd64 go build -o ../desktop/src-tauri/bin/server-x86_64-apple-darwin cmd/server/main.go
+
+            # Universal target 是“虚拟 target”，Tauri 期望用户提供一个通用的 sidecar（二进制需自行 lipo 合并）
+            if [ "${{ matrix.name }}" = "macOS (Universal)" ]; then
+              lipo -create \
+                ../desktop/src-tauri/bin/server-aarch64-apple-darwin \
+                ../desktop/src-tauri/bin/server-x86_64-apple-darwin \
+                -output ../desktop/src-tauri/bin/server
+              chmod +x ../desktop/src-tauri/bin/server
+            fi
           fi
 
       - name: 安装前端依赖
@@ -73,7 +97,7 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
         with:
           projectPath: './desktop'
-          args: ${{ matrix.platform == 'macos-latest' && '--target universal-apple-darwin' || '' }}
+          args: ${{ matrix.tauriArgs }}
           tagName: ${{ github.ref_name }}
           releaseName: '大香蕉 AI ${{ github.ref_name }}'
           releaseBody: |

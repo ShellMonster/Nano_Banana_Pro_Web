@@ -53,7 +53,7 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
                 await deleteHistory(task.id);
                 toast.success('记录已删除');
                 // 刷新历史记录列表
-                loadHistoryRef.current(true);
+                loadHistoryRef.current(true, { silent: true });
             } catch (error) {
                 console.error('删除记录失败:', error);
                 const errorMessage = error instanceof Error ? error.message : '删除失败';

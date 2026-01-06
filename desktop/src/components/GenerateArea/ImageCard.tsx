@@ -35,7 +35,46 @@ export const ImageCard = React.memo(function ImageCard({
       return max > 0 ? 'SD' : '—';
     })();
 
-    const sizeLabel = w > 0 && h > 0 ? `${w}×${h}` : '—';
+    const aspectRatioLabel = (() => {
+      // 1) 优先使用 options 里的比例（与历史记录保持一致）
+      try {
+        const opts =
+          typeof image.options === 'string'
+            ? JSON.parse(image.options)
+            : image.options;
+        if (opts && typeof opts === 'object' && 'aspectRatio' in (opts as any)) {
+          const ar = String((opts as any).aspectRatio || '').trim();
+          if (ar) return ar;
+        }
+      } catch {}
+
+      // 2) 回退到 width/height 推断比例（常见比例做归一化显示）
+      if (w > 0 && h > 0) {
+        const r = w / h;
+        const close = (a: number, b: number) => Math.abs(a - b) < 0.1;
+        if (close(r, 1)) return '1:1';
+        if (close(r, 16 / 9)) return '16:9';
+        if (close(r, 9 / 16)) return '9:16';
+        if (close(r, 4 / 3)) return '4:3';
+        if (close(r, 3 / 4)) return '3:4';
+
+        // 最后兜底：约分显示（避免直接展示 1024:576 这种“分辨率感”太强的数字）
+        const gcd = (a: number, b: number): number => {
+          let x = Math.abs(a);
+          let y = Math.abs(b);
+          while (y) {
+            const t = x % y;
+            x = y;
+            y = t;
+          }
+          return x || 1;
+        };
+        const g = gcd(w, h);
+        return `${Math.round(w / g)}:${Math.round(h / g)}`;
+      }
+
+      return '—';
+    })();
 
     const timeLabel = (() => {
       if (!image.createdAt) return '—';
@@ -48,8 +87,8 @@ export const ImageCard = React.memo(function ImageCard({
       }
     })();
 
-    return { resolutionLabel, sizeLabel, timeLabel };
-  }, [image.width, image.height, image.createdAt]);
+    return { resolutionLabel, aspectRatioLabel, timeLabel };
+  }, [image.width, image.height, image.createdAt, image.options]);
 
   // 使用 useMemo 优化规格信息解析
   const specs = useMemo(() => {
@@ -192,7 +231,7 @@ export const ImageCard = React.memo(function ImageCard({
               {meta.resolutionLabel}
             </span>
             <span className="bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-bold tracking-tighter border border-slate-200/50">
-              {meta.sizeLabel}
+              {meta.aspectRatioLabel}
             </span>
           </div>
         </div>

@@ -29,7 +29,6 @@ export function useGenerate() {
   const isPollingRef = useRef(false);
   const pollRetryCountRef = useRef(0); // 轮询重试计数器
   const wsCloseRequestedRef = useRef(false); // 标记是否主动请求关闭WebSocket
-  const hasStartedRef = useRef(false); // 标记是否已启动过轮询
   const basePollIntervalRef = useRef(POLL_INTERVAL); // 基础轮询间隔，用于指数退避
   const expectedTaskIdRef = useRef<string | null>(null); // 记录期望的任务ID，防止闭包陷阱
 
@@ -69,7 +68,8 @@ export function useGenerate() {
 
   // 轮询函数：检查任务状态
   const startPolling = useCallback(async (currentTaskId: string) => {
-    if (isPollingRef.current || status !== 'processing') {
+    const currentState = useGenerateStore.getState();
+    if (isPollingRef.current || currentState.status !== 'processing' || currentState.taskId !== currentTaskId) {
       return;
     }
 
@@ -95,6 +95,8 @@ export function useGenerate() {
         // 竞态条件修复：再次检查当前更新源
         if (getUpdateSource() !== 'polling') {
           console.log('[竞态条件防护] 轮询被中断，更新源已切换');
+          // 允许后续再次启动轮询（避免卡住）
+          isPollingRef.current = false;
           return;
         }
 
@@ -160,17 +162,13 @@ export function useGenerate() {
 
     // 开始轮询
     poll();
-  }, [status, stopPolling]);
+  }, [stopPolling]);
 
   // 监听 connectionMode 变化，当切换到 polling 时自动启动轮询
   useEffect(() => {
-    if (connectionMode === 'polling' && status === 'processing' && taskId && !isPollingRef.current && !hasStartedRef.current) {
+    if (connectionMode === 'polling' && status === 'processing' && taskId && !isPollingRef.current) {
       console.log('Detected polling mode, starting poll');
-      hasStartedRef.current = true;
       startPolling(taskId);
-    } else if (connectionMode === 'none' && status === 'idle') {
-      // 只在任务回到 idle 状态时重置标记
-      hasStartedRef.current = false;
     }
   }, [connectionMode, status, taskId, startPolling]);
 

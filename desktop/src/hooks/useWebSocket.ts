@@ -117,7 +117,16 @@ export function useWebSocket(taskId: string | null) {
       console.log('WebSocket Connected');
       connectTimeRef.current = Date.now(); // 记录连接时间
       if (isMountedRef.current) {
-        // 竞态条件修复：WebSocket 连接成功时设置为活跃更新源
+        // 竞态条件防护：如果已经切到 polling，就不要再把连接模式切回 websocket（否则会“卡住”）
+        const currentMode = useGenerateStore.getState().connectionMode;
+        const currentSource = getUpdateSource();
+        if (currentMode === 'polling' || currentSource === 'polling') {
+          console.log('[WebSocket] Opened but polling is active, closing websocket');
+          ws.close();
+          return;
+        }
+
+        // WebSocket 连接成功时设置为活跃更新源
         setUpdateSource('websocket');
         storeRef.current.setConnectionMode('websocket');
       }

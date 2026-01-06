@@ -86,7 +86,7 @@ export default function MainLayout() {
     if (status !== 'processing' || !taskId) return;
 
     hasSyncedProcessingTaskRef.current = true;
-    useHistoryStore.getState().loadHistory(true).catch(() => {});
+    useHistoryStore.getState().loadHistory(true, { silent: true }).catch(() => {});
   }, [isHydrated, isTauriReady, status, taskId]);
 
   // 任务恢复逻辑：由历史记录加载后的 syncWithGenerateStore 处理
