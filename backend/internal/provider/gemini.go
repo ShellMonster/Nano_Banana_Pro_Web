@@ -22,6 +22,8 @@ type GeminiProvider struct {
 func NewGeminiProvider(config *model.ProviderConfig) (*GeminiProvider, error) {
 	ctx := context.Background()
 
+	log.Printf("[Gemini] 正在初始化 Provider: BaseURL=%s, KeyLen=%d\n", config.APIBase, len(config.APIKey))
+
 	// 配置自定义 HTTP 客户端，完全禁用连接复用
 	// 每次请求都使用新的 TCP 连接，避免 "bad file descriptor" 问题
 	httpClient := &http.Client{
@@ -46,17 +48,22 @@ func NewGeminiProvider(config *model.ProviderConfig) (*GeminiProvider, error) {
 	}
 
 	// 设置自定义 BaseURL (如果提供)
+	// 修正：某些中转 API 需要去掉末尾的 / 或者确保有正确的协议
 	if config.APIBase != "" && config.APIBase != "https://generativelanguage.googleapis.com" {
+		apiBase := strings.TrimRight(config.APIBase, "/")
+		log.Printf("[Gemini] 使用自定义 BaseURL: %s\n", apiBase)
 		clientConfig.HTTPOptions = genai.HTTPOptions{
-			BaseURL: config.APIBase,
+			BaseURL: apiBase,
 		}
 	}
 
 	client, err := genai.NewClient(ctx, clientConfig)
 	if err != nil {
+		log.Printf("[Gemini] 创建客户端失败: %v\n", err)
 		return nil, fmt.Errorf("创建 Gemini 客户端失败: %w", err)
 	}
 
+	log.Printf("[Gemini] Provider 初始化成功\n")
 	return &GeminiProvider{
 		config: config,
 		client: client,

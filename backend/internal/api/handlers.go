@@ -61,26 +61,40 @@ type ProviderConfigRequest struct {
 func UpdateProviderConfigHandler(c *gin.Context) {
 	var req ProviderConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		Error(c, http.StatusBadRequest, 400, err.Error())
+		log.Printf("[API] UpdateProviderConfig 参数绑定失败: %v\n", err)
+		// 返回更具体的绑定错误信息
+		Error(c, http.StatusBadRequest, 400, "参数验证失败: "+err.Error())
 		return
 	}
 
-	var config model.ProviderConfig
-	err := model.DB.Where("provider_name = ?", req.ProviderName).First(&config).Error
+	log.Printf("[API] 收到配置更新请求: Provider=%s, Base=%s, KeyLen=%d\n", 
+		req.ProviderName, req.APIBase, len(req.APIKey))
+
+	if model.DB == nil {
+		log.Printf("[API] 数据库未初始化\n")
+		Error(c, http.StatusInternalServerError, 500, "数据库未初始化")
+		return
+	}
+
+	var configData model.ProviderConfig
+	err := model.DB.Where("provider_name = ?", req.ProviderName).First(&configData).Error
 	if err != nil {
+		log.Printf("[API] 配置不存在，准备创建: %s\n", req.ProviderName)
 		// 不存在则创建
-		config = model.ProviderConfig{
+		configData = model.ProviderConfig{
 			ProviderName: req.ProviderName,
 			DisplayName:  req.DisplayName,
 			APIBase:      req.APIBase,
 			APIKey:       req.APIKey,
 			Enabled:      req.Enabled,
 		}
-		if err := model.DB.Create(&config).Error; err != nil {
-			Error(c, http.StatusInternalServerError, 500, "创建配置失败")
+		if err := model.DB.Create(&configData).Error; err != nil {
+			log.Printf("[API] 创建配置失败: %v\n", err)
+			Error(c, http.StatusInternalServerError, 500, "保存配置到数据库失败: "+err.Error())
 			return
 		}
 	} else {
+		log.Printf("[API] 配置已存在，准备更新: %s\n", req.ProviderName)
 		// 存在则更新
 		updates := map[string]interface{}{
 			"api_base": req.APIBase,
@@ -90,15 +104,24 @@ func UpdateProviderConfigHandler(c *gin.Context) {
 		if req.DisplayName != "" {
 			updates["display_name"] = req.DisplayName
 		}
-		if err := model.DB.Model(&config).Updates(updates).Error; err != nil {
-			Error(c, http.StatusInternalServerError, 500, "更新配置失败")
+		if err := model.DB.Model(&configData).Updates(updates).Error; err != nil {
+			log.Printf("[API] 更新配置失败: %v\n", err)
+			Error(c, http.StatusInternalServerError, 500, "更新配置到数据库失败: "+err.Error())
 			return
 		}
 	}
 
 	// 重新初始化 Provider 注册表
-	provider.InitProviders()
+	log.Printf("[API] 重新初始化 Provider 注册表...\n")
+	if err := provider.InitProviders(); err != nil {
+		log.Printf("[API] 重新加载 Provider 失败: %v\n", err)
+		// 虽然加载失败，但配置已经保存了，所以这里我们可以选择返回成功或警告
+		// 为了严谨，我们返回一个 500
+		Error(c, http.StatusInternalServerError, 500, "配置已保存但加载失败: "+err.Error())
+		return
+	}
 
+	log.Printf("[API] 配置更新成功\n")
 	Success(c, "配置已更新并生效")
 }
 

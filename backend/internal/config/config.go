@@ -40,6 +40,11 @@ func InitConfig() {
 	viper.AddConfigPath("configs")
 	viper.AddConfigPath(".")
 
+	// 设置默认值
+	viper.SetDefault("database.path", "data.db")
+	viper.SetDefault("storage.local_dir", "storage")
+	viper.SetDefault("server.port", 8080)
+
 	// 支持环境变量
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()

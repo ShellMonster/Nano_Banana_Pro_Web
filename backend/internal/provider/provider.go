@@ -43,7 +43,7 @@ func GetProvider(name string) Provider {
 }
 
 // InitProviders 从数据库初始化所有已启用的 Provider
-func InitProviders() {
+func InitProviders() error {
 	initMu.Lock()
 	defer initMu.Unlock()
 
@@ -86,7 +86,7 @@ func InitProviders() {
 	var finalConfigs []model.ProviderConfig
 	if err := model.DB.Where("enabled = ?", true).Find(&finalConfigs).Error; err != nil {
 		log.Printf("查询已启用 Provider 配置失败: %v", err)
-		return
+		return err
 	}
 
 	// 3. 重建 Registry
@@ -105,6 +105,8 @@ func InitProviders() {
 
 		if err != nil {
 			log.Printf("初始化 Provider %s 失败: %v", cfg.ProviderName, err)
+			// 这里我们选择记录错误并继续，但也可以选择返回错误
+			// 为了让用户知道配置有问题，我们这里记录但不中断
 			continue
 		}
 
@@ -118,4 +120,5 @@ func InitProviders() {
 	registryMu.Unlock()
 
 	log.Printf("所有 Provider 已重新加载，当前生效数量: %d", len(newRegistry))
+	return nil
 }

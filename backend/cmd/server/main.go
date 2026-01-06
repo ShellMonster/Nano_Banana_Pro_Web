@@ -69,13 +69,20 @@ func main() {
 	// 5. 设置路由
 	r := gin.Default()
 
-	// 允许跨域请求 (如果前端在 5173，后端在 8080)
-	// 注意：中间件必须在路由注册之前设置
+	// 允许跨域请求
 	r.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := c.Request.Header.Get("Origin")
+		log.Printf("[CORS] Request from Origin: %s, Method: %s, Path: %s", origin, c.Request.Method, c.Request.URL.Path)
+		
+		if origin != "" {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+		} else {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		}
+		
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, *")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -84,12 +91,11 @@ func main() {
 		c.Next()
 	})
 
-	r.GET("/health", func(c *gin.Context) {
-		api.Success(c, gin.H{"status": "ok"})
-	})
-
 	v1 := r.Group("/api/v1")
 	{
+		v1.GET("/health", func(c *gin.Context) {
+			api.Success(c, gin.H{"status": "ok"})
+		})
 		v1.GET("/providers", api.ListProvidersHandler)
 		v1.POST("/providers/config", api.UpdateProviderConfigHandler)
 		v1.POST("/tasks/generate", api.GenerateHandler)
@@ -108,23 +114,29 @@ func main() {
 	var ln net.Listener
 	var err error
 
+	log.Printf("Starting port discovery from %d...", port)
+
 	// 尝试从 8080 开始寻找可用端口
+	// 强制绑定到 127.0.0.1 避免 macOS 沙盒拦截 0.0.0.0
 	for i := 0; i < 100; i++ {
-		addr := ":" + strconv.Itoa(port+i)
+		addr := "127.0.0.1:" + strconv.Itoa(port+i)
 		ln, err = net.Listen("tcp", addr)
 		if err == nil {
 			port = port + i
 			break
 		}
+		log.Printf("Port %d is busy, trying next...", port+i)
 	}
 
 	if err != nil {
-		log.Fatalf("无法找到可用端口: %v", err)
+		log.Fatalf("Fatal: Could not find any available port: %v", err)
 	}
+
+	log.Printf("Successfully bound to 127.0.0.1:%d", port)
 
 	// 如果是在 Tauri 边车模式下，将实际监听的端口打印到标准输出，方便前端发现
 	fmt.Printf("SERVER_PORT=%d\n", port)
-	os.Stdout.Sync() // 强制刷新标准输出，确保 Rust 能立即读到
+	os.Stdout.Sync()
 
 	srv := &http.Server{
 		Addr:    ":" + strconv.Itoa(port),

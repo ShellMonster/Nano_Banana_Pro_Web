@@ -11,8 +11,8 @@ type ProviderConfig struct {
 	ID             uint           `gorm:"primaryKey" json:"id"`
 	ProviderName   string         `gorm:"uniqueIndex;not null" json:"provider_name"` // e.g., 'gemini', 'stable-diffusion'
 	DisplayName    string         `json:"display_name"`                              // e.g., 'Google Gemini'
-	APIBase        string         `gorm:"not null" json:"api_base"`                  // API 基础 URL
-	APIKey         string         `gorm:"not null" json:"api_key"`                   // API 密钥
+	APIBase        string         `json:"api_base"`                                  // API 基础 URL
+	APIKey         string         `json:"api_key"`                                   // API 密钥
 	Models         string         `json:"models"`                                    // 模型列表 JSON
 	Enabled        bool           `gorm:"default:true" json:"enabled"`               // 是否启用
 	TimeoutSeconds int            `gorm:"default:60" json:"timeout_seconds"`         // 超时时间

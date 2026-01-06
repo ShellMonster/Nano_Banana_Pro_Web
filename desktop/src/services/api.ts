@@ -13,29 +13,47 @@ const api = axios.create({
 // 标记是否已经获取到了动态端口
 let isPortDetected = false;
 
-// 如果在 Tauri 环境中，监听后端实际分配的端口
+// 如果在 Tauri 环境中，主动获取端口并监听更新
 if (window.__TAURI_INTERNALS__) {
-  import('@tauri-apps/api/event').then(({ listen }) => {
-    listen<{ port: number }>('backend-port', (event) => {
-        console.log('Received new backend port:', event.payload.port);
-        // 使用 127.0.0.1 避免 localhost 解析问题
-        const newBaseUrl = `http://127.0.0.1:${event.payload.port}/api/v1`;
-        BASE_URL = newBaseUrl;
-        api.defaults.baseURL = newBaseUrl;
-        isPortDetected = true;
-        
-        console.log('API base URL updated to:', newBaseUrl);
+  const initTauri = async () => {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const { listen } = await import('@tauri-apps/api/event');
+
+      // 1. 先尝试获取当前已记录的端口
+      const port = await invoke<number>('get_backend_port');
+      if (port && port > 0) {
+        updateBaseUrl(port);
+      }
+
+      // 2. 监听后续端口更新事件
+      listen<{ port: number }>('backend-port', (event) => {
+        updateBaseUrl(event.payload.port);
       });
-  });
+    } catch (err) {
+      console.error('Failed to initialize Tauri API:', err);
+    }
+  };
+
+  initTauri();
+}
+
+function updateBaseUrl(port: number) {
+  console.log('Updating backend port to:', port);
+  const newBaseUrl = `http://127.0.0.1:${port}/api/v1`;
+  BASE_URL = newBaseUrl;
+  api.defaults.baseURL = newBaseUrl;
+  isPortDetected = true;
+  console.log('API base URL updated to:', newBaseUrl);
 }
 
 // 请求拦截器
 api.interceptors.request.use(async (config) => {
   // 如果在 Tauri 环境下且还没检测到端口，且不是第一次尝试 8080，则稍微等待一下
   // 这可以减少刚启动时的竞争
-  if (window.__TAURI_INTERNALS__ && !isPortDetected && config.baseURL?.includes(':8080')) {
-     // 最多等待 1 秒
-     for (let i = 0; i < 10; i++) {
+  if (window.__TAURI_INTERNALS__ && !isPortDetected && config.baseURL?.includes('127.0.0.1:8080')) {
+     // 最多等待 2 秒 (Sidecar 启动可能慢)
+     for (let i = 0; i < 20; i++) {
        if (isPortDetected) break;
        await new Promise(resolve => setTimeout(resolve, 100));
      }
@@ -70,8 +88,33 @@ api.interceptors.response.use(
     // 非统一结构（或后端直出数据），原样返回
     return data;
   },
-  (error) => {
-    console.error('API Error:', error);
+  async (error) => {
+    console.error('API Error Object:', error);
+    
+    if (error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
+      console.error('Detected Network Error. Diagnostics:');
+      console.error('- BaseURL:', api.defaults.baseURL);
+      console.error('- IsPortDetected:', isPortDetected);
+      
+      // 尝试 ping 一下健康检查接口
+      try {
+        const pingUrl = `${api.defaults.baseURL}/health`;
+        console.log('Attempting diagnostic ping to:', pingUrl);
+        // 使用 fetch 并增加一些配置，尝试穿透可能的拦截
+        const response = await fetch(pingUrl, { 
+          mode: 'cors',
+          cache: 'no-cache',
+          headers: { 'Accept': 'application/json' }
+        });
+        const result = await response.json();
+        console.log('Diagnostic ping (fetch) succeeded:', result);
+        console.log('This suggests the server is UP and CORS is OK. The issue might be Axios-specific or a race condition.');
+      } catch (pingErr) {
+        console.error('Diagnostic ping (fetch) failed:', pingErr);
+        console.error('This suggests the server is NOT reachable. Possible reasons: Sandbox blocking, Process not running, or wrong IP/Port.');
+      }
+    }
+
     return Promise.reject(error);
   }
 );
