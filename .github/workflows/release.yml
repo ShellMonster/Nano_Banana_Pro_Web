@@ -56,6 +56,7 @@ jobs:
 
       - name: Build Go Sidecar (Windows)
         if: matrix.platform == 'windows-latest'
+        shell: bash
         run: |
           mkdir -p desktop/src-tauri/bin
           cd backend
