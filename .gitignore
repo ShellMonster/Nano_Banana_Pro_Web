@@ -40,7 +40,7 @@ tmp/
 完整技术方案_精简融合版.md
 Tauri 桌面端软件开发方案.md
 frontend/前后端API对接文档.md
-frontend/_temp_hold/开发方案.md
+frontend/_temp_hold/
 backend/前后端对接文档.md
 # Tauri Binaries
 desktop/src-tauri/bin/
