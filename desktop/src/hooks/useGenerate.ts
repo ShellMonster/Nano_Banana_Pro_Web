@@ -214,7 +214,14 @@ export function useGenerate() {
         
         // 添加所有参考图片
         config.refFiles.forEach((file) => {
-          formData.append('refImages', file);
+          const extFile = file as any;
+          if (extFile.__path) {
+            // 如果有本地路径，直接传路径，避免大文件 IPC 传输
+            formData.append('refPaths', extFile.__path);
+          } else {
+            // 否则传二进制文件 (Web 环境或拖拽上传)
+            formData.append('refImages', file);
+          }
         });
 
         response = await generateBatchWithImages(formData);

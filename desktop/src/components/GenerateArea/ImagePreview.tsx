@@ -29,6 +29,7 @@ export const ImagePreview = React.memo(function ImagePreview({
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [copySuccess, setCopySuccess] = useState(false);
+    const [fullImageLoaded, setFullImageLoaded] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const deleteConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const copySuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -44,6 +45,7 @@ export const ImagePreview = React.memo(function ImagePreview({
     const handleReset = useCallback(() => {
         setScale(1);
         setPosition({ x: 0, y: 0 });
+        setFullImageLoaded(false);
     }, []);
 
     // 处理图片切换
@@ -317,7 +319,11 @@ export const ImagePreview = React.memo(function ImagePreview({
                     onMouseLeave={() => setIsDragging(false)}
                 >
                     <div className="absolute inset-0 z-0 pointer-events-none select-none">
-                        <img src={image.url} alt="" className="w-full h-full object-cover opacity-30 blur-3xl scale-110" />
+                        <img 
+                            src={image.thumbnailUrl || image.url} 
+                            alt="" 
+                            className="w-full h-full object-cover opacity-30 blur-3xl scale-110 transition-opacity duration-700" 
+                        />
                         <div className="absolute inset-0 bg-white/10" />
                     </div>
 
@@ -342,7 +348,32 @@ export const ImagePreview = React.memo(function ImagePreview({
                             transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)'
                         }}
                     >
-                        <img ref={imageRef} src={image.url} alt={image.prompt} className="max-w-full max-h-full object-contain shadow-2xl rounded-lg" draggable={false} />
+                        {/* 缩略图占位 (模糊) */}
+                        {!fullImageLoaded && (
+                            <img 
+                                src={image.thumbnailUrl || image.url} 
+                                alt="" 
+                                className="max-w-full max-h-full object-contain blur-lg scale-95 opacity-50 absolute" 
+                                draggable={false} 
+                            />
+                        )}
+                        
+                        {/* 高清大图 */}
+                        <img 
+                            ref={imageRef} 
+                            src={image.url} 
+                            alt={image.prompt} 
+                            onLoad={() => setFullImageLoaded(true)}
+                            className={`max-w-full max-h-full object-contain shadow-2xl rounded-lg transition-all duration-500 ${fullImageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+                            draggable={false} 
+                        />
+
+                        {/* 加载指示器 */}
+                        {!fullImageLoaded && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin shadow-lg" />
+                            </div>
+                        )}
                     </div>
                 </div>
 

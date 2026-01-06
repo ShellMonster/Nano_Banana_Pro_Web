@@ -112,8 +112,13 @@ export function HistoryList() {
       return allItems;
   }, [items, getResolutionLabel, getRatioLabel]);
 
+  // 2. 预筛选所有图片，用于详情页切换，避免在渲染函数中实时 filter
+  const allImageItems = React.useMemo(() => {
+      return renderItems.filter(isImageItem);
+  }, [renderItems]);
+
   // 判断项是否为图片
-  const isImageItem = (item: RenderItem): item is FlattenedImage => {
+  function isImageItem(item: RenderItem): item is FlattenedImage {
       return 'url' in item;
   };
 
@@ -197,7 +202,7 @@ export function HistoryList() {
         {selectedImage && (
             <ImagePreview
                 image={selectedImage}
-                images={renderItems.filter(isImageItem)}
+                images={allImageItems}
                 onImageChange={setSelectedImage}
                 onClose={() => setSelectedImage(null)}
             />

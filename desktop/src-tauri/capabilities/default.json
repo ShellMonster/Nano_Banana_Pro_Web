@@ -6,8 +6,9 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "dialog:allow-open",
-    "shell:allow-execute",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-appdata-read-recursive",
     {
       "identifier": "shell:allow-execute",
       "allow": [

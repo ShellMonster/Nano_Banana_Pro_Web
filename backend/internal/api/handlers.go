@@ -221,11 +221,23 @@ func GenerateWithImagesHandler(c *gin.Context) {
 	}
 
 	// 2. 准备任务参数
-	// 将 MultipartFile 转换为 []byte，方便 Provider 处理
+	// 将 MultipartFile 转换为 []byte，或者从 RefPaths 读取文件
 	var refImageBytes []interface{}
 	for _, file := range req.RefImages {
 		if len(file.Content) > 0 {
 			refImageBytes = append(refImageBytes, file.Content)
+		}
+	}
+
+	// 处理本地路径请求 (Tauri 优化)
+	for _, path := range req.RefPaths {
+		if path != "" {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				log.Printf("[API] 读取本地参考图失败: %s, err: %v\n", path, err)
+				continue
+			}
+			refImageBytes = append(refImageBytes, content)
 		}
 	}
 

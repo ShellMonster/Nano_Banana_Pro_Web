@@ -14,7 +14,9 @@
       {
         "title": "大香蕉 AI",
         "width": 1200,
-        "height": 800
+        "height": 800,
+        "transparent": true,
+        "titleBarStyle": "Overlay"
       }
     ],
     "security": {

@@ -26,6 +26,7 @@ type MultipartRequest struct {
 	ImageSize   string
 	Count       int
 	RefImages   []MultipartFile
+	RefPaths    []string
 }
 
 // ParseGenerateRequestFromMultipart 使用 formstream 解析图生图请求
@@ -88,6 +89,14 @@ func ParseGenerateRequestFromMultipart(c *gin.Context) (*MultipartRequest, error
 		if count, err := strconv.Atoi(string(data)); err == nil {
 			req.Count = count
 		}
+		return nil
+	})
+	p.Parser.Register("refPaths", func(reader io.Reader, header formstream.Header) error {
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return err
+		}
+		req.RefPaths = append(req.RefPaths, string(data))
 		return nil
 	})
 

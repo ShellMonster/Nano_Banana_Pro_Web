@@ -17,6 +17,14 @@ fn get_backend_port(state: State<'_, BackendPort>) -> u16 {
     *port
 }
 
+// 获取应用数据目录的命令，用于前端拼接本地图片路径
+#[tauri::command]
+fn get_app_data_dir(app: tauri::AppHandle) -> String {
+    app.path().app_data_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default()
+}
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -31,6 +39,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .manage(BackendPort(port_state_for_state))
         .setup(move |app| {
             let shell = app.shell();
@@ -48,6 +58,9 @@ pub fn run() {
                 .expect("Failed to spawn sidecar");
 
             println!("Sidecar spawned with PID: {:?}", child.pid());
+
+            let child_for_exit = Arc::new(Mutex::new(Some(child)));
+            let child_clone = child_for_exit.clone();
 
             let app_handle = app.handle().clone();
             let port_state_inner = port_state_for_setup.clone();
@@ -80,6 +93,10 @@ pub fn run() {
                         }
                         CommandEvent::Terminated(status) => {
                             println!("Sidecar Terminated with status: {:?}", status);
+                            // 进程退出了，清空 handle
+                            if let Ok(mut c) = child_clone.lock() {
+                                *c = None;
+                            }
                         }
                         _ => {}
                     }
@@ -88,7 +105,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet, get_backend_port])
+        .invoke_handler(tauri::generate_handler![greet, get_backend_port, get_app_data_dir])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

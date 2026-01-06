@@ -1,14 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { Header } from './Header';
 import { FloatingTabSwitch } from './FloatingTabSwitch';
-import ConfigPanel from '../ConfigPanel';
 import GenerateArea from '../GenerateArea';
-import HistoryPanel from '../HistoryPanel';
 import { useGenerateStore } from '../../store/generateStore';
-import { ChevronLeft, ChevronRight, SlidersHorizontal, X, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, SlidersHorizontal, X, AlertTriangle, Loader2 } from 'lucide-react';
 import { useHistoryStore } from '../../store/historyStore';
 import api from '../../services/api';
 import { toast } from '../../store/toastStore';
+
+// 使用懒加载减少初始包体积
+const ConfigPanel = lazy(() => import('../ConfigPanel'));
+const HistoryPanel = lazy(() => import('../HistoryPanel'));
+
+// 懒加载加载中状态
+const PanelLoader = () => (
+  <div className="flex-1 flex items-center justify-center bg-white/50 backdrop-blur-sm rounded-3xl">
+    <div className="flex flex-col items-center gap-3">
+      <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+      <span className="text-sm text-slate-500">正在加载模块...</span>
+    </div>
+  </div>
+);
 
 export default function MainLayout() {
   const currentTab = useGenerateStore((s) => s.currentTab);
@@ -97,7 +109,9 @@ export default function MainLayout() {
             `}
         >
           <div className="w-96 h-full">
-            <ConfigPanel />
+            <Suspense fallback={<PanelLoader />}>
+              <ConfigPanel />
+            </Suspense>
           </div>
         </aside>
 
@@ -131,7 +145,9 @@ export default function MainLayout() {
                         <button onClick={() => setIsMobileDrawerOpen(false)} className="p-2 bg-slate-100 rounded-xl"><X className="w-5 h-5" /></button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4">
-                        <ConfigPanel />
+                        <Suspense fallback={<PanelLoader />}>
+                            <ConfigPanel />
+                        </Suspense>
                     </div>
                 </div>
             </div>
@@ -146,7 +162,9 @@ export default function MainLayout() {
              <GenerateArea />
           </div>
           <div className={`absolute inset-0 transition-opacity duration-500 ${currentTab === 'history' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-             <HistoryPanel isActive={currentTab === 'history'} />
+             <Suspense fallback={<PanelLoader />}>
+               <HistoryPanel isActive={currentTab === 'history'} />
+             </Suspense>
           </div>
         </section>
       </main>

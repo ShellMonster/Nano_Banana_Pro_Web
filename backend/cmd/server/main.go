@@ -107,7 +107,11 @@ func main() {
 	}
 
 	// 静态资源访问 (将 storage 目录整体暴露，以匹配数据库中的 storage/local/xxx.jpg 路径)
-	r.Static("/storage", "storage")
+	// 针对本地存储增加缓存头，优化前端加载性能
+	r.Group("/storage", func(c *gin.Context) {
+		c.Header("Cache-Control", "public, max-age=31536000") // 1年缓存，因为本地文件路径通常包含唯一 ID
+		c.Next()
+	}).Static("", "storage")
 
 	// 6. 端口探测与启动
 	port := 8080
@@ -137,6 +141,22 @@ func main() {
 	// 如果是在 Tauri 边车模式下，将实际监听的端口打印到标准输出，方便前端发现
 	fmt.Printf("SERVER_PORT=%d\n", port)
 	os.Stdout.Sync()
+
+	// 监听标准输入，用于检测父进程是否退出
+	// 当 Tauri 进程退出时，它会自动关闭 sidecar 的 stdin，从而触发这里的 Read 返回
+	go func() {
+		buf := make([]byte, 1)
+		for {
+			_, err := os.Stdin.Read(buf)
+			if err != nil {
+				log.Printf("检测到标准输入关闭或异常 (%v)，正在安全退出...", err)
+				// 发送退出信号
+				p, _ := os.FindProcess(os.Getpid())
+				p.Signal(syscall.SIGTERM)
+				return
+			}
+		}
+	}()
 
 	srv := &http.Server{
 		Addr:    ":" + strconv.Itoa(port),

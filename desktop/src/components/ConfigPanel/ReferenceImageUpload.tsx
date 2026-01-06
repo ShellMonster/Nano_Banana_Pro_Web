@@ -83,7 +83,10 @@ export function ReferenceImageUpload() {
       if (!currentKeys.has(key)) {
         const url = objectUrlsRef.current.get(key);
         if (url) {
-          URL.revokeObjectURL(url);
+          // 只清理 blob: 协议的 URL，不处理 asset:// 协议
+          if (url.startsWith('blob:')) {
+            URL.revokeObjectURL(url);
+          }
           objectUrlsRef.current.delete(key);
         }
       }
@@ -574,6 +577,59 @@ export function ReferenceImageUpload() {
     }
   };
 
+  // 处理点击上传按钮
+  const handleUploadClick = async () => {
+    // 如果在 Tauri 环境下，优先使用原生对话框，速度更快且体验更好
+    if (window.__TAURI_INTERNALS__) {
+      try {
+        const { open } = await import('@tauri-apps/plugin-dialog');
+        const { readFile } = await import('@tauri-apps/plugin-fs');
+        
+        const selected = await open({
+          multiple: true,
+          filters: [{
+            name: 'Images',
+            extensions: ['png', 'jpg', 'jpeg', 'webp']
+          }]
+        });
+
+        if (Array.isArray(selected) && selected.length > 0) {
+           const remainingSlots = 10 - refFiles.length;
+           const filesToProcess = selected.slice(0, remainingSlots);
+           
+           const newFiles: ExtendedFile[] = [];
+           for (const path of filesToProcess) {
+             try {
+               // 获取文件名
+               const name = path.split(/[/\\]/).pop() || 'image.jpg';
+               // 建立一个空的 File 对象，但带有 __path 属性
+               // 这样我们就避免了通过 IPC 传输二进制数据
+               const file = new File([], name, { type: 'image/jpeg' }) as ExtendedFile;
+               file.__path = path;
+               // 使用路径作为唯一的 MD5 标识，避免重复读取计算
+               file.__md5 = `path-${path}`;
+               newFiles.push(file);
+             } catch (err) {
+               console.error(`Failed to process file at ${path}:`, err);
+             }
+           }
+           
+           if (newFiles.length > 0) {
+              addRefFiles(newFiles);
+              toast.success(`已添加 ${newFiles.length} 张参考图`);
+           }
+         }
+        return;
+      } catch (err) {
+        console.error('Failed to use native dialog:', err);
+        // 如果原生对话框失败，降级到标准 input
+      }
+    }
+    
+    // 降级方案：触发隐藏的 input
+    fileInputRef.current?.click();
+  };
+
   return (
     <div
       className="space-y-2"
@@ -641,7 +697,17 @@ export function ReferenceImageUpload() {
                       const md5 = (file as ExtendedFile).__md5 || `${file.name}-${file.size}-${file.lastModified}`;
                       // 使用缓存的 ObjectURL 或创建新的
                       if (!objectUrlsRef.current.has(md5)) {
-                        const url = URL.createObjectURL(file);
+                        let url: string;
+                        const extFile = file as ExtendedFile;
+                        if (extFile.__path) {
+                           // 如果有本地路径，直接使用 asset 协议
+                           const { convertFileSrc } = window as any;
+                           url = typeof convertFileSrc === 'function' 
+                             ? convertFileSrc(extFile.__path)
+                             : URL.createObjectURL(file);
+                        } else {
+                           url = URL.createObjectURL(file);
+                        }
                         objectUrlsRef.current.set(md5, url);
                       }
                       const url = objectUrlsRef.current.get(md5)!;
@@ -664,7 +730,7 @@ export function ReferenceImageUpload() {
           {/* 上传按钮/区域 */}
           {refFiles.length < 10 && (
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={handleUploadClick}
                 className={cn(
                     "w-full py-3 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 transition-all group",
                     refFiles.length > 0 ? "py-2" : "py-4",

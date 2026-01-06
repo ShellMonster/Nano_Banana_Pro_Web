@@ -86,4 +86,6 @@ export interface ExtendedFile extends File {
   __compressed?: boolean;
   // 原始文件大小（压缩前）
   __originalSize?: number;
+  // 本地文件路径 (Tauri 环境)
+  __path?: string;
 }

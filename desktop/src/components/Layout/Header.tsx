@@ -14,9 +14,12 @@ export function Header() {
   };
 
   return (
-    <header className="h-16 flex items-center justify-between px-4 sm:px-8 z-50 sticky top-0 bg-[#f8fafc]/50 backdrop-blur-md">
+    <header 
+      data-tauri-drag-region
+      className="h-16 flex items-center justify-between px-4 sm:px-8 z-50 sticky top-0 bg-[#f8fafc]/50 backdrop-blur-md pt-2"
+    >
       {/* 左侧：Logo */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 pointer-events-none">
         <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
             <span className="text-white font-bold text-lg sm:text-xl tracking-tighter">B</span>
         </div>
