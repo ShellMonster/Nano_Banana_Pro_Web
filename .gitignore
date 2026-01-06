@@ -48,6 +48,7 @@ backend/server
 backend/desktop/src-tauri/bin/
 *.png
 !assets/*.png
+!desktop/src-tauri/icons/*.png
 desktop/src-tauri/target/
 desktop/node_modules/
 desktop/dist/
