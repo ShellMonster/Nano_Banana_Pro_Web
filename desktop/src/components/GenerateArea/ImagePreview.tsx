@@ -29,6 +29,7 @@ export const ImagePreview = React.memo(function ImagePreview({
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [copySuccess, setCopySuccess] = useState(false);
+    const [isCopyingImage, setIsCopyingImage] = useState(false);
     const [fullImageLoaded, setFullImageLoaded] = useState(false);
     const [fullImageError, setFullImageError] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -183,26 +184,112 @@ export const ImagePreview = React.memo(function ImagePreview({
 
     // 处理复制图片
     const handleCopyImage = useCallback(async () => {
-        if (!image?.url) return;
+        if (!image) return;
+        if (isCopyingImage) return;
 
         try {
-            // 1. 获取图片 Blob
-            const response = await fetch(image.url);
-            const blob = await response.blob();
+            setIsCopyingImage(true);
 
-            // 2. 检查浏览器是否支持 ClipboardItem (现代浏览器)
-            if (typeof ClipboardItem !== 'undefined') {
-                const item = new ClipboardItem({ [blob.type]: blob });
-                await navigator.clipboard.write([item]);
-                toast.success('图片已复制到剪贴板');
-            } else {
-                throw new Error('当前浏览器不支持图片复制');
+            const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+
+            const guessMime = (pathOrUrl: string) => {
+                const lower = pathOrUrl.toLowerCase();
+                if (lower.endsWith('.png')) return 'image/png';
+                if (lower.endsWith('.webp')) return 'image/webp';
+                if (lower.endsWith('.gif')) return 'image/gif';
+                return 'image/jpeg';
+            };
+
+            const getBestSrc = () => image.url || image.thumbnailUrl || '';
+
+            // Tauri 打包环境下，Web Clipboard API 可能不可用/不稳定：优先走原生剪贴板写入
+            if (isTauri) {
+                try {
+                    const { invoke } = await import('@tauri-apps/api/core');
+                    const candidates = [image.filePath, image.thumbnailPath].filter(Boolean) as string[];
+                    const localPath = candidates.find((p) => p && !p.includes('://') && !p.startsWith('asset:')) || '';
+                    if (localPath) {
+                        await invoke('copy_image_to_clipboard', { path: localPath });
+                        toast.success('图片已复制到剪贴板');
+                        return;
+                    }
+                } catch (err) {
+                    console.warn('[copyImage] Native clipboard failed, fallback to web clipboard:', err);
+                }
             }
+
+            let blob: Blob | null = null;
+
+            // 方案 A：Tauri 优先从本地文件读取，避免 asset/CORS 导致 fetch 失败
+            if (isTauri) {
+                try {
+                    const { invoke } = await import('@tauri-apps/api/core');
+                    const { readFile, BaseDirectory } = await import('@tauri-apps/plugin-fs');
+
+                    const appDataDir = await invoke<string>('get_app_data_dir');
+                    const appData = appDataDir.replace(/\\/g, '/').replace(/\/+$/, '');
+
+                    const candidates = [image.filePath, image.thumbnailPath].filter(Boolean) as string[];
+                    const pick = candidates.find((p) => p && !p.includes('://')) || '';
+
+                    if (pick) {
+                        const normalized = pick.replace(/\\/g, '/').replace(/\/+/g, '/');
+                        const relative = normalized.startsWith(appData + '/') ? normalized.slice(appData.length + 1) : normalized.replace(/^\/+/, '');
+                        const bytes = await readFile(relative, { baseDir: BaseDirectory.AppData });
+                        blob = new Blob([bytes], { type: guessMime(pick) });
+                    }
+                } catch (err) {
+                    console.warn('[copyImage] Tauri readFile failed, fallback to fetch:', err);
+                }
+            }
+
+            // 方案 B：fetch 当前显示的 URL（适用于 http://asset.localhost 或普通 http/https）
+            if (!blob) {
+                const src = getBestSrc();
+                if (!src) throw new Error('图片地址为空');
+                const response = await fetch(src, { cache: 'no-cache' });
+                if (!response.ok) throw new Error(`图片获取失败: ${response.status}`);
+                blob = await response.blob();
+            }
+
+            // 复制到剪贴板：优先复制图片，兜底复制链接
+            const ClipboardItemCtor = (window as any).ClipboardItem as typeof ClipboardItem | undefined;
+            if (ClipboardItemCtor && navigator.clipboard?.write) {
+                const type = blob.type || guessMime(getBestSrc() || 'image.jpg');
+                const item = new ClipboardItemCtor({ [type]: blob });
+                try {
+                    await navigator.clipboard.write([item]);
+                    toast.success('图片已复制到剪贴板');
+                    return;
+                } catch (err) {
+                    console.warn('[copyImage] Web clipboard write(image) failed, fallback to writeText:', err);
+                }
+            }
+
+            const src = getBestSrc();
+            if (src && navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(src);
+                toast.info('当前环境不支持复制图片，已复制图片链接');
+                return;
+            }
+
+            throw new Error('Clipboard API not available');
         } catch (error) {
             console.error('复制图片失败:', error);
+            // 最后兜底：尝试复制链接（避免用户“完全失败”）
+            try {
+                const src = image.url || image.thumbnailUrl || '';
+                if (src && navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(src);
+                    toast.info('复制图片失败，已为你复制图片链接');
+                    return;
+                }
+            } catch {}
             toast.error('复制图片失败，请尝试右键另存为');
+        } finally {
+            setIsCopyingImage(false);
         }
-    }, [image?.url]);
+    }, [image, isCopyingImage]);
 
     // 处理复制提示词 - 优先使用同步方案，速度最快
     const handleCopyPrompt = useCallback(() => {
@@ -335,14 +422,6 @@ export const ImagePreview = React.memo(function ImagePreview({
                     </button>
                 )}
 
-                {/* 移动端顶部关闭按钮 */}
-                <button 
-                    onClick={onClose}
-                    className="absolute top-4 right-4 z-40 p-2 bg-black/40 text-white rounded-full backdrop-blur-md md:hidden transition-all active:scale-90"
-                >
-                    <X className="w-5 h-5" />
-                </button>
-
                 {/* 左侧：图片展示区 (移动端改为 50% 高度或自适应) */}
                 <div 
                     ref={containerRef}
@@ -362,26 +441,37 @@ export const ImagePreview = React.memo(function ImagePreview({
                         <div className="absolute inset-0 bg-white/10" />
                     </div>
 
-                    {scale !== 1 && (
-                        <div className="absolute top-6 right-6 z-20 bg-black/70 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-full font-bold">
-                            {Math.round(scale * 100)}%
-                        </div>
-                    )}
-
-                    {/* 悬浮复制按钮 - 固定在展示区右上角，不随图片缩放 */}
-                    {fullImageLoaded && (
+                    {/* 右上角操作区：复制/关闭/缩放比例（不随图片缩放） */}
+                    <div className="absolute top-4 right-4 z-50 flex flex-col items-end gap-2 pointer-events-auto">
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleCopyImage();
                             }}
-                            className="absolute top-6 left-6 z-30 p-2.5 bg-white/90 hover:bg-white text-slate-700 rounded-xl shadow-xl border border-white/50 backdrop-blur-md transition-all active:scale-95 group flex items-center gap-2"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            disabled={!image.url && !image.thumbnailUrl && !image.filePath && !image.thumbnailPath}
+                            className={`
+                                px-3 py-2 bg-black/60 hover:bg-black/75 text-white rounded-xl shadow-xl border border-white/15 backdrop-blur-md transition-all active:scale-95
+                                flex items-center gap-2
+                                disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-black/60
+                            `}
                             title="复制图片"
+                            style={{ WebkitAppRegion: 'no-drag' } as any}
                         >
-                            <Copy className="w-4 h-4" />
-                            <span className="text-[11px] font-black pr-1">复制图片</span>
+                            {isCopyingImage ? (
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <Copy className="w-4 h-4" />
+                            )}
+                            <span className="hidden sm:inline text-[11px] font-black pr-1">复制图片</span>
                         </button>
-                    )}
+
+                        {scale !== 1 && (
+                            <div className="bg-black/70 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-full font-bold">
+                                {Math.round(scale * 100)}%
+                            </div>
+                        )}
+                    </div>
 
                     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 p-1.5 bg-white/90 backdrop-blur-xl border border-white/50 rounded-2xl shadow-2xl">
                         <button onClick={() => performZoom(Math.max(0.25, scale - 0.25))} className="p-2.5 hover:bg-white rounded-xl transition-all text-slate-600"><ZoomOut className="w-4 h-4" /></button>
@@ -392,7 +482,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                     </div>
 
                     <div
-                        className="relative z-10 w-full h-full flex items-center justify-center select-none"
+                        className="relative z-10 w-full h-full flex items-center justify-center select-none p-5 md:p-7"
                         style={{
                             transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
                             transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)'

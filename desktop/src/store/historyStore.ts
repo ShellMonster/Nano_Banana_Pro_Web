@@ -120,9 +120,13 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
         // 同步：检查历史记录中是否有当前正在生成的任务
         syncWithGenerateStore(finalItems);
 
-        // 如果是重置加载（如切换 Tab 或手动刷新），显示成功提示
+        // 如果是重置加载（如切换 Tab 或手动刷新），默认提示成功；
+        // 但在非历史页（例如点击“开始生成”触发的后台同步）不打扰用户。
         if (reset) {
-            toast.success('历史记录已更新');
+            const currentTab = useGenerateStore.getState().currentTab;
+            if (currentTab === 'history') {
+              toast.success('历史记录已更新');
+            }
         }
     } catch (error) {
         // 旧请求失败不提示，避免搜索抖动时刷屏

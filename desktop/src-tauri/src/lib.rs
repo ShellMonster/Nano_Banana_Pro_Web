@@ -25,6 +25,83 @@ fn get_app_data_dir(app: tauri::AppHandle) -> String {
         .unwrap_or_default()
 }
 
+// 将本地图片写入系统剪贴板（用于 macOS 打包环境下 Web Clipboard API 不可用/不稳定的兜底）
+#[tauri::command]
+fn copy_image_to_clipboard(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    use std::borrow::Cow;
+    use std::path::PathBuf;
+    use std::sync::mpsc;
+
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("path is empty".to_string());
+    }
+
+    // 兼容 file:// URL（可能包含 host=localhost）
+    let normalized = if let Some(p) = trimmed.strip_prefix("file://localhost") {
+        p.to_string()
+    } else if let Some(p) = trimmed.strip_prefix("file://") {
+        p.to_string()
+    } else {
+        trimmed.to_string()
+    };
+
+    let input_path = PathBuf::from(normalized);
+
+    // 兼容：后端历史可能存的是相对路径（如 storage/xxx.jpg），打包/开发环境工作目录也可能不同
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if input_path.is_absolute() {
+        candidates.push(input_path);
+    } else {
+        if let Ok(app_data) = app.path().app_data_dir() {
+            candidates.push(app_data.join(&input_path));
+        }
+        if let Ok(current_dir) = std::env::current_dir() {
+            candidates.push(current_dir.join(&input_path));
+        }
+        if let Ok(resource_dir) = app.path().resource_dir() {
+            candidates.push(resource_dir.join(&input_path));
+        }
+        // 最后再尝试“原样相对路径”（少数场景下当前目录就是预期目录）
+        candidates.push(input_path);
+    }
+
+    let file_path = candidates
+        .iter()
+        .find(|p| p.exists())
+        .cloned()
+        .unwrap_or_else(|| candidates.first().cloned().unwrap());
+
+    let bytes = std::fs::read(&file_path)
+        .map_err(|e| format!("read file failed: {} ({})", e, file_path.display()))?;
+
+    let img = image::load_from_memory(&bytes).map_err(|e| format!("decode image failed: {}", e))?;
+    let rgba = img.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    let raw = rgba.into_raw();
+
+    // macOS 上部分剪贴板实现要求在主线程调用，这里强制切到主线程执行，避免偶发失败
+    let (tx, rx) = mpsc::channel::<Result<(), String>>();
+    app.run_on_main_thread(move || {
+        let result = (|| {
+            let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("clipboard init failed: {}", e))?;
+            clipboard
+                .set_image(arboard::ImageData {
+                    width: width as usize,
+                    height: height as usize,
+                    bytes: Cow::Owned(raw),
+                })
+                .map_err(|e| format!("clipboard set image failed: {}", e))?;
+            Ok(())
+        })();
+
+        let _ = tx.send(result);
+    })
+    .map_err(|e| format!("run_on_main_thread failed: {}", e))?;
+
+    rx.recv().map_err(|_| "clipboard task aborted".to_string())?
+}
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -105,7 +182,12 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet, get_backend_port, get_app_data_dir])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            get_backend_port,
+            get_app_data_dir,
+            copy_image_to_clipboard
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
