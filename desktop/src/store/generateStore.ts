@@ -210,7 +210,8 @@ export const useGenerateStore = create<GenerateState>()(
           // 恢复图片 URL，保留原始状态（Bug #5修复：不强制设为success）
           images: taskState.images.map((img) => ({
             ...img,
-            url: getImageUrl(img.id),
+            url: getImageUrl(img.url || img.filePath || img.thumbnailPath || ''),
+            thumbnailUrl: img.thumbnailUrl ? getImageUrl(img.thumbnailUrl) : getImageUrl(img.thumbnailPath || img.filePath || ''),
             // 保留图片原始状态，如果是pending则保持pending，轮询会更新它
             status: img.status || 'success' as const
           })),

@@ -107,6 +107,11 @@ export default function MainLayout() {
       )}
 
       <main className="flex-1 flex overflow-hidden p-4 gap-4 relative">
+        {/* Tauri：给主区域加一层拖拽背景（不盖住子元素点击），支持从窗口边缘拖动窗口 */}
+        {typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ && (
+          <div className="absolute inset-0" data-tauri-drag-region />
+        )}
+
         {/* 桌面端：左侧配置栏 */}
         <aside
             className={`

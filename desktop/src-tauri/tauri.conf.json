@@ -21,6 +21,13 @@
     ],
     "security": {
       "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPDATA/**",
+          "$HOME/**"
+        ]
+      },
       "capabilities": [
         "default"
       ]

@@ -30,6 +30,7 @@ export const ImagePreview = React.memo(function ImagePreview({
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [copySuccess, setCopySuccess] = useState(false);
     const [fullImageLoaded, setFullImageLoaded] = useState(false);
+    const [fullImageError, setFullImageError] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const deleteConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const copySuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -46,6 +47,7 @@ export const ImagePreview = React.memo(function ImagePreview({
         setScale(1);
         setPosition({ x: 0, y: 0 });
         setFullImageLoaded(false);
+        setFullImageError(false);
     }, []);
 
     // 处理图片切换
@@ -67,6 +69,12 @@ export const ImagePreview = React.memo(function ImagePreview({
     const handleClose = useCallback(() => {
         onClose();
     }, [onClose]);
+
+    // image 变化时确保重置加载状态（兼容外部直接切换 image 对象）
+    useEffect(() => {
+        setFullImageLoaded(false);
+        setFullImageError(false);
+    }, [image?.id]);
 
     // 键盘监听 - 优化性能
     useEffect(() => {
@@ -353,7 +361,9 @@ export const ImagePreview = React.memo(function ImagePreview({
                             <img 
                                 src={image.thumbnailUrl || image.url} 
                                 alt="" 
-                                className="max-w-full max-h-full object-contain blur-lg scale-95 opacity-50 absolute" 
+                                className={`max-w-full max-h-full object-contain absolute ${
+                                  fullImageError ? 'opacity-100 scale-100' : 'blur-lg scale-95 opacity-50'
+                                }`} 
                                 draggable={false} 
                             />
                         )}
@@ -364,14 +374,24 @@ export const ImagePreview = React.memo(function ImagePreview({
                             src={image.url} 
                             alt={image.prompt} 
                             onLoad={() => setFullImageLoaded(true)}
+                            onError={() => setFullImageError(true)}
                             className={`max-w-full max-h-full object-contain shadow-2xl rounded-lg transition-all duration-500 ${fullImageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
                             draggable={false} 
                         />
 
                         {/* 加载指示器 */}
-                        {!fullImageLoaded && (
+                        {!fullImageLoaded && !fullImageError && (
                             <div className="absolute inset-0 flex items-center justify-center">
                                 <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin shadow-lg" />
+                            </div>
+                        )}
+
+                        {/* 加载失败提示 */}
+                        {fullImageError && !fullImageLoaded && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="px-4 py-2 rounded-xl bg-black/70 text-white text-xs font-bold backdrop-blur-md">
+                                    图片加载失败
+                                </div>
                             </div>
                         )}
                     </div>

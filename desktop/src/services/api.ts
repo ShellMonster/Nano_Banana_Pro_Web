@@ -142,48 +142,104 @@ api.interceptors.response.use(
 // 构造图片完整 URL 的工具函数
 export const getImageUrl = (path: string) => {
   if (!path) return '';
-  if (path.startsWith('http')) return path;
-  if (path.startsWith('blob:')) return path;
-  if (path.startsWith('asset:')) return path;
+
+  const trimmed = path.trim();
+  if (!trimmed) return '';
+
+  // 已经是可直接加载的 URL，直接返回
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('data:') ||
+    trimmed.startsWith('asset:') ||
+    trimmed.startsWith('tauri:') ||
+    trimmed.startsWith('ipc:') ||
+    trimmed.startsWith('http://asset.localhost')
+  ) {
+    return trimmed;
+  }
+
+  // file:// URL 在 WebView 中通常不可直接访问；在 Tauri 环境下尽量转换成 asset 协议
+  const fileUrlPath = (() => {
+    if (!trimmed.startsWith('file://')) return null;
+    try {
+      // 兼容 file:///xxx 和 file://localhost/xxx
+      const withoutScheme = trimmed.replace(/^file:\/\//, '');
+      const withoutHost = withoutScheme.replace(/^localhost\//, '');
+      return decodeURIComponent(withoutHost);
+    } catch {
+      return null;
+    }
+  })();
   
   // 如果在 Tauri 环境下，且我们有 appDataDir，且路径看起来是本地存储路径
   // 优先使用 asset:// 协议直接读取本地磁盘，绕过 HTTP 端口，提升性能
-  if (window.__TAURI_INTERNALS__ && appDataDir && (path.startsWith('storage/') || path.includes('/storage/'))) {
+  const tauriInternals = (window as any).__TAURI_INTERNALS__ as
+    | { convertFileSrc?: (filePath: string, protocol?: string) => string }
+    | undefined;
+
+  const isWindowsAbsolutePath = (p: string) => /^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('\\\\');
+  const isPosixAbsolutePath = (p: string) => p.startsWith('/');
+  const looksLikeAbsolutePath = (p: string) => isPosixAbsolutePath(p) || isWindowsAbsolutePath(p);
+
+  const convertFileSrcSync: ((filePath: string) => string) | null = (() => {
+    const globalConvert = (window as any).convertFileSrc;
+    if (typeof globalConvert === 'function') return (filePath: string) => globalConvert(filePath);
+    if (tauriInternals?.convertFileSrc) return (filePath: string) => tauriInternals.convertFileSrc!(filePath, 'asset');
+    return null;
+  })();
+
+  const canUseAssetProtocol = Boolean(tauriInternals && convertFileSrcSync);
+
+  // 1) 直接是文件路径（绝对路径或 file://）时，优先走 asset 协议
+  if (canUseAssetProtocol && (fileUrlPath || looksLikeAbsolutePath(trimmed))) {
+    try {
+      let absolutePath = (fileUrlPath || trimmed).replace(/\\/g, '/').replace(/\/+/g, '/');
+      // macOS/Linux 绝对路径必须以 / 开头；Windows 盘符路径不能补 /
+      if (!looksLikeAbsolutePath(absolutePath) && !isWindowsAbsolutePath(absolutePath)) {
+        absolutePath = '/' + absolutePath;
+      }
+      const url = convertFileSrcSync!(absolutePath);
+      console.log('[getImageUrl] Converted absolute path to asset URL:', url, 'from:', absolutePath);
+      return url;
+    } catch (err) {
+      console.error('[getImageUrl] Failed to convert absolute path to asset URL:', err);
+    }
+  }
+
+  // 2) 典型的本地存储相对路径：尽量在 appDataDir 已获取后走 asset 协议
+  if (canUseAssetProtocol && appDataDir && (trimmed.startsWith('storage/') || trimmed.includes('/storage/') || trimmed.includes('\\storage\\'))) {
     try {
       // 这里的 path 可能是 storage/local/xxx.jpg
       // 我们需要拼接成绝对路径：appDataDir + / + path
       const separator = appDataDir.endsWith('/') || appDataDir.endsWith('\\') ? '' : '/';
       // 如果 path 已经包含 appDataDir (可能是绝对路径)，则不重复拼接
-      let absolutePath = path.includes(appDataDir) ? path : `${appDataDir}${separator}${path}`;
+      let absolutePath = trimmed.includes(appDataDir) ? trimmed : `${appDataDir}${separator}${trimmed}`;
       
       // 规范化路径：去掉重复的斜杠，处理相对路径
       absolutePath = absolutePath.replace(/\\/g, '/').replace(/\/+/g, '/');
-      // macOS 绝对路径必须以 / 开头
-      if (!absolutePath.startsWith('/')) absolutePath = '/' + absolutePath;
+      // macOS/Linux 绝对路径必须以 / 开头；Windows 盘符路径不能补 /
+      if (!looksLikeAbsolutePath(absolutePath) && !isWindowsAbsolutePath(absolutePath)) {
+        absolutePath = '/' + absolutePath;
+      }
 
       // 使用 Tauri 提供的 convertFileSrc 将绝对路径转为 asset:// 协议 URL
-      const convertFileSrc = (window as any).convertFileSrc;
-      if (typeof convertFileSrc === 'function') {
-        const url = convertFileSrc(absolutePath);
-        console.log('[getImageUrl] Converted to asset URL:', url, 'from:', absolutePath);
-        return url;
-      }
-      
-      // 回退：手动拼接 (Tauri v2 默认格式)
-      const encodedPath = encodeURIComponent(absolutePath).replace(/%2F/g, '/');
-      const url = `asset://localhost${encodedPath}`;
-      console.log('[getImageUrl] Fallback asset URL:', url);
+      const url = convertFileSrcSync!(absolutePath);
+      console.log('[getImageUrl] Converted to asset URL:', url, 'from:', absolutePath);
       return url;
     } catch (err) {
-      console.error('Failed to convert local path to asset URL:', err);
+      console.error('[getImageUrl] Failed to convert local path to asset URL:', err);
     }
   }
 
   // 回退到 HTTP 方案
   // 从 BASE_URL 中提取基础地址（去掉 /api/v1）
-  const baseHost = BASE_URL.replace('/api/v1', '');
+  const baseUrl = api.defaults.baseURL || BASE_URL;
+  const baseHost = baseUrl.replace('/api/v1', '');
   // 确保路径以 / 开头
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const normalizedInputPath = trimmed.replace(/\\/g, '/');
+  const normalizedPath = normalizedInputPath.startsWith('/') ? normalizedInputPath : `/${normalizedInputPath}`;
   
   const url = `${baseHost}${normalizedPath}`;
   console.log('[getImageUrl] HTTP Fallback URL:', url);
