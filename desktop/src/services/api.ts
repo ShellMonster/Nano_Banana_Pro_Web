@@ -153,20 +153,27 @@ export const getImageUrl = (path: string) => {
       // 这里的 path 可能是 storage/local/xxx.jpg
       // 我们需要拼接成绝对路径：appDataDir + / + path
       const separator = appDataDir.endsWith('/') || appDataDir.endsWith('\\') ? '' : '/';
-      const absolutePath = `${appDataDir}${separator}${path}`;
+      // 如果 path 已经包含 appDataDir (可能是绝对路径)，则不重复拼接
+      let absolutePath = path.includes(appDataDir) ? path : `${appDataDir}${separator}${path}`;
       
+      // 规范化路径：去掉重复的斜杠，处理相对路径
+      absolutePath = absolutePath.replace(/\\/g, '/').replace(/\/+/g, '/');
+      // macOS 绝对路径必须以 / 开头
+      if (!absolutePath.startsWith('/')) absolutePath = '/' + absolutePath;
+
       // 使用 Tauri 提供的 convertFileSrc 将绝对路径转为 asset:// 协议 URL
       const convertFileSrc = (window as any).convertFileSrc;
       if (typeof convertFileSrc === 'function') {
         const url = convertFileSrc(absolutePath);
-        console.log('Converted to asset URL:', url);
+        console.log('[getImageUrl] Converted to asset URL:', url, 'from:', absolutePath);
         return url;
       }
       
-      // 回退：如果 convertFileSrc 还没准备好，或者不可用，则尝试手动拼接
-      // Tauri v2 macOS 默认格式
+      // 回退：手动拼接 (Tauri v2 默认格式)
       const encodedPath = encodeURIComponent(absolutePath).replace(/%2F/g, '/');
-      return `asset://localhost${absolutePath.startsWith('/') ? '' : '/'}${encodedPath}`;
+      const url = `asset://localhost${encodedPath}`;
+      console.log('[getImageUrl] Fallback asset URL:', url);
+      return url;
     } catch (err) {
       console.error('Failed to convert local path to asset URL:', err);
     }
@@ -178,7 +185,9 @@ export const getImageUrl = (path: string) => {
   // 确保路径以 / 开头
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   
-  return `${baseHost}${normalizedPath}`;
+  const url = `${baseHost}${normalizedPath}`;
+  console.log('[getImageUrl] HTTP Fallback URL:', url);
+  return url;
 };
 
 // 获取图片下载 URL
