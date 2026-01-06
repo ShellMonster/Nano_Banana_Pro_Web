@@ -67,9 +67,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
       toast.success('配置已成功同步到服务器');
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('保存失败:', error);
-      toast.error('保存失败，请检查网络');
+      const msg = error.response?.data?.message || error.message || '请检查网络';
+      toast.error(`保存失败: ${msg}`);
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useGenerateStore } from '../store/generateStore';
 import { setUpdateSource, getUpdateSource } from '../store/updateSourceStore';
+import { BASE_URL } from '../services/api';
 
 export function useWebSocket(taskId: string | null) {
   // 使用 selector 获取状态，避免依赖整个 store
@@ -69,16 +70,10 @@ export function useWebSocket(taskId: string | null) {
 
   // WebSocket URL 构建函数
   const getWebSocketUrl = useCallback((id: string) => {
-    // 优先使用 VITE_WS_URL；未配置时从 VITE_API_URL 推导，避免生产环境默认连 localhost
+    // 优先使用 VITE_WS_URL；未配置时从 BASE_URL 推导
     let wsBaseUrl =
       import.meta.env.VITE_WS_URL ||
-      import.meta.env.VITE_API_URL ||
-      `${window.location.origin}/api/v1`;
-
-    // 支持相对路径（如 /api/v1）
-    if (wsBaseUrl.startsWith('/')) {
-      wsBaseUrl = `${window.location.origin}${wsBaseUrl}`;
-    }
+      BASE_URL;
 
     // http(s) -> ws(s)
     if (wsBaseUrl.startsWith('http://')) {

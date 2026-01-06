@@ -5,8 +5,10 @@ import ConfigPanel from '../ConfigPanel';
 import GenerateArea from '../GenerateArea';
 import HistoryPanel from '../HistoryPanel';
 import { useGenerateStore } from '../../store/generateStore';
-import { ChevronLeft, ChevronRight, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, SlidersHorizontal, X, AlertTriangle } from 'lucide-react';
 import { useHistoryStore } from '../../store/historyStore';
+import api from '../../services/api';
+import { toast } from '../../store/toastStore';
 
 export default function MainLayout() {
   const currentTab = useGenerateStore((s) => s.currentTab);
@@ -17,9 +19,45 @@ export default function MainLayout() {
 
   const [isHydrated, setIsHydrated] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isBackendHealthy, setIsBackendHealthy] = useState<boolean | null>(null);
 
-  // 确保状态恢复
+  // 1. 确保状态恢复
   useEffect(() => setIsHydrated(true), []);
+
+  // 2. 检查后端健康状态
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    let retryCount = 0;
+    const maxRetries = 5;
+
+    const checkHealth = async () => {
+      try {
+        await api.get('/health');
+        setIsBackendHealthy(true);
+        retryCount = 0; // 重置重试计数
+      } catch (error) {
+        console.error('Backend health check failed:', error);
+        
+        // 只有在重试多次都失败后才提示用户，给 Sidecar 启动留出时间
+        if (retryCount >= maxRetries) {
+          setIsBackendHealthy(false);
+          toast.error('无法连接到本地后端服务，请尝试重启应用');
+        } else {
+          retryCount++;
+        }
+      }
+    };
+
+    // 延迟 1 秒进行第一次检查，给 Sidecar 启动时间
+    const initialTimer = setTimeout(checkHealth, 1000);
+    const intervalTimer = setInterval(checkHealth, 5000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(intervalTimer);
+    };
+  }, [isHydrated]);
 
   // 刷新后如果仍有进行中的任务，后台拉一次历史触发 syncWithGenerateStore 做纠偏/恢复
   // 避免“必须切到历史页才恢复”的业务闭环缺口
@@ -40,6 +78,15 @@ export default function MainLayout() {
   return (
     <div className="flex flex-col h-screen bg-[#f8fafc] overflow-hidden font-sans antialiased text-slate-900">
       <Header />
+
+      {isBackendHealthy === false && (
+        <div className="mx-4 mt-2 p-3 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 animate-in fade-in slide-in-from-top-2">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          <div className="text-sm font-bold">
+            本地服务连接失败。这可能是由于服务正在启动或被防火墙拦截。
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 flex overflow-hidden p-4 gap-4 relative">
         {/* 桌面端：左侧配置栏 */}

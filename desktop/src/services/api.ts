@@ -1,8 +1,8 @@
 import axios, { AxiosInstance } from 'axios';
 import { ApiResponse } from '../types';
 
-// 根据 API 文档，后端地址默认为 http://localhost:8080
-let BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+// 根据 API 文档，后端地址默认为 http://127.0.0.1:8080
+export let BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8080/api/v1';
 
 // 创建 axios 实例
 const api = axios.create({
@@ -10,24 +10,42 @@ const api = axios.create({
   timeout: 60000,
 }) as AxiosInstance;
 
+// 标记是否已经获取到了动态端口
+let isPortDetected = false;
+
 // 如果在 Tauri 环境中，监听后端实际分配的端口
 if (window.__TAURI_INTERNALS__) {
   import('@tauri-apps/api/event').then(({ listen }) => {
     listen<{ port: number }>('backend-port', (event) => {
-      console.log('Received new backend port:', event.payload.port);
-      const newBaseUrl = `http://127.0.0.1:${event.payload.port}/api/v1`;
-      BASE_URL = newBaseUrl;
-      api.defaults.baseURL = newBaseUrl;
-      
-      // 同时也给所有的 axios 拦截器更新基础地址（如果有缓存的话）
-      console.log('API base URL updated to:', newBaseUrl);
-    });
+        console.log('Received new backend port:', event.payload.port);
+        // 使用 127.0.0.1 避免 localhost 解析问题
+        const newBaseUrl = `http://127.0.0.1:${event.payload.port}/api/v1`;
+        BASE_URL = newBaseUrl;
+        api.defaults.baseURL = newBaseUrl;
+        isPortDetected = true;
+        
+        console.log('API base URL updated to:', newBaseUrl);
+      });
   });
 }
 
-// 请求拦截器：确保在没有获取到动态端口前，如果是在 Tauri 环境下，先等待或者记录日志
-api.interceptors.request.use((config) => {
-  // 打印当前请求的完整 URL 方便调试
+// 请求拦截器
+api.interceptors.request.use(async (config) => {
+  // 如果在 Tauri 环境下且还没检测到端口，且不是第一次尝试 8080，则稍微等待一下
+  // 这可以减少刚启动时的竞争
+  if (window.__TAURI_INTERNALS__ && !isPortDetected && config.baseURL?.includes(':8080')) {
+     // 最多等待 1 秒
+     for (let i = 0; i < 10; i++) {
+       if (isPortDetected) break;
+       await new Promise(resolve => setTimeout(resolve, 100));
+     }
+  }
+
+  // 确保 config.baseURL 使用最新的 BASE_URL（如果还没设置的话）
+  if (isPortDetected && config.baseURL !== BASE_URL) {
+    config.baseURL = BASE_URL;
+  }
+
   console.log(`Making request to: ${config.baseURL}${config.url}`);
   return config;
 });

@@ -27,11 +27,17 @@ pub fn run() {
             let sidecar_command = shell.sidecar("server")
                 .unwrap()
                 .env("TAURI_PLATFORM", "macos")
-                .env("TAURI_FAMILY", "unix");
+                .env("TAURI_FAMILY", "unix")
+                .env("GODEBUG", "http2debug=2") // 开启 Go 调试日志
+                .env("GIN_MODE", "release");
             
-            let (mut rx, _child) = sidecar_command
+            println!("Attempting to spawn sidecar...");
+            
+            let (mut rx, child) = sidecar_command
                 .spawn()
                 .expect("Failed to spawn sidecar");
+
+            println!("Sidecar spawned with PID: {:?}", child.pid());
 
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
