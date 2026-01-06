@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LayoutGrid, History } from 'lucide-react';
-import { cn } from '../common/Button';
+import { LayoutGrid, History, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useGenerateStore } from '../../store/generateStore';
+import { useHistoryStore } from '../../store/historyStore';
+import { toast } from '../../store/toastStore';
+import { cn } from '../common/Button';
 
 interface TabButtonProps {
   icon: React.ReactNode;
@@ -123,8 +125,17 @@ export function FloatingTabSwitch() {
     setTab(tab);
     setIsExpanded(false);
 
-    // 注意：不需要在这里手动加载历史记录
-    // HistoryPanel 组件会监听 currentTab 变化并自动加载
+    // 切换到历史记录时，强制触发一次加载以获取最新数据
+    if (tab === 'history') {
+      console.log('[FloatingTabSwitch] 切换到历史记录，触发加载');
+      useHistoryStore.getState().loadHistory(true)
+        .then(() => {
+          toast.success('已同步最新历史记录');
+        })
+        .catch(err => {
+          console.error('Failed to reload history on tab switch:', err);
+        });
+    }
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {

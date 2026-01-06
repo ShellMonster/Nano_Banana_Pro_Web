@@ -674,9 +674,12 @@ export function ReferenceImageUpload() {
                 )}
               >
                 <ImagePlus className="w-6 h-6 text-slate-300 group-hover:text-blue-500 transition-colors" />
-                <span className="text-xs font-bold text-slate-400 group-hover:text-blue-600">
-                    {refFiles.length > 0 ? "继续添加" : "添加参考图 (支持多选或拖拽)"}
-                </span>
+                <div className="flex flex-col items-center">
+                    <span className="text-xs font-bold text-slate-400 group-hover:text-blue-600">
+                        {refFiles.length > 0 ? "继续添加" : "添加参考图"}
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">(支持多选或拖拽)</span>
+                </div>
                 <input
                     ref={fileInputRef}
                     type="file"

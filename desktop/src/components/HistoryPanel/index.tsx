@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { SearchBar } from './SearchBar';
 import { HistoryList } from './HistoryList';
 import { useHistoryStore } from '../../store/historyStore';
+import { toast } from '../../store/toastStore';
 
 interface HistoryPanelProps {
     isActive: boolean;

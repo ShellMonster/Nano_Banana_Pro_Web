@@ -43,8 +43,8 @@ Tauri 桌面端软件开发方案.md
 desktop/src-tauri/bin/
 backend/server
 backend/desktop/src-tauri/bin/
-assets/*.png
 *.png
+!assets/*.png
 desktop/src-tauri/target/
 desktop/node_modules/
 desktop/dist/
