@@ -38,6 +38,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
+      - name: 获取当前时间 (北京时间)
+        shell: bash
+        run: |
+          # 获取 UTC 时间并转换为北京时间 (UTC+8)
+          BUILD_TIME=$(date -u -d "+8 hours" "+%Y-%m-%d %H:%M:%S")
+          echo "BUILD_TIME=$BUILD_TIME" >> $GITHUB_ENV
+        if: runner.os != 'Windows'
+
+      - name: 获取当前时间 (北京时间 - Windows)
+        shell: pwsh
+        run: |
+          $buildTime = (Get-Date).AddHours(0).ToString("yyyy-MM-dd HH:mm:ss")
+          echo "BUILD_TIME=$buildTime" >> $env:GITHUB_ENV
+        if: runner.os == 'Windows'
+
       - name: 安装 Node.js 环境
         uses: actions/setup-node@v4
         with:
@@ -146,7 +161,7 @@ jobs:
             - 本地推理引擎 (Go Sidecar)
 
             ---
-            *由 GitHub Actions 自动构建发布 - ${{ github.event.repository.updated_at }}*
+            *由 GitHub Actions 自动构建发布 - ${{ env.BUILD_TIME }}*
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
@@ -173,7 +188,7 @@ jobs:
             - 本地推理引擎 (Go Sidecar)
 
             ---
-            *由 GitHub Actions 自动构建发布 - ${{ github.event.repository.updated_at }}*
+            *由 GitHub Actions 自动构建发布 - ${{ env.BUILD_TIME }}*
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
@@ -200,7 +215,7 @@ jobs:
             - 本地推理引擎 (Go Sidecar)
 
             ---
-            *由 GitHub Actions 自动构建发布 - ${{ github.event.repository.updated_at }}*
+            *由 GitHub Actions 自动构建发布 - ${{ env.BUILD_TIME }}*
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true

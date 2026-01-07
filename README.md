@@ -1,7 +1,9 @@
 # 🎨 大香蕉 AI (Banana Pro Web & Desktop)
 
 <p align="center">
-  <img src="assets/preview.png" alt="Banana Pro Web 预览" width="800">
+  <img src="assets/preview1.png" alt="Banana Pro Web 预览 1" width="800">
+  <br>
+  <img src="assets/preview2.png" alt="Banana Pro Web 预览 2" width="800">
 </p>
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
