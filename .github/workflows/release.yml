@@ -77,8 +77,8 @@ jobs:
               lipo -create \
                 ../desktop/src-tauri/bin/server-aarch64-apple-darwin \
                 ../desktop/src-tauri/bin/server-x86_64-apple-darwin \
-                -output ../desktop/src-tauri/bin/server
-              chmod +x ../desktop/src-tauri/bin/server
+                -output ../desktop/src-tauri/bin/server-universal-apple-darwin
+              chmod +x ../desktop/src-tauri/bin/server-universal-apple-darwin
             fi
           fi
 
@@ -86,15 +86,98 @@ jobs:
         run: npm install
         working-directory: ./desktop
 
-      - name: 构建并发布到 GitHub Release
+      - name: 导入 Apple 签名证书 (macOS)
+        id: import_apple_cert
+        if: matrix.platform == 'macos-latest' && secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != ''
+        continue-on-error: true
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          CERT_PATH="$RUNNER_TEMP/tauri-signing-certificate.p12"
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          security import "$CERT_PATH" -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          security find-identity -v -p codesigning build.keychain
+
+          CERT_ID="$(security find-identity -v -p codesigning build.keychain | grep -o '\"[^\"]\\+\"' | head -n 1 | tr -d '\"')"
+          if [ -z "$CERT_ID" ]; then
+            echo "No codesigning identity found in keychain" >&2
+            exit 1
+          fi
+          echo "APPLE_SIGNING_IDENTITY=$CERT_ID" >> "$GITHUB_ENV"
+
+      - name: 构建并发布到 GitHub Release (macOS Signed)
+        if: matrix.platform == 'macos-latest' && steps.import_apple_cert.outcome == 'success'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
+        with:
+          projectPath: './desktop'
+          args: ${{ matrix.tauriArgs }}
+          tagName: ${{ github.ref_name }}
+          releaseName: '大香蕉 AI ${{ github.ref_name }}'
+          releaseBody: |
+            ## 🎨 大香蕉 AI - 创作从未如此简单
+
+            ### 🚀 本次更新
+            ${{ github.event.head_commit.message }}
+
+            ### 📦 包含组件
+            - 桌面客户端 (Tauri)
+            - 本地推理引擎 (Go Sidecar)
+
+            ---
+            *由 GitHub Actions 自动构建发布 - ${{ github.event.repository.updated_at }}*
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          includeRelease: true
+
+      - name: 构建并发布到 GitHub Release (macOS Unsigned)
+        if: matrix.platform == 'macos-latest' && steps.import_apple_cert.outcome != 'success'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: './desktop'
+          args: ${{ matrix.tauriArgs }} --no-sign
+          tagName: ${{ github.ref_name }}
+          releaseName: '大香蕉 AI ${{ github.ref_name }}'
+          releaseBody: |
+            ## 🎨 大香蕉 AI - 创作从未如此简单
+
+            ### 🚀 本次更新
+            ${{ github.event.head_commit.message }}
+
+            ### 📦 包含组件
+            - 桌面客户端 (Tauri)
+            - 本地推理引擎 (Go Sidecar)
+
+            ---
+            *由 GitHub Actions 自动构建发布 - ${{ github.event.repository.updated_at }}*
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          includeRelease: true
+
+      - name: 构建并发布到 GitHub Release (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: './desktop'
           args: ${{ matrix.tauriArgs }}

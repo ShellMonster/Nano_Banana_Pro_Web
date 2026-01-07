@@ -1,8 +1,11 @@
-import React, { useMemo } from 'react';
-import { Check, AlertCircle, Loader2, XCircle } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Check, AlertCircle, Loader2, Trash2, XCircle } from 'lucide-react';
 import { GeneratedImage } from '../../types';
 import { cn } from '../common/Button';
 import { formatDateTime } from '../../utils/date';
+import { useGenerateStore } from '../../store/generateStore';
+import { useHistoryStore } from '../../store/historyStore';
+import { toast } from '../../store/toastStore';
 
 interface ImageCardProps {
   image: GeneratedImage;
@@ -22,6 +25,54 @@ export const ImageCard = React.memo(function ImageCard({
   const isFailed = image.status === 'failed';
   const isPending = !isFailed && (image.status === 'pending' || !image.url);
   const isSuccess = image.status === 'success' && Boolean(image.url);
+  const reserveSpaceForSelect = isPending || isSuccess;
+
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const [showConfirm, setShowConfirm] = React.useState(false);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (confirmTimerRef.current) {
+        clearTimeout(confirmTimerRef.current);
+        confirmTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleCancelConfirm = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowConfirm(false);
+  }, []);
+
+  const handleDelete = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (showConfirm) {
+      setIsDeleting(true);
+      try {
+        const isTemp = image.id.startsWith('temp-') || !image.taskId;
+        if (!isTemp && image.taskId) {
+          await useHistoryStore.getState().deleteImage(image.id, image.taskId);
+        } else {
+          toast.success('已从生成列表移除');
+        }
+
+        useGenerateStore.getState().removeImage(image.id);
+        setIsDeleting(false);
+        setShowConfirm(false);
+      } catch (error) {
+        console.error('删除图片失败:', error);
+        setIsDeleting(false);
+      }
+    } else {
+      setShowConfirm(true);
+      if (confirmTimerRef.current) {
+        clearTimeout(confirmTimerRef.current);
+      }
+      confirmTimerRef.current = setTimeout(() => setShowConfirm(false), 3000);
+    }
+  }, [showConfirm, image.id, image.taskId]);
 
   const meta = useMemo(() => {
     const w = image.width || 0;
@@ -127,6 +178,62 @@ export const ImageCard = React.memo(function ImageCard({
         "relative w-full aspect-square overflow-hidden transition-colors duration-500",
         isPending ? "bg-blue-50/50" : "bg-slate-50"
       )}>
+        {/* 删除按钮 - 纯 CSS hover，不依赖 JavaScript */}
+        {!showConfirm && (
+          <div
+            className={cn(
+              "absolute top-2 z-40 transition-opacity duration-100 ease-out opacity-0 group-hover:opacity-100 pointer-events-none",
+              reserveSpaceForSelect ? "right-10" : "right-2"
+            )}
+          >
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className={cn(
+                "rounded-full flex items-center justify-center shadow-lg transition-all duration-200 bg-red-500 hover:bg-red-600 text-white w-7 h-7 sm:w-8 sm:h-8 pointer-events-auto",
+                isDeleting ? "opacity-50 cursor-not-allowed" : ""
+              )}
+              title="删除图片"
+            >
+              {isDeleting ? (
+                <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* 确认删除 */}
+        {showConfirm && (
+          <div className="absolute top-2 right-2 z-40 flex items-center gap-2 pointer-events-none">
+            <button
+              onClick={handleCancelConfirm}
+              className="bg-slate-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-600 transition-colors shadow-lg pointer-events-auto"
+              title="取消"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className={cn(
+                "rounded-full flex items-center justify-center shadow-lg transition-all duration-200 bg-red-600 text-white w-auto px-3 h-8 pointer-events-auto",
+                isDeleting ? "opacity-50 cursor-not-allowed" : ""
+              )}
+              title="再次点击确认删除"
+            >
+              {isDeleting ? (
+                <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <span className="text-xs font-bold">确认?</span>
+              )}
+            </button>
+          </div>
+        )}
+
         {isPending ? (
           <div className="w-full h-full flex flex-col items-center justify-center relative p-4 bg-blue-50/30">
             {/* 加载动画 - 强化版 */}
@@ -154,22 +261,24 @@ export const ImageCard = React.memo(function ImageCard({
             </div>
 
             {/* 选择框 (正在生成时也可以选择) */}
-            <div
-              className="absolute top-2 right-2 z-30"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect(image.id);
-              }}
-            >
-              <div className={cn(
-                "w-5 h-5 rounded-full border-2 transition-all flex items-center justify-center",
-                selected
-                  ? "bg-blue-500 border-blue-500 text-white"
-                  : "bg-black/10 border-white/40 text-transparent hover:border-white"
-              )}>
-                <Check className="w-3 h-3" />
+            {!showConfirm && (
+              <div
+                className="absolute top-2 right-2 z-30"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelect(image.id);
+                }}
+              >
+                <div className={cn(
+                  "w-5 h-5 rounded-full border-2 transition-all flex items-center justify-center",
+                  selected
+                    ? "bg-blue-500 border-blue-500 text-white"
+                    : "bg-black/10 border-white/40 text-transparent hover:border-white"
+                )}>
+                  <Check className="w-3 h-3" />
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : isSuccess ? (
           <div className="w-full h-full relative">
@@ -184,25 +293,27 @@ export const ImageCard = React.memo(function ImageCard({
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300" />
 
             {/* 选择框 */}
-            <div
-              className={cn(
-                "absolute top-2 right-2 z-30 transition-all duration-300",
-                selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-              )}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect(image.id);
-              }}
-            >
-              <div className={cn(
-                "w-5 h-5 rounded-full border-2 transition-all flex items-center justify-center",
-                selected
-                  ? "bg-blue-500 border-blue-500 text-white"
-                  : "bg-black/10 border-white/40 text-transparent hover:border-white"
-              )}>
-                <Check className="w-3 h-3" />
+            {!showConfirm && (
+              <div
+                className={cn(
+                  "absolute top-2 right-2 z-30 transition-all duration-300",
+                  selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                )}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelect(image.id);
+                }}
+              >
+                <div className={cn(
+                  "w-5 h-5 rounded-full border-2 transition-all flex items-center justify-center",
+                  selected
+                    ? "bg-blue-500 border-blue-500 text-white"
+                    : "bg-black/10 border-white/40 text-transparent hover:border-white"
+                )}>
+                  <Check className="w-3 h-3" />
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center bg-red-50/50 p-4 transition-colors duration-500">
