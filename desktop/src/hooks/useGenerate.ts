@@ -198,6 +198,12 @@ export function useGenerate() {
       return;
     }
 
+    // 优化 UX：如果用户在历史页点击“开始生成”，先立刻切到生成页
+    // 避免历史页在请求期间/状态切换时出现“跳回顶部再切页”的观感
+    if (useGenerateStore.getState().currentTab !== 'generate') {
+      useGenerateStore.getState().setTab('generate');
+    }
+
     setSubmitting(true);
     setIsInternalSubmitting(true);
     try {

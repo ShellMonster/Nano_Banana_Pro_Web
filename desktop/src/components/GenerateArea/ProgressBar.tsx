@@ -6,7 +6,7 @@ export function ProgressBar() {
 
   if (status !== 'processing') return null;
 
-  const percentage = Math.round((completedCount / totalCount) * 100);
+  const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   // 连接状态显示
   const getConnectionStatus = () => {

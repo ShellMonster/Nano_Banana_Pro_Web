@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy, useMemo } from 'react';
 import { Header } from './Header';
 import { FloatingTabSwitch } from './FloatingTabSwitch';
 import GenerateArea from '../GenerateArea';
 import { useGenerateStore } from '../../store/generateStore';
 import { ChevronLeft, ChevronRight, SlidersHorizontal, X, AlertTriangle, Loader2 } from 'lucide-react';
-import { useHistoryStore } from '../../store/historyStore';
 import api from '../../services/api';
 import { toast } from '../../store/toastStore';
 import { VersionBadge } from '../common/VersionBadge';
+import { getTaskStatus } from '../../services/generateApi';
 
 // 使用懒加载减少初始包体积
 const ConfigPanel = lazy(() => import('../ConfigPanel'));
@@ -31,6 +31,7 @@ export default function MainLayout() {
   const setSidebarOpen = useGenerateStore((s) => s.setSidebarOpen);
   const taskId = useGenerateStore((s) => s.taskId);
   const status = useGenerateStore((s) => s.status);
+  const images = useGenerateStore((s) => s.images);
 
   const [isHydrated, setIsHydrated] = useState(false);
   const [isTauriReady, setIsTauriReady] = useState(false);
@@ -78,19 +79,90 @@ export default function MainLayout() {
     };
   }, [isHydrated]);
 
-  // 刷新后如果仍有进行中的任务，后台拉一次历史触发 syncWithGenerateStore 做纠偏/恢复
-  // 避免“必须切到历史页才恢复”的业务闭环缺口
-  const hasSyncedProcessingTaskRef = useRef(false);
+  const hasCurrentTaskImages = useMemo(() => {
+    if (!taskId) return false;
+    return images.some((img) => img.taskId === taskId);
+  }, [images, taskId]);
+
+  // 冷启动恢复：如果本地持久化了 processing taskId，但生成区没有任何该任务的卡片
+  // 常见于：退出 App 后重开，Sidecar 后端尚未就绪导致未能及时同步，UI 会“卡在生成中但列表空”
+  const isRecoveringTaskRef = useRef(false);
   useEffect(() => {
     if (!isHydrated || !isTauriReady) return;
-    if (hasSyncedProcessingTaskRef.current) return;
     if (status !== 'processing' || !taskId) return;
+    if (hasCurrentTaskImages) return;
+    if (isRecoveringTaskRef.current) return;
 
-    hasSyncedProcessingTaskRef.current = true;
-    useHistoryStore.getState().loadHistory(true, { silent: true }).catch(() => {});
-  }, [isHydrated, isTauriReady, status, taskId]);
+    isRecoveringTaskRef.current = true;
+    let cancelled = false;
 
-  // 任务恢复逻辑：由历史记录加载后的 syncWithGenerateStore 处理
+    const recover = async () => {
+      const maxAttempts = 12;
+      for (let attempt = 0; attempt < maxAttempts && !cancelled; attempt++) {
+        try {
+          const taskData = await getTaskStatus(taskId);
+          if (cancelled) return;
+
+          const current = useGenerateStore.getState();
+          if (current.status !== 'processing' || current.taskId !== taskId) return;
+
+          // 后端 task.status 为 pending/processing/completed/failed
+          if (taskData.status === 'processing' || taskData.status === 'pending') {
+            current.restoreTaskState({
+              taskId,
+              status: 'processing',
+              totalCount: taskData.totalCount,
+              completedCount: taskData.completedCount,
+              images: taskData.images || []
+            });
+            return;
+          }
+
+          if (taskData.status === 'completed') {
+            // 恢复完成态：保留图片展示，避免用户感觉“生成丢了”
+            current.restoreTaskState({
+              taskId,
+              status: 'processing',
+              totalCount: taskData.totalCount,
+              completedCount: taskData.completedCount,
+              images: taskData.images || []
+            });
+            current.completeTask();
+            return;
+          }
+
+          if (taskData.status === 'failed') {
+            current.failTask(taskData.errorMessage || '生成任务失败');
+            return;
+          }
+
+          // 兜底：未知状态，清理本地任务状态，避免卡在 processing
+          current.clearTaskState();
+          return;
+        } catch (err) {
+          // Sidecar 启动/端口切换期间可能短暂失败：做有限次重试，避免“永远卡住”
+          const delay = Math.min(500 * (attempt + 1), 3000);
+          await new Promise((r) => setTimeout(r, delay));
+        }
+      }
+
+      // 重试仍失败：如果仍然没有任何可展示的卡片，清理掉 processing 状态避免 UI 假死
+      const current = useGenerateStore.getState();
+      if (current.status === 'processing' && current.taskId === taskId && current.images.length === 0) {
+        current.clearTaskState();
+      }
+    };
+
+    recover().finally(() => {
+      isRecoveringTaskRef.current = false;
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isHydrated, isTauriReady, status, taskId, hasCurrentTaskImages]);
+
+  // 任务恢复逻辑：冷启动恢复 + 轮询/WS 驱动进度更新
 
   const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
 
