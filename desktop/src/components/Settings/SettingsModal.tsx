@@ -230,9 +230,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         isOpen={isOpen} 
         onClose={onClose} 
         title="系统设置" 
-        className="max-w-md"
+        className="max-w-sm"
+        density="compact"
     >
-      <div className="space-y-8 relative">
+      <div className="space-y-5 relative">
         {fetching && (
           <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center rounded-2xl backdrop-blur-[1px]">
             <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
@@ -248,7 +249,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           <Select 
             value={provider} 
             onChange={handleProviderChange} 
-            className="h-12 bg-slate-100 text-slate-900 font-bold rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+            className="h-10 bg-slate-100 text-slate-900 font-bold rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
           >
             <option value="gemini">Google Gemini</option>
             {/* 后续可扩展更多 provider */}
@@ -266,7 +267,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             value={apiBaseUrl || ''}
             onChange={(e) => setApiBaseUrl(e.target.value)}
             placeholder="https://generativelanguage.googleapis.com"
-            className="h-12 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+            className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
           />
           <button
             type="button"
@@ -292,7 +293,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               value={apiKey || ''}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="sk-******************"
-              className="h-12 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 pr-14 focus:bg-white border border-slate-200 transition-all shadow-none"
+              className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 pr-14 focus:bg-white border border-slate-200 transition-all shadow-none"
             />
             <button
               type="button"
@@ -314,7 +315,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             type="text"
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            className="h-12 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+            className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
           />
         </div>
 
@@ -328,7 +329,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             type="button"
             variant="secondary"
             onClick={handleCheckUpdates}
-            className="w-full h-12 rounded-2xl"
+            className="w-full h-10 rounded-2xl"
             disabled={isCheckingUpdates}
           >
             {isCheckingUpdates ? (
@@ -385,7 +386,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               type="button"
               variant="secondary"
               onClick={handleOpenLogDir}
-              className="flex-1 h-12 rounded-2xl"
+            className="flex-1 h-10 rounded-2xl"
             >
               <FolderOpen className="w-4 h-4 mr-2" />
               打开日志目录
@@ -394,7 +395,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               type="button"
               variant="ghost"
               onClick={handleCopyLogDir}
-              className="h-12 rounded-2xl"
+            className="h-10 rounded-2xl"
               title="复制日志目录路径"
             >
               <Copy className="w-4 h-4" />
@@ -414,11 +415,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </p>
         </div>
 
-        <div className="pt-4">
+        <div className="pt-3">
             <Button 
                 onClick={handleSave} 
                 disabled={loading}
-                className="w-full h-14 text-base bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black rounded-2xl shadow-xl shadow-blue-200/50 border-none transition-all duration-300"
+                className="w-full h-12 text-base bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black rounded-2xl shadow-xl shadow-blue-200/50 border-none transition-all duration-300"
             >
                 {loading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />

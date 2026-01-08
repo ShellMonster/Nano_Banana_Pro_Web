@@ -9,9 +9,18 @@ interface ModalProps {
   title?: string;
   className?: string;
   hideHeader?: boolean;
+  density?: 'default' | 'compact';
 }
 
-export function Modal({ isOpen, onClose, children, title, className = '', hideHeader = false }: ModalProps) {
+export function Modal({
+  isOpen,
+  onClose,
+  children,
+  title,
+  className = '',
+  hideHeader = false,
+  density = 'default'
+}: ModalProps) {
   // 当弹窗打开时，禁止背景滚动
   useEffect(() => {
     if (isOpen) {
@@ -47,23 +56,43 @@ export function Modal({ isOpen, onClose, children, title, className = '', hideHe
         `}
       >
         {!hideHeader && (
-            <div className="flex items-center justify-between px-10 py-8 border-b border-slate-200/20 flex-shrink-0">
+            <div
+              className={[
+                'flex items-center justify-between border-b border-slate-200/20 flex-shrink-0',
+                density === 'compact' ? 'px-8 py-5' : 'px-10 py-8'
+              ].join(' ')}
+            >
                 {title ? (
-                    <h3 className="text-2xl font-black text-slate-900 tracking-tighter">
+                    <h3
+                      className={[
+                        'font-black text-slate-900 tracking-tighter',
+                        density === 'compact' ? 'text-xl' : 'text-2xl'
+                      ].join(' ')}
+                    >
                         {title}
                     </h3>
                 ) : <div />}
                 <button
                     onClick={onClose}
-                    className="p-3 bg-slate-200/30 hover:bg-white rounded-2xl transition-all text-slate-400 hover:text-slate-900 active:scale-90"
+                    className={[
+                      'bg-slate-200/30 hover:bg-white rounded-2xl transition-all text-slate-400 hover:text-slate-900 active:scale-90',
+                      density === 'compact' ? 'p-2.5' : 'p-3'
+                    ].join(' ')}
                 >
-                    <X className="w-6 h-6" />
+                    <X className={density === 'compact' ? 'w-5 h-5' : 'w-6 h-6'} />
                 </button>
             </div>
         )}
         
         {/* 内容区域 - 确保可滚动且不被遮挡 */}
-        <div className={`flex-1 overflow-y-auto scrollbar-none ${hideHeader ? '' : 'px-10 py-8 pb-12'}`}>
+        <div
+          className={[
+            'flex-1 overflow-y-auto scrollbar-none',
+            hideHeader
+              ? ''
+              : (density === 'compact' ? 'px-8 py-5 pb-8' : 'px-10 py-8 pb-12')
+          ].join(' ')}
+        >
           {children}
         </div>
       </div>
