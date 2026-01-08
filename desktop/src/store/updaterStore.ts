@@ -92,8 +92,28 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         if (openIfAvailable) set({ isOpen: true });
       } catch (err) {
         console.error('[updater] check failed:', err);
-        const message = err instanceof Error ? err.message : '检查更新失败';
-        set({ status: 'error', error: message });
+        const rawMessage = err instanceof Error ? err.message : '检查更新失败';
+        const message = (() => {
+          const text = String(rawMessage || '').trim();
+          const lower = text.toLowerCase();
+          if ((lower.includes('404') || lower.includes('not found')) && lower.includes('latest.json')) {
+            return '检查更新失败：未找到更新清单（latest.json）。请确认已发布带 Updater 产物的 Release。';
+          }
+          if (lower.includes('pubkey') || lower.includes('public key')) {
+            return '检查更新失败：Updater 公钥未配置或与签名不匹配。';
+          }
+          if (
+            lower.includes('failed to connect') ||
+            lower.includes('timed out') ||
+            lower.includes('timeout') ||
+            lower.includes('connection refused')
+          ) {
+            return '检查更新失败：网络连接失败，请稍后重试。';
+          }
+          return text || '检查更新失败';
+        })();
+
+        set({ status: 'error', error: rawMessage });
         if (!silent) {
           // 常见：pubkey 未配置 / latest.json 不存在 / 网络问题
           toast.error(message || '检查更新失败');

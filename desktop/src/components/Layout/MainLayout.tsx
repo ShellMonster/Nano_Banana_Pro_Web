@@ -8,6 +8,7 @@ import api from '../../services/api';
 import { toast } from '../../store/toastStore';
 import { VersionBadge } from '../common/VersionBadge';
 import { getTaskStatus } from '../../services/generateApi';
+import { getUpdateSource } from '../../store/updateSourceStore';
 
 // 使用懒加载减少初始包体积
 const ConfigPanel = lazy(() => import('../ConfigPanel'));
@@ -163,6 +164,100 @@ export default function MainLayout() {
   }, [isHydrated, isTauriReady, status, taskId, hasCurrentTaskImages]);
 
   // 任务恢复逻辑：冷启动恢复 + 轮询/WS 驱动进度更新
+
+  // 常驻 Watchdog：当轮询/WS 因组件卸载或竞态停摆时，兜底同步任务完成态
+  // 典型场景：移动端抽屉关闭导致 ConfigPanel 卸载，useGenerate 内的轮询随之停止
+  const isTaskWatchdogRunningRef = useRef(false);
+  const hasWarnedCountMismatchRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isHydrated || !isTauriReady) return;
+
+    let cancelled = false;
+    const POLL_MS = 3000;
+    const POLL_ALIVE_THRESHOLD_MS = 4500;
+
+    const tick = async () => {
+      if (cancelled) return;
+
+      const state = useGenerateStore.getState();
+      const currentTaskId = state.taskId;
+      if (state.status !== 'processing' || !currentTaskId) return;
+
+      const now = Date.now();
+      const last = state.lastMessageTime ?? state.startTime ?? now;
+      const staleMs = now - last;
+
+      // 若已有“看起来活着”的轮询在跑，就不要重复拉（避免桌面端双重轮询）
+      const source = getUpdateSource();
+      const pollingSeemsAlive = source === 'polling' && state.connectionMode === 'polling' && staleMs < POLL_ALIVE_THRESHOLD_MS;
+      if (pollingSeemsAlive) return;
+
+      if (isTaskWatchdogRunningRef.current) return;
+      isTaskWatchdogRunningRef.current = true;
+
+      try {
+        const taskData = await getTaskStatus(currentTaskId);
+        if (cancelled) return;
+
+        const latest = useGenerateStore.getState();
+        if (latest.status !== 'processing' || latest.taskId !== currentTaskId) return;
+
+        // 同步图片与进度（保持生成区展示最新结果）
+        if (taskData.images && taskData.images.length > 0) {
+          latest.updateProgressBatch(taskData.completedCount, taskData.images);
+        } else {
+          latest.updateProgress(taskData.completedCount, null);
+        }
+
+        // 若后端已完成/失败，立即结束生成态（避免“时间一直计数但不结束”）
+        if (taskData.status === 'completed') {
+          if (
+            taskData.totalCount > 1 &&
+            (taskData.images?.length || 0) < taskData.totalCount &&
+            hasWarnedCountMismatchRef.current !== currentTaskId
+          ) {
+            hasWarnedCountMismatchRef.current = currentTaskId;
+            toast.info(`本次请求期望生成 ${taskData.totalCount} 张，但后端仅返回 ${taskData.images?.length || 0} 张`);
+          }
+          latest.completeTask();
+          return;
+        }
+
+        if (taskData.status === 'failed') {
+          latest.failTask(taskData.errorMessage || '生成任务失败');
+          return;
+        }
+
+        if (taskData.status === 'partial') {
+          toast.info('生成任务部分完成，请查看历史记录');
+          latest.completeTask();
+          return;
+        }
+
+        // 仍在 processing：若 WebSocket 模式下长时间无更新，切到 polling 让后续逻辑可接管
+        if (staleMs > POLL_ALIVE_THRESHOLD_MS && latest.connectionMode !== 'polling') {
+          latest.setConnectionMode('polling');
+        }
+      } catch (err) {
+        // 网络/端口切换短暂失败：不打断用户，仅在需要时切到 polling 以便重试
+        const latest = useGenerateStore.getState();
+        if (!cancelled && latest.status === 'processing' && latest.taskId === currentTaskId && latest.connectionMode !== 'polling') {
+          latest.setConnectionMode('polling');
+        }
+      } finally {
+        isTaskWatchdogRunningRef.current = false;
+      }
+    };
+
+    const timer = setInterval(() => void tick(), POLL_MS);
+    const immediate = setTimeout(() => void tick(), 1000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      clearTimeout(immediate);
+    };
+  }, [isHydrated, isTauriReady]);
 
   const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
 

@@ -279,15 +279,26 @@ function syncWithGenerateStore(historyItems: HistoryItem[]) {
     console.log(`Task status mismatch: local=${currentStatus}, history=${historyStatus}, clearing local state`);
 
     if (historyStatus === 'completed') {
-      generateStore.clearTaskState();
-      // 任务已完成，不显示提示（避免打扰）
+      // 任务已完成：同步最后结果并结束生成态（避免生成区“卡在生成中”）
+      if (currentTaskInHistory.images.length > 0) {
+        generateStore.updateProgressBatch(currentTaskInHistory.completedCount, currentTaskInHistory.images);
+      } else {
+        generateStore.updateProgress(currentTaskInHistory.completedCount, null);
+      }
+      generateStore.completeTask();
+      // 不显示 toast，避免打扰
     } else if (historyStatus === 'failed') {
-      generateStore.clearTaskState();
-      // 任务失败，显示提示
+      // 任务失败：结束生成态并提示
+      generateStore.failTask(currentTaskInHistory.errorMessage || '生成任务失败');
       toast.error(`生成任务失败：${currentTaskInHistory.errorMessage || '未知错误'}`);
     } else if (historyStatus === 'partial') {
-      generateStore.clearTaskState();
-      // 部分完成
+      // 部分完成：同步已生成的结果并结束生成态
+      if (currentTaskInHistory.images.length > 0) {
+        generateStore.updateProgressBatch(currentTaskInHistory.completedCount, currentTaskInHistory.images);
+      } else {
+        generateStore.updateProgress(currentTaskInHistory.completedCount, null);
+      }
+      generateStore.completeTask();
       toast.info('生成任务部分完成，请查看历史记录');
     } else {
       generateStore.clearTaskState();

@@ -199,6 +199,50 @@ jobs:
           includeUpdaterJson: true
           includeRelease: true
 
+      # 注意：macOS 下如果使用 `--no-sign`，会同时跳过 Updater(minisign)签名。
+      # 为确保 App 内“检查更新”可用，这里统一对 .app.tar.gz 生成并上传 .sig（覆盖同名文件，便于重跑）。
+      - name: 生成并上传 Updater 签名 (macOS)
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "TAURI_SIGNING_PRIVATE_KEY is empty, cannot sign updater bundles." >&2
+            exit 1
+          fi
+
+          cd desktop
+
+          KEY_PATH="$RUNNER_TEMP/tauri-updater.key"
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > "$KEY_PATH"
+
+          TARGET_DIR="src-tauri/target"
+          # matrix.tauriArgs 形如: "--target aarch64-apple-darwin" / "--target universal-apple-darwin"
+          TARGET_TRIPLE="$(echo "${{ matrix.tauriArgs }}" | sed -E 's/.*--target[[:space:]]+([^[:space:]]+).*/\\1/')"
+          BUNDLE_DIR="$TARGET_DIR/$TARGET_TRIPLE/release/bundle/macos"
+
+          UPDATE_BUNDLE="$(ls -1 "$BUNDLE_DIR"/*.app.tar.gz | head -n 1 || true)"
+          if [ -z "$UPDATE_BUNDLE" ]; then
+            echo "Updater bundle not found in: $BUNDLE_DIR" >&2
+            ls -la "$BUNDLE_DIR" || true
+            exit 1
+          fi
+
+          # 生成 .sig（输出路径为 <file>.sig）
+          npm run -s tauri -- signer sign -f "$KEY_PATH" -p "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" "$UPDATE_BUNDLE"
+
+          SIG_PATH="${UPDATE_BUNDLE}.sig"
+          if [ ! -f "$SIG_PATH" ]; then
+            echo "Signature not generated: $SIG_PATH" >&2
+            exit 1
+          fi
+
+          # 上传到 Release（覆盖同名文件，便于重跑）
+          gh release upload "${{ github.ref_name }}" "$SIG_PATH" --clobber
+
       - name: 构建并发布到 GitHub Release (Windows)
         if: matrix.platform == 'windows-latest'
         uses: tauri-apps/tauri-action@v0
@@ -225,3 +269,98 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           includeRelease: true
+
+  # 生成/刷新 latest.json（给 Tauri Updater 使用）
+  # 说明：当前流水线是 matrix 并行构建，tauri-action 在某些组合/重跑场景下可能不会自动上传 latest.json。
+  # 这里统一在所有平台构建完成后，根据 Release 资产生成 latest.json 并上传（保证 App 内“检查更新”可用）。
+  publish-updater-json:
+    name: 发布 Updater latest.json
+    needs: build-and-release
+    if: always()
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: 生成 latest.json 并上传
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          TAG="${{ github.ref_name }}"
+          REPO="${{ github.repository }}"
+
+          echo "Fetching release info: $REPO $TAG"
+          gh api -H 'Accept: application/vnd.github+json' "repos/${REPO}/releases/tags/${TAG}" > release.json
+
+          # 使用 python 构建 platforms 映射（从 Release 资产里找 bundle 与 .sig）
+          python - <<'PY'
+          import json, re, urllib.request
+
+          with open("release.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+          tag = data.get("tag_name") or ""
+          version = tag[1:] if tag.startswith("v") else tag
+
+          assets = data.get("assets") or []
+          assets_by_name = {a.get("name"): a for a in assets if a.get("name")}
+
+          def find_asset(patterns):
+            for pat in patterns:
+              rx = re.compile(pat)
+              for name, a in assets_by_name.items():
+                if rx.search(name):
+                  return a
+            return None
+
+          # macOS: updater bundle 是 *.app.tar.gz + *.app.tar.gz.sig
+          mac_arm = find_asset([r"(?i)aarch64.*\\.app\\.tar\\.gz$", r"(?i)\\.app\\.tar\\.gz$.*aarch64"])
+          mac_universal = find_asset([r"(?i)universal.*\\.app\\.tar\\.gz$", r"(?i)\\.app\\.tar\\.gz$.*universal"])
+
+          # windows: createUpdaterArtifacts=true 模式下，updater 复用 setup.exe + setup.exe.sig
+          win_exe = find_asset([r"(?i)_x64-setup\\.exe$"])
+
+          # 对应 .sig（优先同名 + .sig）
+          def sig_for(asset):
+            if not asset:
+              return None
+            name = asset["name"]
+            return assets_by_name.get(name + ".sig")
+
+          mac_arm_sig = sig_for(mac_arm)
+          mac_universal_sig = sig_for(mac_universal)
+          win_sig = sig_for(win_exe)
+
+          def fetch_text(url):
+            with urllib.request.urlopen(url) as f:
+              return f.read().decode("utf-8").strip()
+
+          platforms = {}
+          # Apple Silicon：优先 aarch64；若缺失则回退到 universal
+          if mac_arm and mac_arm_sig:
+            platforms["darwin-aarch64"] = {"url": mac_arm["browser_download_url"], "signature": fetch_text(mac_arm_sig["browser_download_url"])}
+          elif mac_universal and mac_universal_sig:
+            platforms["darwin-aarch64"] = {"url": mac_universal["browser_download_url"], "signature": fetch_text(mac_universal_sig["browser_download_url"])}
+
+          # Intel：使用 universal 更新包
+          if mac_universal and mac_universal_sig:
+            platforms["darwin-x86_64"] = {"url": mac_universal["browser_download_url"], "signature": fetch_text(mac_universal_sig["browser_download_url"])}
+
+          if win_exe and win_sig:
+            platforms["windows-x86_64"] = {"url": win_exe["browser_download_url"], "signature": fetch_text(win_sig["browser_download_url"])}
+
+          if not platforms:
+            raise SystemExit("no platforms collected; cannot generate latest.json")
+
+          pub_date = data.get("published_at") or data.get("created_at") or ""
+          notes = data.get("body") or ""
+          out = {"version": version or tag, "notes": notes, "pub_date": pub_date, "platforms": platforms}
+
+          with open("latest.json", "w", encoding="utf-8") as f:
+            json.dump(out, f, ensure_ascii=False, indent=2)
+          print("Generated latest.json with platforms:", ", ".join(platforms.keys()))
+          PY
+
+          gh release upload "$TAG" latest.json --clobber
