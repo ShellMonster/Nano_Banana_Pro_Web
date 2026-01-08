@@ -214,6 +214,9 @@ jobs:
             exit 1
           fi
 
+          REPO="${{ github.repository }}"
+          TAG="${{ github.ref_name }}"
+
           cd desktop
 
           KEY_PATH="$RUNNER_TEMP/tauri-updater.key"
@@ -241,7 +244,29 @@ jobs:
           fi
 
           # 上传到 Release（覆盖同名文件，便于重跑）
-          gh release upload "${{ github.ref_name }}" "$SIG_PATH" --clobber
+          # 注意：tauri-action 可能会在上传时重命名 updater bundle（例如：AI_aarch64.app.tar.gz）。
+          # 为确保 latest.json 能通过 "<bundle>.sig" 找到签名，这里把本地生成的 .sig 重命名成 Release 上的 bundle 文件名 + .sig 再上传。
+          if [ "$TARGET_TRIPLE" = "universal-apple-darwin" ]; then
+            MATCH_RE="universal.*\\.app\\.tar\\.gz$"
+          else
+            MATCH_RE="aarch64.*\\.app\\.tar\\.gz$"
+          fi
+
+          REMOTE_BUNDLE_NAME="$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name' | grep -iE "$MATCH_RE" | head -n 1 || true)"
+          if [ -z "$REMOTE_BUNDLE_NAME" ]; then
+            # 兜底：如果没有按架构命名，直接取第一个 *.app.tar.gz
+            REMOTE_BUNDLE_NAME="$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name' | grep -iE '\\.app\\.tar\\.gz$' | head -n 1 || true)"
+          fi
+
+          if [ -z "$REMOTE_BUNDLE_NAME" ]; then
+            echo "Cannot find uploaded updater bundle in GitHub Release assets for $TAG" >&2
+            gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name' || true
+            exit 1
+          fi
+
+          REMOTE_SIG_NAME="${REMOTE_BUNDLE_NAME}.sig"
+          cp "$SIG_PATH" "$REMOTE_SIG_NAME"
+          gh release upload "$TAG" "$REMOTE_SIG_NAME" --clobber --repo "$REPO"
 
       - name: 构建并发布到 GitHub Release (Windows)
         if: matrix.platform == 'windows-latest'
@@ -363,4 +388,4 @@ jobs:
           print("Generated latest.json with platforms:", ", ".join(platforms.keys()))
           PY
 
-          gh release upload "$TAG" latest.json --clobber
+          gh release upload "$TAG" latest.json --clobber --repo "$REPO"
