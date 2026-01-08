@@ -21,9 +21,7 @@ jobs:
           # macOS 通用包（Universal 2：arm64 + x86_64）
           - name: macOS (Universal)
             platform: macos-latest
-            # CI 上 Tauri 自带 DMG 美化脚本（bundle_dmg.sh）偶发失败；这里先只让 Tauri 产出 app + updater bundle，
-            # DMG 由后续步骤使用 hdiutil 生成并上传（更稳定）。
-            tauriArgs: '--target universal-apple-darwin --bundles app'
+            tauriArgs: '--target universal-apple-darwin'
           # Windows 安装包（使用 NSIS，避免 WiX/Light.exe 失败导致整条流水线挂掉）
           - name: Windows (x64)
             platform: windows-latest
@@ -269,48 +267,6 @@ jobs:
           REMOTE_SIG_NAME="${REMOTE_BUNDLE_NAME}.sig"
           cp "$SIG_PATH" "$REMOTE_SIG_NAME"
           gh release upload "$TAG" "$REMOTE_SIG_NAME" --clobber --repo "$REPO"
-
-      - name: 生成并上传 DMG (macOS Universal)
-        if: matrix.platform == 'macos-latest' && matrix.name == 'macOS (Universal)'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          REPO="${{ github.repository }}"
-          TAG="${{ github.ref_name }}"
-          VERSION="${TAG#v}"
-
-          cd desktop
-
-          # 取 Release 上 universal updater bundle 的前缀（例如 AI_universal.app.tar.gz -> AI），避免在 workflow 里写死
-          REMOTE_BUNDLE_NAME="$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name' | grep -iE 'universal.*\\.app\\.tar\\.gz$' | head -n 1 || true)"
-          PREFIX="${REMOTE_BUNDLE_NAME%%_*}"
-          if [ -z "$PREFIX" ] || [ "$PREFIX" = "$REMOTE_BUNDLE_NAME" ]; then
-            PREFIX="AI"
-          fi
-
-          VOLUME_NAME="$(jq -r '.productName // \"App\"' src-tauri/tauri.conf.json)"
-
-          APP_DIR="src-tauri/target/universal-apple-darwin/release/bundle/macos"
-          APP_BUNDLE="$(ls -1 "$APP_DIR"/*.app | head -n 1 || true)"
-          if [ -z "$APP_BUNDLE" ]; then
-            echo "Universal app bundle not found in: $APP_DIR" >&2
-            ls -la "$APP_DIR" || true
-            exit 1
-          fi
-
-          STAGING="$RUNNER_TEMP/dmg-staging-universal"
-          rm -rf "$STAGING"
-          mkdir -p "$STAGING"
-          cp -R "$APP_BUNDLE" "$STAGING/"
-          ln -s /Applications "$STAGING/Applications" || true
-
-          OUT_DMG="$RUNNER_TEMP/${PREFIX}_${VERSION}_universal.dmg"
-          hdiutil create -volname "$VOLUME_NAME" -srcfolder "$STAGING" -ov -format UDZO -fs HFS+ "$OUT_DMG"
-
-          gh release upload "$TAG" "$OUT_DMG" --clobber --repo "$REPO"
 
       - name: 构建并发布到 GitHub Release (Windows)
         if: matrix.platform == 'windows-latest'
