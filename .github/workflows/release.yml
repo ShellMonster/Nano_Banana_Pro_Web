@@ -221,7 +221,7 @@ jobs:
 
           TARGET_DIR="src-tauri/target"
           # matrix.tauriArgs 形如: "--target aarch64-apple-darwin" / "--target universal-apple-darwin"
-          TARGET_TRIPLE="$(echo "${{ matrix.tauriArgs }}" | sed -E 's/.*--target[[:space:]]+([^[:space:]]+).*/\\1/')"
+          TARGET_TRIPLE="$(echo "${{ matrix.tauriArgs }}" | sed -E 's/.*--target[[:space:]]+([^[:space:]]+).*/\1/')"
           BUNDLE_DIR="$TARGET_DIR/$TARGET_TRIPLE/release/bundle/macos"
 
           UPDATE_BUNDLE="$(ls -1 "$BUNDLE_DIR"/*.app.tar.gz | head -n 1 || true)"
@@ -316,11 +316,11 @@ jobs:
             return None
 
           # macOS: updater bundle 是 *.app.tar.gz + *.app.tar.gz.sig
-          mac_arm = find_asset([r"(?i)aarch64.*\\.app\\.tar\\.gz$", r"(?i)\\.app\\.tar\\.gz$.*aarch64"])
-          mac_universal = find_asset([r"(?i)universal.*\\.app\\.tar\\.gz$", r"(?i)\\.app\\.tar\\.gz$.*universal"])
+          mac_arm = find_asset([r"(?i)aarch64.*\.app\.tar\.gz$", r"(?i)\.app\.tar\.gz$.*aarch64"])
+          mac_universal = find_asset([r"(?i)universal.*\.app\.tar\.gz$", r"(?i)\.app\.tar\.gz$.*universal"])
 
           # windows: createUpdaterArtifacts=true 模式下，updater 复用 setup.exe + setup.exe.sig
-          win_exe = find_asset([r"(?i)_x64-setup\\.exe$"])
+          win_exe = find_asset([r"(?i)_x64-setup\.exe$"])
 
           # 对应 .sig（优先同名 + .sig）
           def sig_for(asset):
