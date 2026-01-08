@@ -40,6 +40,49 @@ function getExpectedDimensions(aspectRatio: string, imageSize: string): { width:
   return { width, height };
 }
 
+type MergeOptions = { removePending?: boolean };
+
+function normalizeIncomingImage(image: GeneratedImage): GeneratedImage {
+  const { width, height, ...rest } = image as any;
+  const url = getImageUrl(image.url || image.filePath || image.thumbnailPath || image.thumbnailUrl || '');
+  const thumbnailUrl = getImageUrl(image.thumbnailUrl || image.thumbnailPath || image.filePath || image.url || '');
+  const status: GeneratedImage['status'] = image.status === 'failed'
+    ? 'failed'
+    : (!url ? 'pending' : (image.status ?? 'success'));
+
+  return {
+    ...rest,
+    ...(typeof width === 'number' && width > 0 ? { width } : {}),
+    ...(typeof height === 'number' && height > 0 ? { height } : {}),
+    url,
+    thumbnailUrl,
+    status
+  };
+}
+
+function upsertImage(list: GeneratedImage[], image: GeneratedImage, fallbackTaskId?: string) {
+  const targetTaskId = image.taskId || fallbackTaskId;
+  const imageWithTaskId = targetTaskId ? { ...image, taskId: targetTaskId } : image;
+
+  const existingIndex = list.findIndex((img) => img.id === imageWithTaskId.id);
+  if (existingIndex !== -1) {
+    list[existingIndex] = { ...list[existingIndex], ...imageWithTaskId };
+    return;
+  }
+
+  if (targetTaskId) {
+    const placeholderIndex = list.findIndex(
+      (img) => img.status === 'pending' && img.taskId === targetTaskId
+    );
+    if (placeholderIndex !== -1) {
+      list[placeholderIndex] = { ...list[placeholderIndex], ...imageWithTaskId };
+      return;
+    }
+  }
+
+  list.push(imageWithTaskId);
+}
+
 interface GenerateState {
   currentTab: 'generate' | 'history';
   isSidebarOpen: boolean; // 新增：持久化侧边栏状态
@@ -73,6 +116,7 @@ interface GenerateState {
   setConnectionMode: (mode: 'websocket' | 'polling' | 'none') => void;
   updateLastMessageTime: () => void;
   setSubmitting: (isSubmitting: boolean) => void;
+  mergeImagesForTask: (taskId: string, images: GeneratedImage[], options?: MergeOptions) => void;
   // 新增：恢复任务状态（用于刷新后恢复）
   restoreTaskState: (state: { taskId: string; status: 'processing'; totalCount: number; completedCount: number; images: any[] }) => void;
   clearTaskState: () => void;
@@ -140,36 +184,8 @@ export const useGenerateStore = create<GenerateState>()(
       updateProgress: (completedCount, image) => set((state) => {
         let newImages = [...state.images];
         if (image) {
-            const { width, height, ...rest } = image as any;
-            const url = getImageUrl(image.url || image.filePath || image.thumbnailPath || image.thumbnailUrl || '');
-            const thumbnailUrl = getImageUrl(image.thumbnailUrl || image.thumbnailPath || image.filePath || image.url || '');
-            const status: GeneratedImage['status'] = image.status === 'failed'
-              ? 'failed'
-              : (!url ? 'pending' : (image.status ?? 'success'));
-
-            const imageWithUrl = {
-                ...rest,
-                ...(typeof width === 'number' && width > 0 ? { width } : {}),
-                ...(typeof height === 'number' && height > 0 ? { height } : {}),
-                url,
-                thumbnailUrl,
-                status
-            };
-
-            // Bug #7修复：首先检查是否已存在该图片ID，存在则更新
-            const existingIndex = newImages.findIndex(img => img.id === image.id);
-            if (existingIndex !== -1) {
-                newImages[existingIndex] = { ...newImages[existingIndex], ...imageWithUrl };
-            } else {
-                // 不存在则替换第一个pending占位符
-                const placeholderIndex = newImages.findIndex(img => img.status === 'pending' && img.taskId === state.taskId);
-                if (placeholderIndex !== -1) {
-                    newImages[placeholderIndex] = { ...newImages[placeholderIndex], ...imageWithUrl };
-                } else {
-                    // 没有占位符则添加新图片
-                    newImages.push(imageWithUrl);
-                }
-            }
+            const imageWithUrl = normalizeIncomingImage(image);
+            upsertImage(newImages, imageWithUrl, image.taskId || state.taskId || undefined);
         }
         return {
             completedCount,
@@ -184,39 +200,34 @@ export const useGenerateStore = create<GenerateState>()(
 
         // 批量处理所有图片
         images.forEach(image => {
-          const { width, height, ...rest } = image as any;
-          const url = getImageUrl(image.url || image.filePath || image.thumbnailPath || image.thumbnailUrl || '');
-          const thumbnailUrl = getImageUrl(image.thumbnailUrl || image.thumbnailPath || image.filePath || image.url || '');
-          const status: GeneratedImage['status'] = image.status === 'failed'
-            ? 'failed'
-            : (!url ? 'pending' : (image.status ?? 'success'));
-
-          const imageWithUrl = {
-            ...rest,
-            ...(typeof width === 'number' && width > 0 ? { width } : {}),
-            ...(typeof height === 'number' && height > 0 ? { height } : {}),
-            url,
-            thumbnailUrl,
-            status
-          };
-
-          const existingIndex = newImages.findIndex(img => img.id === image.id);
-          if (existingIndex !== -1) {
-            newImages[existingIndex] = { ...newImages[existingIndex], ...imageWithUrl };
-          } else {
-            const placeholderIndex = newImages.findIndex(img => img.status === 'pending' && img.taskId === state.taskId);
-            if (placeholderIndex !== -1) {
-              newImages[placeholderIndex] = { ...newImages[placeholderIndex], ...imageWithUrl };
-            } else {
-              newImages.push(imageWithUrl);
-            }
-          }
+          const imageWithUrl = normalizeIncomingImage(image);
+          upsertImage(newImages, imageWithUrl, image.taskId || state.taskId || undefined);
         });
 
         return {
           completedCount,
           images: newImages,
           lastMessageTime: Date.now()
+        };
+      }),
+
+      mergeImagesForTask: (taskId, images, options) => set((state) => {
+        let newImages = [...state.images];
+        if (images && images.length > 0) {
+          images.forEach((image) => {
+            const imageWithUrl = normalizeIncomingImage(image);
+            upsertImage(newImages, imageWithUrl, taskId);
+          });
+        }
+
+        if (options?.removePending) {
+          newImages = newImages.filter((img) => !(img.taskId === taskId && img.status === 'pending'));
+        }
+
+        const shouldTouchLastMessage = state.taskId === taskId;
+        return {
+          images: newImages,
+          ...(shouldTouchLastMessage ? { lastMessageTime: Date.now() } : {})
         };
       }),
 

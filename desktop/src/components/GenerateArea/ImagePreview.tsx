@@ -391,6 +391,8 @@ export const ImagePreview = React.memo(function ImagePreview({
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
+        // 点击在右键菜单内部：不触发“关闭菜单/拖拽”逻辑，避免按钮 click 被提前卸载
+        if (contextMenuRef.current && contextMenuRef.current.contains(e.target as Node)) return;
         // 仅允许鼠标左键拖拽（右键/中键不进入拖拽，避免弹出菜单后“拖拽卡住”）
         if (e.button !== 0) return;
         // 右键菜单打开时，左键点击优先用于关闭菜单，不触发拖拽
@@ -655,6 +657,10 @@ export const ImagePreview = React.memo(function ImagePreview({
                             role="menu"
                             aria-label="图片操作菜单"
                             onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => {
+                                // 防止 mousedown 冒泡到图片容器导致先关闭菜单，从而 click 不触发
+                                e.stopPropagation();
+                            }}
                             onContextMenu={(e) => {
                                 // 菜单区域内右键不再触发新的菜单
                                 e.preventDefault();

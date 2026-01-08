@@ -239,6 +239,26 @@ function syncWithGenerateStore(historyItems: HistoryItem[]) {
   const generateStore = useGenerateStore.getState();
   const currentTaskId = generateStore.taskId;
   const currentStatus = generateStore.status;
+  const historyMap = new Map(historyItems.map((item) => [item.id, item]));
+
+  // 先同步非当前任务的 pending 占位符，避免历史已完成但生成区仍显示“生成中”
+  if (generateStore.images.length > 0) {
+    const pendingTaskIds = new Set(
+      generateStore.images
+        .filter((img) => img.taskId && img.status !== 'failed' && (img.status === 'pending' || !img.url))
+        .map((img) => img.taskId)
+    );
+
+    if (currentTaskId) pendingTaskIds.delete(currentTaskId);
+
+    pendingTaskIds.forEach((taskId) => {
+      const historyItem = historyMap.get(taskId);
+      if (!historyItem) return;
+
+      const shouldRemovePending = historyItem.status !== 'processing' && historyItem.status !== 'pending';
+      generateStore.mergeImagesForTask(taskId, historyItem.images || [], { removePending: shouldRemovePending });
+    });
+  }
 
   // 如果本地没有任务ID，直接返回
   if (!currentTaskId) {
@@ -246,7 +266,7 @@ function syncWithGenerateStore(historyItems: HistoryItem[]) {
   }
 
   // 在历史记录中查找当前任务
-  const currentTaskInHistory = historyItems.find(item => item.id === currentTaskId);
+  const currentTaskInHistory = historyMap.get(currentTaskId);
 
   if (!currentTaskInHistory) {
     // 历史记录中没有找到这个任务
