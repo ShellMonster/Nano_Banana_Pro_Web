@@ -6,10 +6,12 @@
   <img src="assets/preview2.png" alt="Banana Pro Web 预览 2" width="800">
 </p>
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![React](https://img.shields.io/badge/React-18.3.1-blue.svg)
-![Tauri](https://img.shields.io/badge/Tauri-2.0-FFC131.svg)
-![Go](https://img.shields.io/badge/Go-1.21-00ADD8.svg)
+[![GitHub stars](https://img.shields.io/github/stars/ShellMonster/Nano_Banana_Pro_Web?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/stargazers)
+[![GitHub license](https://img.shields.io/github/license/ShellMonster/Nano_Banana_Pro_Web?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/blob/main/LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/ShellMonster/Nano_Banana_Pro_Web?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/releases)
+![React](https://img.shields.io/badge/React-18.3.1-blue.svg?style=flat-square)
+![Tauri](https://img.shields.io/badge/Tauri-2.0-FFC131.svg?style=flat-square)
+![Go](https://img.shields.io/badge/Go-1.21-00ADD8.svg?style=flat-square)
 
 **大香蕉 AI** 是一款专为创意工作者打造的高性能图片生成平台。它完美融合了 Google Gemini 的强大 AI 能力与桌面端的原生性能，支持高分辨率（最高 4K）的文生图与图生图功能。
 
@@ -220,3 +222,9 @@ cat ~/.tauri/banana-updater.key
 ## 📄 开源协议
 
 本项目采用 [MIT License](LICENSE) 协议开源。
+
+---
+
+## 📈 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ShellMonster/Nano_Banana_Pro_Web&type=Date)](https://star-history.com/#ShellMonster/Nano_Banana_Pro_Web&Date)
