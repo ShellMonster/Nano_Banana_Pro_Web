@@ -10,6 +10,7 @@ export function VersionBadge() {
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const status = useUpdaterStore((s) => s.status);
   const update = useUpdaterStore((s) => s.update);
+  const progress = useUpdaterStore((s) => s.progress);
   const openUpdater = useUpdaterStore((s) => s.open);
   const checkForUpdates = useUpdaterStore((s) => s.checkForUpdates);
 
@@ -44,15 +45,29 @@ export function VersionBadge() {
   }, []);
 
   const hasUpdate = status === 'available' && Boolean(update);
+  const isDownloading = status === 'downloading';
+  const isDownloaded = status === 'downloaded';
+  const isInstalling = status === 'installing';
+  const isBusy = isDownloading || isDownloaded || isInstalling;
 
   const currentTab = useGenerateStore((s) => s.currentTab);
   const generateCount = useGenerateStore((s) => s.images.length);
   const shouldLiftOnDesktop = currentTab === 'generate' && generateCount > 0;
 
+  const percent = useMemo(() => {
+    const total = progress?.total || 0;
+    const downloaded = progress?.downloaded || 0;
+    if (total <= 0) return isDownloaded ? 100 : 0;
+    return Math.max(0, Math.min(100, Math.round((downloaded / total) * 100)));
+  }, [progress?.downloaded, progress?.total, isDownloaded]);
+
   const title = useMemo(() => {
+    if (isDownloading) return `下载中 ${percent}%`;
+    if (isInstalling) return '正在安装更新...';
+    if (isDownloaded) return '更新已下载，点击安装';
     if (hasUpdate) return `发现新版本 v${update?.version || ''}，点击查看/安装`;
     return '点击检查更新';
-  }, [hasUpdate, update?.version]);
+  }, [hasUpdate, isDownloaded, isDownloading, isInstalling, percent, update?.version]);
 
   const hintText = useMemo(() => {
     switch (manualHint) {
@@ -86,7 +101,7 @@ export function VersionBadge() {
   };
 
   const handleClick = async () => {
-    if (hasUpdate) {
+    if (hasUpdate || isBusy) {
       openUpdater();
       return;
     }
@@ -132,6 +147,18 @@ export function VersionBadge() {
     }
   };
 
+  const displayText = useMemo(() => {
+    if (isDownloading) return `更新 ${percent}%`;
+    if (isInstalling) return '安装中';
+    if (isDownloaded) return '待安装';
+    if (manualHint) return hintText;
+    return `v${version || '—'}`;
+  }, [hintText, isDownloaded, isDownloading, isInstalling, manualHint, percent, version]);
+
+  const showSpinner = manualHint === 'checking' || isDownloading || isInstalling;
+  const showUpdateIcon = !showSpinner && (hasUpdate || isDownloaded);
+  const buttonTitle = manualHint && !isBusy ? hintText : title;
+
   return (
     <div
       className={cn(
@@ -157,7 +184,7 @@ export function VersionBadge() {
       <button
         type="button"
         onClick={handleClick}
-        title={manualHint ? hintText : title}
+        title={buttonTitle}
         className={cn(
           'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl',
           'bg-white/70 backdrop-blur-md border border-slate-200/60 shadow-sm',
@@ -165,13 +192,13 @@ export function VersionBadge() {
         )}
         style={{ WebkitAppRegion: 'no-drag' } as any}
       >
-        {manualHint === 'checking' ? (
+        {showSpinner ? (
           <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
         ) : (
-          hasUpdate && <ArrowUpCircle className="w-4 h-4 text-blue-600" />
+          showUpdateIcon && <ArrowUpCircle className="w-4 h-4 text-blue-600" />
         )}
         <span className="font-mono font-bold">
-          {manualHint ? hintText : `v${version || '—'}`}
+          {displayText}
         </span>
       </button>
     </div>

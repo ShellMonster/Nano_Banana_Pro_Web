@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { toast } from './toastStore';
 
-type UpdaterStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'installed' | 'error';
+type UpdaterStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'installing' | 'installed' | 'error';
 
 type Progress = {
   downloaded: number;
@@ -12,6 +12,10 @@ type UpdateLike = {
   version: string;
   date?: string | null;
   body?: string | null;
+  download: (
+    onEvent?: (event: any) => void
+  ) => Promise<void>;
+  install: () => Promise<void>;
   downloadAndInstall: (
     onEvent?: (event: any) => void
   ) => Promise<void>;
@@ -28,12 +32,14 @@ interface UpdaterState {
   close: () => void;
   reset: () => void;
   checkForUpdates: (options?: { silent?: boolean; openIfAvailable?: boolean }) => Promise<void>;
-  downloadAndInstall: () => Promise<void>;
+  downloadUpdate: () => Promise<void>;
+  installUpdate: () => Promise<void>;
 }
 
 const isTauri = () => typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
 
 let inFlightCheck: Promise<void> | null = null;
+let inFlightDownload: Promise<void> | null = null;
 let inFlightInstall: Promise<void> | null = null;
 
 export const useUpdaterStore = create<UpdaterState>((set, get) => ({
@@ -126,20 +132,20 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     return inFlightCheck;
   },
 
-  downloadAndInstall: async () => {
+  downloadUpdate: async () => {
     if (!isTauri()) return;
     const update = get().update;
     if (!update) return;
-    if (get().status === 'downloading' || get().status === 'installing') return;
-    if (inFlightInstall) return inFlightInstall;
+    if (get().status === 'downloading' || get().status === 'downloaded' || get().status === 'installing') return;
+    if (inFlightDownload) return inFlightDownload;
 
-    inFlightInstall = (async () => {
+    inFlightDownload = (async () => {
       set({ status: 'downloading', progress: { downloaded: 0, total: 0 }, error: null });
       try {
         let downloaded = 0;
         let total = 0;
 
-        await update.downloadAndInstall((event: any) => {
+        await update.download((event: any) => {
           try {
             switch (event?.event) {
               case 'Started': {
@@ -155,7 +161,10 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
                 break;
               }
               case 'Finished': {
-                set({ status: 'installing' });
+                if (total > 0) {
+                  downloaded = total;
+                }
+                set({ status: 'downloading', progress: { downloaded, total } });
                 break;
               }
               default:
@@ -164,6 +173,32 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
           } catch {}
         });
 
+        set({ status: 'downloaded', progress: { downloaded, total } });
+        toast.success('更新已下载，可稍后安装');
+      } catch (err) {
+        console.error('[updater] download failed:', err);
+        const message = err instanceof Error ? err.message : '下载更新失败';
+        set({ status: 'error', error: message });
+        toast.error(message || '下载更新失败');
+      } finally {
+        inFlightDownload = null;
+      }
+    })();
+
+    return inFlightDownload;
+  },
+
+  installUpdate: async () => {
+    if (!isTauri()) return;
+    const update = get().update;
+    if (!update) return;
+    if (get().status !== 'downloaded') return;
+    if (inFlightInstall) return inFlightInstall;
+
+    inFlightInstall = (async () => {
+      set({ status: 'installing', error: null });
+      try {
+        await update.install();
         set({ status: 'installed' });
         toast.success('更新已安装，正在重启...');
 
@@ -175,10 +210,10 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
           toast.info('更新已安装，请手动重启应用');
         }
       } catch (err) {
-        console.error('[updater] download/install failed:', err);
-        const message = err instanceof Error ? err.message : '更新失败';
+        console.error('[updater] install failed:', err);
+        const message = err instanceof Error ? err.message : '安装更新失败';
         set({ status: 'error', error: message });
-        toast.error(message || '更新失败');
+        toast.error(message || '安装更新失败');
       } finally {
         inFlightInstall = null;
       }
