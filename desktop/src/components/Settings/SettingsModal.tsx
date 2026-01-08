@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, FileText, FolderOpen, Copy, RefreshCw } from 'lucide-react';
 import { useConfigStore } from '../../store/configStore';
 import { Input } from '../common/Input';
@@ -29,13 +29,28 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [fetching, setFetching] = useState(false);
   const [verboseLogs, setVerboseLogs] = useState(getDiagnosticVerbose());
   const checkForUpdates = useUpdaterStore((s) => s.checkForUpdates);
+  const openUpdater = useUpdaterStore((s) => s.open);
+  const update = useUpdaterStore((s) => s.update);
+  const updaterStatus = useUpdaterStore((s) => s.status);
+  const updaterError = useUpdaterStore((s) => s.error);
+  const [updateHint, setUpdateHint] = useState<{ type: 'checking' | 'latest' | 'available' | 'error'; message: string } | null>(null);
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
 
   // 当弹窗打开时，从后端获取最新的配置
   useEffect(() => {
     if (isOpen) {
       fetchConfigs();
+      setUpdateHint(null);
     }
   }, [isOpen]);
+
+  const updateHintStyle = useMemo(() => {
+    if (!updateHint) return 'text-slate-500';
+    if (updateHint.type === 'checking') return 'text-blue-600';
+    if (updateHint.type === 'available') return 'text-amber-600';
+    if (updateHint.type === 'error') return 'text-red-600';
+    return 'text-emerald-600';
+  }, [updateHint]);
 
   const fetchConfigs = async () => {
     setFetching(true);
@@ -162,11 +177,36 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   const handleCheckUpdates = async () => {
-    // 避免“设置弹窗 + 更新弹窗”双层体验：先关闭设置，再触发更新检查
+    if (isCheckingUpdates) return;
+    const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+    if (!isTauri) {
+      setUpdateHint({ type: 'error', message: '仅桌面端可用' });
+      return;
+    }
+
+    setIsCheckingUpdates(true);
+    setUpdateHint({ type: 'checking', message: '正在检查更新...' });
+
+    try {
+      await checkForUpdates({ silent: true, openIfAvailable: false });
+    } catch {}
+
+    const latest = useUpdaterStore.getState();
+    if (latest.status === 'available' && latest.update) {
+      setUpdateHint({ type: 'available', message: `发现新版本 v${latest.update.version}` });
+    } else if (latest.status === 'error') {
+      const msg = latest.error ? `检查失败：${latest.error}` : '检查失败';
+      setUpdateHint({ type: 'error', message: msg });
+    } else {
+      setUpdateHint({ type: 'latest', message: '已是最新版本' });
+    }
+
+    setIsCheckingUpdates(false);
+  };
+
+  const handleOpenUpdater = () => {
+    openUpdater();
     onClose();
-    setTimeout(() => {
-      checkForUpdates({ silent: false, openIfAvailable: true }).catch(() => {});
-    }, 120);
   };
 
   return (
@@ -263,10 +303,46 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             variant="secondary"
             onClick={handleCheckUpdates}
             className="w-full h-12 rounded-2xl"
+            disabled={isCheckingUpdates}
           >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            检查更新
+            {isCheckingUpdates ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4 mr-2" />
+            )}
+            {isCheckingUpdates ? '检查中...' : '检查更新'}
           </Button>
+          {updateHint && (
+            <div className={`text-xs font-semibold px-1 flex items-center gap-2 ${updateHintStyle}`}>
+              <span>{updateHint.message}</span>
+              {updateHint.type === 'available' && (
+                <button
+                  type="button"
+                  onClick={handleOpenUpdater}
+                  className="underline underline-offset-2 text-amber-700 hover:text-amber-800"
+                >
+                  查看更新
+                </button>
+              )}
+            </div>
+          )}
+          {!updateHint && updaterStatus === 'available' && update && (
+            <div className="text-xs font-semibold px-1 flex items-center gap-2 text-amber-600">
+              <span>{`发现新版本 v${update.version}`}</span>
+              <button
+                type="button"
+                onClick={handleOpenUpdater}
+                className="underline underline-offset-2 text-amber-700 hover:text-amber-800"
+              >
+                查看更新
+              </button>
+            </div>
+          )}
+          {!updateHint && updaterStatus === 'error' && updaterError && (
+            <div className="text-xs font-semibold px-1 text-red-600">
+              {`检查失败：${updaterError}`}
+            </div>
+          )}
           <p className="text-xs text-slate-500 leading-relaxed px-1">
             开启应用会自动检查更新；如有新版本会弹窗提示，一键下载安装。
           </p>

@@ -480,15 +480,59 @@ export const ImagePreview = React.memo(function ImagePreview({
         setContextMenu({ x: nextX, y: nextY, adjusted: true });
     }, [contextMenu]);
 
-    const handleCopyImageLink = useCallback(async () => {
+    const handleCopyImagePath = useCallback(async () => {
         if (!image) return;
-        const src = image.url || image.thumbnailUrl || '';
-        if (!src) {
-            toast.info('图片链接为空');
+
+        const candidates = [image.filePath, image.thumbnailPath].filter(Boolean) as string[];
+        let path = candidates.find((p) => typeof p === 'string' && p.trim())?.trim() || '';
+
+        if (!path) {
+            toast.info('图片路径为空');
             return;
         }
-        const ok = await copyText(src);
-        if (ok) toast.success('图片链接已复制');
+
+        const isUrl = /^(https?:|asset:|tauri:|ipc:|blob:|data:)/i.test(path);
+        if (isUrl) {
+            toast.info('当前图片没有本地路径');
+            return;
+        }
+
+        if (path.startsWith('file://')) {
+            try {
+                const withoutScheme = path.replace(/^file:\/\//, '');
+                const withoutHost = withoutScheme.replace(/^localhost\//, '');
+                path = decodeURIComponent(withoutHost);
+            } catch {}
+        }
+
+        const isWindowsAbsolute = /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('\\\\');
+        const isPosixAbsolute = path.startsWith('/');
+        const isAbsolute = isWindowsAbsolute || isPosixAbsolute;
+
+        if (!isAbsolute && typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+            try {
+                const { invoke } = await import('@tauri-apps/api/core');
+                const appDataDir = await invoke<string>('get_app_data_dir');
+                if (appDataDir) {
+                    const separator = appDataDir.includes('\\') ? '\\' : '/';
+                    const base = appDataDir.endsWith('/') || appDataDir.endsWith('\\')
+                        ? appDataDir.slice(0, -1)
+                        : appDataDir;
+                    const trimmed = path.replace(/^[/\\]+/, '');
+                    path = `${base}${separator}${trimmed}`;
+                }
+            } catch (err) {
+                console.warn('[copyImagePath] resolve appDataDir failed:', err);
+            }
+        }
+
+        if (!path) {
+            toast.info('当前图片没有本地路径');
+            return;
+        }
+
+        const ok = await copyText(path);
+        if (ok) toast.success('图片路径已复制');
         else toast.error('复制失败');
     }, [copyText, image]);
 
@@ -686,12 +730,12 @@ export const ImagePreview = React.memo(function ImagePreview({
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     setContextMenu(null);
-                                    handleCopyImageLink();
+                                handleCopyImagePath();
                                 }}
                                 role="menuitem"
                             >
                                 <Copy className="w-4 h-4 text-slate-600" />
-                                复制图片链接
+                                复制图片路径
                             </button>
                             <div className="h-px bg-slate-200/60" />
                             <button
