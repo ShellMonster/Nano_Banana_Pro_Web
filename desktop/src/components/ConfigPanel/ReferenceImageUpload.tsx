@@ -272,65 +272,175 @@ export function ReferenceImageUpload() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5]);
 
-  // 处理粘贴上传
-  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
-    // 只有在展开状态才处理粘贴
-    if (!isExpanded) return;
-
-    const items = e.clipboardData?.items;
-    if (!items) return;
-
+  const extractImageFilesFromClipboard = useCallback((clipboardData: DataTransfer | null): File[] => {
+    if (!clipboardData) return [];
     const files: File[] = [];
 
-    // 遍历剪贴板项，提取图片文件
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (file) {
-          files.push(file);
+    // 1) items（最常见：截图/复制图片）
+    const items = clipboardData.items;
+    if (items && items.length > 0) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) files.push(file);
         }
       }
     }
 
+    // 2) files（部分平台会把图片放在 files 里）
+    if (clipboardData.files && clipboardData.files.length > 0) {
+      Array.from(clipboardData.files).forEach((f) => {
+        if (f.type && f.type.startsWith('image/')) files.push(f);
+      });
+    }
+
+    return files;
+  }, []);
+
+  const processPastedFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
 
-    try {
-      await withProcessingLock(async () => {
-        // 计算还能添加多少张
-        const remainingSlots = 10 - refFiles.length;
-
-        // 如果粘贴的文件超过剩余槽位，提示用户
-        if (files.length > remainingSlots) {
-          toast.error(`最多10张，还能添加${remainingSlots}张`);
-          files.length = remainingSlots;
-        }
-
-        // MD5 去重
-        const uniqueFiles = await processFilesWithMd5(files);
-
-        if (uniqueFiles.length > 0) {
-          addRefFiles(uniqueFiles);
-          // 检查是否有压缩过的文件，显示压缩提示
-          const compressedFiles = uniqueFiles.filter(f => (f as ExtendedFile).__compressed);
-          if (compressedFiles.length > 0) {
-            toast.success(`已添加${uniqueFiles.length}张（${compressedFiles.length}张已压缩）`);
-          } else {
-            toast.success(`已添加${uniqueFiles.length}张参考图`);
-          }
-        } else {
-          toast.info('图片已存在');
-        }
-      });
-    } catch (error) {
-      if (error instanceof Error && error.message === '操作正在进行中，请稍候') {
-        toast.info('请等待当前操作完成');
-      }
+    // 收起状态也允许粘贴：自动展开，避免“无提示/无响应”的体验
+    if (!isExpanded) {
+      setIsExpanded(true);
     }
 
-    // 阻止默认粘贴行为
-    e.preventDefault();
+    await withProcessingLock(async () => {
+      const remainingSlots = 10 - refFiles.length;
+      if (remainingSlots <= 0) {
+        toast.error('参考图已满');
+        return;
+      }
+
+      const clipped = files.slice(0, remainingSlots);
+      if (files.length > remainingSlots) {
+        toast.error(`最多10张，还能添加${remainingSlots}张`);
+      }
+
+      const uniqueFiles = await processFilesWithMd5(clipped);
+      if (uniqueFiles.length > 0) {
+        addRefFiles(uniqueFiles);
+        const compressedFiles = uniqueFiles.filter(f => (f as ExtendedFile).__compressed);
+        if (compressedFiles.length > 0) {
+          toast.success(`已添加${uniqueFiles.length}张（${compressedFiles.length}张已压缩）`);
+        } else {
+          toast.success(`已添加${uniqueFiles.length}张参考图`);
+        }
+      } else {
+        toast.info('图片已存在');
+      }
+    });
   }, [isExpanded, refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5]);
+
+  const tryPasteFromTauriClipboard = useCallback(async () => {
+    const remainingSlots = 10 - refFiles.length;
+    if (remainingSlots <= 0) {
+      toast.error('参考图已满');
+      return;
+    }
+
+    // 收起状态也允许粘贴：自动展开
+    if (!isExpanded) {
+      setIsExpanded(true);
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const path = await invoke<string | null>('read_image_from_clipboard');
+      const imagePath = (path || '').trim();
+      if (!imagePath) return; // 剪贴板里没有图片：静默忽略
+
+      const md5Key = `path-${imagePath}`;
+      if (fileMd5SetRef.current.has(md5Key)) {
+        toast.info('图片已存在');
+        return;
+      }
+
+      const name = imagePath.split(/[/\\]/).pop() || `clipboard-${Date.now()}.png`;
+      const file = new File([], name, { type: 'image/png' }) as ExtendedFile;
+      file.__path = imagePath;
+      file.__md5 = md5Key;
+
+      addRefFiles([file]);
+      toast.success('已添加 1 张参考图');
+    } catch (err) {
+      // 原生读取失败：静默忽略，避免影响正常文本粘贴体验
+      console.warn('[ReferenceImageUpload] read_image_from_clipboard failed:', err);
+    }
+  }, [isExpanded, refFiles.length, addRefFiles]);
+
+  // 处理粘贴上传（React 事件）
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+    const files = extractImageFilesFromClipboard(e.clipboardData || null);
+    if (files.length > 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        await processPastedFiles(files);
+      } catch (error) {
+        if (error instanceof Error && error.message === '操作正在进行中，请稍候') {
+          toast.info('请等待当前操作完成');
+        } else {
+          console.error('粘贴图片失败:', error);
+          toast.error(`粘贴图片失败：${error instanceof Error ? error.message : '未知错误'}`);
+        }
+      }
+      return;
+    }
+
+    const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+    if (!isTauri) return;
+
+    // 如果用户在粘贴纯文本（且当前在输入框内），不要触发原生读取，避免拖慢输入体验
+    const plain = (e.clipboardData?.getData('text/plain') || '').trim();
+    const target = e.target as HTMLElement | null;
+    const isTextInputTarget = Boolean(
+      target &&
+      ((target as any).isContentEditable ||
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA')
+    );
+    if (plain && isTextInputTarget) return;
+
+    // 兜底：Tauri 打包环境下 Web ClipboardData 可能拿不到图片数据，尝试原生读取
+    void tryPasteFromTauriClipboard();
+  }, [extractImageFilesFromClipboard, processPastedFiles, tryPasteFromTauriClipboard]);
+
+  // 全局 paste 捕获：不要求用户必须聚焦参考图区域
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (!e.clipboardData) return;
+
+      const files = extractImageFilesFromClipboard(e.clipboardData);
+      if (files.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        void processPastedFiles(files);
+        return;
+      }
+
+      const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+      if (!isTauri) return;
+
+      const plain = (e.clipboardData.getData('text/plain') || '').trim();
+      const target = e.target as HTMLElement | null;
+      const isTextInputTarget = Boolean(
+        target &&
+        ((target as any).isContentEditable ||
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA')
+      );
+      if (plain && isTextInputTarget) return;
+
+      void tryPasteFromTauriClipboard();
+    };
+
+    window.addEventListener('paste', onPaste, true);
+    return () => {
+      window.removeEventListener('paste', onPaste, true);
+    };
+  }, [extractImageFilesFromClipboard, processPastedFiles, tryPasteFromTauriClipboard]);
 
   // 处理拖拽开始 - 添加视觉反馈
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -472,37 +582,52 @@ export function ReferenceImageUpload() {
 
         // 调试日志
 
-        // 优先处理缓存的 Blob 数据（避免 CORS 问题）
-        // 使用 Symbol 避免全局变量污染
+        // 优先处理缓存的 Blob 数据（避免 CORS / asset:// 导致 URL fetch 失败）
+        // 使用 Symbol 避免全局变量污染（拖拽源会写入 window[Symbol.for('__dragImageBlob')]）
         const dragBlobSymbol = Symbol.for('__dragImageBlob');
-        const hasBlob = e.dataTransfer.getData('application/x-has-blob');
-        if (hasBlob === 'true' && (window as any)[dragBlobSymbol]) {
-          const cachedData = (window as any)[dragBlobSymbol];
+        const hasBlobFlag = (e.dataTransfer.getData('application/x-has-blob') || '').trim();
+        const cachedData = (window as any)[dragBlobSymbol];
+        const canUseCachedBlob =
+          cachedData &&
+          (hasBlobFlag === 'true' || Boolean(cachedData.blob) || Boolean(cachedData.blobPromise));
 
-          if (filesToAdd.length < remainingSlots) {
-            try {
-              const file = new File([cachedData.blob], cachedData.name, { type: 'image/jpeg' });
+        if (canUseCachedBlob) {
+          // 防止使用到非常久之前遗留的缓存
+          const createdAt = typeof cachedData.createdAt === 'number' ? cachedData.createdAt : 0;
+          if (!createdAt || Date.now() - createdAt < 60_000) {
+            if (filesToAdd.length < remainingSlots) {
+              try {
+                let blob: Blob | null | undefined = cachedData.blob;
+                if (!blob && cachedData.blobPromise) {
+                  // 快速 drop 时 blob 可能仍在生成：做一个短超时等待
+                  const timeout = new Promise<Blob | null>((resolve) => setTimeout(() => resolve(null), 1500));
+                  blob = await Promise.race([cachedData.blobPromise, timeout]);
+                }
 
-              // 检查文件大小
-              if (file.size / 1024 / 1024 < 5) {
-                filesToAdd.push(file);
-              } else {
-                toast.error('图片超过 5MB');
+                if (blob) {
+                  const file = new File([blob], cachedData.name || 'ref-image.jpg', { type: blob.type || 'image/jpeg' });
+                  if (file.size / 1024 / 1024 < 5) {
+                    filesToAdd.push(file);
+                  } else {
+                    toast.error('图片超过 5MB');
+                  }
+                }
+              } catch (err) {
+                // 忽略：继续走 URL / 文件兜底
               }
-            } catch (err) {
             }
-          }
 
-          // 如果成功获取到 Blob，使用去重函数处理
-          if (filesToAdd.length > 0) {
-            const uniqueFiles = await processFilesWithMd5(filesToAdd);
-            if (uniqueFiles.length > 0) {
-              addRefFiles(uniqueFiles);
-              toast.success(`已添加 ${uniqueFiles.length} 张参考图`);
-            } else {
-              toast.info('图片已存在');
+            // 如果成功获取到 Blob，使用去重函数处理
+            if (filesToAdd.length > 0) {
+              const uniqueFiles = await processFilesWithMd5(filesToAdd);
+              if (uniqueFiles.length > 0) {
+                addRefFiles(uniqueFiles);
+                toast.success(`已添加 ${uniqueFiles.length} 张参考图`);
+              } else {
+                toast.info('图片已存在');
+              }
+              return;
             }
-            return;
           }
         }
 
@@ -558,6 +683,8 @@ export function ReferenceImageUpload() {
             }
           }
         } catch (error) {
+          // 继续走 files 兜底
+          console.error('处理拖拽 URL 失败:', error);
         }
 
         // 处理拖拽的文件
@@ -604,6 +731,8 @@ export function ReferenceImageUpload() {
       if (error instanceof Error && error.message === '操作正在进行中，请稍候') {
         toast.info('请等待当前操作完成');
       } else {
+        console.error('添加参考图失败:', error);
+        toast.error(`添加参考图失败：${error instanceof Error ? error.message : '未知错误'}`);
       }
     }
   }, [isExpanded, refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5, createImageFileFromUrl]);

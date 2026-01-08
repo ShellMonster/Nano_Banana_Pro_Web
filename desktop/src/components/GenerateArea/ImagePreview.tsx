@@ -32,11 +32,13 @@ export const ImagePreview = React.memo(function ImagePreview({
     const [isCopyingImage, setIsCopyingImage] = useState(false);
     const [fullImageLoaded, setFullImageLoaded] = useState(false);
     const [fullImageError, setFullImageError] = useState(false);
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; adjusted: boolean } | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const deleteConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const copySuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const imageRef = useRef<HTMLImageElement>(null);
     const hasNotifiedCopyRef = useRef(false); // 标记是否已提示过复制
+    const contextMenuRef = useRef<HTMLDivElement>(null);
 
     // 计算当前索引
     const currentIndex = image ? images.findIndex(img => img.id === image.id) : -1;
@@ -75,6 +77,7 @@ export const ImagePreview = React.memo(function ImagePreview({
     useEffect(() => {
         setFullImageLoaded(false);
         setFullImageError(false);
+        setContextMenu(null);
     }, [image?.id]);
 
     // 键盘监听 - 优化性能
@@ -337,7 +340,30 @@ export const ImagePreview = React.memo(function ImagePreview({
         }
     }, [image?.prompt]);
 
-    if (!image) return null;
+    const copyText = useCallback(async (text: string) => {
+        if (!text) return false;
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }
+        } catch {}
+
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            return ok;
+        } catch {
+            return false;
+        }
+    }, []);
 
     const performZoom = (newScale: number, centerX?: number, centerY?: number) => {
         if (!containerRef.current) return;
@@ -365,11 +391,24 @@ export const ImagePreview = React.memo(function ImagePreview({
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
+        // 仅允许鼠标左键拖拽（右键/中键不进入拖拽，避免弹出菜单后“拖拽卡住”）
+        if (e.button !== 0) return;
+        // 右键菜单打开时，左键点击优先用于关闭菜单，不触发拖拽
+        if (contextMenu) {
+            setContextMenu(null);
+            return;
+        }
+        setContextMenu(null);
         setIsDragging(true);
         setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
     };
 
     const handleMouseMove = (e: React.MouseEvent) => {
+        // 兼容：如果已经不按住左键，立即结束拖拽（避免 mouseup 丢失导致一直拖）
+        if (isDragging && (e.buttons & 1) !== 1) {
+            setIsDragging(false);
+            return;
+        }
         if (isDragging && containerRef.current) {
             let newX = e.clientX - dragStart.x;
             let newY = e.clientY - dragStart.y;
@@ -381,6 +420,82 @@ export const ImagePreview = React.memo(function ImagePreview({
             setPosition({ x: newX, y: newY });
         }
     };
+
+    const handleOpenContextMenu = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        // React MouseEvent 的 button: 2 为右键；这里不强依赖，所有 contextmenu 都走自定义菜单
+        setContextMenu({ x: e.clientX, y: e.clientY, adjusted: false });
+    };
+
+    // 右键菜单：点击外部/滚动/缩放/ESC 时关闭
+    useEffect(() => {
+        if (!contextMenu) return;
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setContextMenu(null);
+        };
+
+        const onPointerDown = (e: MouseEvent) => {
+            const menuEl = contextMenuRef.current;
+            if (menuEl && menuEl.contains(e.target as Node)) return;
+            setContextMenu(null);
+        };
+
+        const onScroll = () => setContextMenu(null);
+        const onResize = () => setContextMenu(null);
+
+        window.addEventListener('keydown', onKeyDown);
+        window.addEventListener('mousedown', onPointerDown, true);
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onResize);
+        return () => {
+            window.removeEventListener('keydown', onKeyDown);
+            window.removeEventListener('mousedown', onPointerDown, true);
+            window.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onResize);
+        };
+    }, [contextMenu]);
+
+    // 右键菜单：防止出屏（第一次渲染后修正位置）
+    useEffect(() => {
+        if (!contextMenu || contextMenu.adjusted) return;
+        const menuEl = contextMenuRef.current;
+        if (!menuEl) return;
+
+        const rect = menuEl.getBoundingClientRect();
+        const padding = 8;
+
+        let nextX = contextMenu.x;
+        let nextY = contextMenu.y;
+        if (nextX + rect.width + padding > window.innerWidth) nextX = window.innerWidth - rect.width - padding;
+        if (nextY + rect.height + padding > window.innerHeight) nextY = window.innerHeight - rect.height - padding;
+        nextX = Math.max(padding, nextX);
+        nextY = Math.max(padding, nextY);
+
+        setContextMenu({ x: nextX, y: nextY, adjusted: true });
+    }, [contextMenu]);
+
+    const handleCopyImageLink = useCallback(async () => {
+        if (!image) return;
+        const src = image.url || image.thumbnailUrl || '';
+        if (!src) {
+            toast.info('图片链接为空');
+            return;
+        }
+        const ok = await copyText(src);
+        if (ok) toast.success('图片链接已复制');
+        else toast.error('复制失败');
+    }, [copyText, image]);
+
+    const handleDownload = useCallback(() => {
+        if (!image?.id) return;
+        window.location.href = getImageDownloadUrl(image.id);
+    }, [image?.id]);
+
+    if (!image) return null;
 
     return (
         <Modal 
@@ -487,6 +602,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                             transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
                             transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)'
                         }}
+                        onContextMenu={handleOpenContextMenu}
                     >
 
 
@@ -529,6 +645,77 @@ export const ImagePreview = React.memo(function ImagePreview({
                             </div>
                         )}
                     </div>
+
+                    {/* 自定义右键菜单（替代系统英文菜单） */}
+                    {contextMenu && (
+                        <div
+                            ref={contextMenuRef}
+                            className="fixed z-[1000] min-w-[180px] bg-white/95 backdrop-blur-xl border border-slate-200/70 rounded-2xl shadow-[0_18px_60px_-18px_rgba(0,0,0,0.35)] overflow-hidden"
+                            style={{ left: contextMenu.x, top: contextMenu.y }}
+                            role="menu"
+                            aria-label="图片操作菜单"
+                            onClick={(e) => e.stopPropagation()}
+                            onContextMenu={(e) => {
+                                // 菜单区域内右键不再触发新的菜单
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }}
+                        >
+                            <button
+                                type="button"
+                                className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setContextMenu(null);
+                                    handleCopyImage();
+                                }}
+                                role="menuitem"
+                            >
+                                <Copy className="w-4 h-4 text-slate-600" />
+                                复制图片
+                            </button>
+                            <button
+                                type="button"
+                                className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setContextMenu(null);
+                                    handleCopyImageLink();
+                                }}
+                                role="menuitem"
+                            >
+                                <Copy className="w-4 h-4 text-slate-600" />
+                                复制图片链接
+                            </button>
+                            <div className="h-px bg-slate-200/60" />
+                            <button
+                                type="button"
+                                className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setContextMenu(null);
+                                    handleDownload();
+                                }}
+                                role="menuitem"
+                            >
+                                <Download className="w-4 h-4 text-slate-600" />
+                                下载高清原图
+                            </button>
+                            <button
+                                type="button"
+                                className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setContextMenu(null);
+                                    handleReset();
+                                }}
+                                role="menuitem"
+                            >
+                                <Maximize2 className="w-4 h-4 text-slate-600" />
+                                重置缩放/位置
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* 右侧：信息详情区 */}
@@ -638,7 +825,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                             </div>
                         </div>
                         <div className="p-8 pt-3">
-                            <Button className="w-full h-14 bg-slate-900 hover:bg-black text-white" onClick={() => window.location.href = getImageDownloadUrl(image.id)}>
+                            <Button className="w-full h-14 bg-slate-900 hover:bg-black text-white" onClick={handleDownload}>
                                 <Download className="w-5 h-5 mr-3" /> 下载高清原图
                             </Button>
                         </div>

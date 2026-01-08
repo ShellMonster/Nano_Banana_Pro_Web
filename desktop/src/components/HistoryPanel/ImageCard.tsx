@@ -117,7 +117,8 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
         }
         e.dataTransfer.setData('application/x-image-name', `ref-${image.id || 'unknown'}.jpg`);
         // 兼容：部分 WebView 读取自定义类型不稳定，补一份 text/plain
-        e.dataTransfer.setData('text/plain', image.url || image.filePath || image.thumbnailPath || '');
+        // 优先写入本地路径，drop 端可直接走 refPaths（Tauri 最稳）
+        e.dataTransfer.setData('text/plain', image.filePath || image.thumbnailPath || image.url || '');
 
         // 设置拖拽图像为当前图片
         if (imgRef.current) {
@@ -127,28 +128,34 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
         // 尝试从已加载的图片获取 Blob 数据，避免 CORS 问题
         if (imgRef.current && imgRef.current.complete) {
             try {
-                // 使用 canvas 获取图片数据
+                // 注意：不要直接把 Blob 放到 dataTransfer（兼容性差）
+                // 通过 window[Symbol.for('__dragImageBlob')] 传递，drop 端可短等待 blobPromise
+                const img = imgRef.current;
                 const canvas = document.createElement('canvas');
-                canvas.width = imgRef.current.naturalWidth;
-                canvas.height = imgRef.current.naturalHeight;
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
                 const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.drawImage(imgRef.current, 0, 0);
-                    // 转换为 blob
-                    canvas.toBlob((blob) => {
-                        if (blob) {
-                            // 创建文件对象并存储在 dataTransfer 中
-                            // 注意：这种方式不直接存储在 dataTransfer 中，而是通过 Symbol 传递避免污染全局
-                            const dragBlobSymbol = Symbol.for('__dragImageBlob');
-                            (window as any)[dragBlobSymbol] = {
-                                blob: blob,
-                                name: `ref-${image.id}.jpg`,
-                                id: image.id
-                            };
-                            e.dataTransfer.setData('application/x-has-blob', 'true');
-                        }
-                    }, 'image/jpeg', 0.9);
-                }
+                if (!ctx) return;
+                ctx.drawImage(img, 0, 0);
+
+                const dragBlobSymbol = Symbol.for('__dragImageBlob');
+                const createdAt = Date.now();
+                const name = `ref-${image.id}.jpg`;
+                const blobPromise = new Promise<Blob | null>((resolve) => {
+                  try {
+                    canvas.toBlob((blob) => resolve(blob || null), 'image/jpeg', 0.9);
+                  } catch {
+                    resolve(null);
+                  }
+                });
+
+                (window as any)[dragBlobSymbol] = {
+                  id: image.id,
+                  name,
+                  createdAt,
+                  blobPromise
+                };
+                e.dataTransfer.setData('application/x-has-blob', 'true');
             } catch (err) {
                 // 忽略错误
             }
@@ -160,9 +167,12 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
         // 延迟清理缓存，给 drop 处理器足够的时间读取
         setTimeout(() => {
             const dragBlobSymbol = Symbol.for('__dragImageBlob');
-            delete (window as any)[dragBlobSymbol];
+            const cached = (window as any)?.[dragBlobSymbol];
+            if (cached && cached.id === image.id) {
+              delete (window as any)[dragBlobSymbol];
+            }
         }, 100);
-    }, []);
+    }, [image.id]);
 
     return (
         <div
