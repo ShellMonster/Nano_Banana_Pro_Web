@@ -53,7 +53,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQyNTY2RTE0QzU2RUQxMjEKUldRaDBXN0ZGRzVXMG81Vk42TWlNZXp4V05GN0dBazhNQWE1dzJIVlR2TGUvelpBTVJ1T1luZm0K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI5MDg4OUIyMTU0MDU2MTYKUldRV1ZrQVZzb2tJS1JlUENUMmRUMEZVQTRIWWRCRjdHVkhFWVlVK3lvTnRuWmhSNXE0Q201WGMK",
       "endpoints": [
         "https://github.com/ShellMonster/Nano_Banana_Pro_Web/releases/latest/download/latest.json"
       ],
