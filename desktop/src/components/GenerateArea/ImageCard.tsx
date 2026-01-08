@@ -173,6 +173,12 @@ export const ImageCard = React.memo(function ImageCard({
       e.dataTransfer.effectAllowed = 'copy';
 
       const url = image.url || image.thumbnailUrl || '';
+      const name = `ref-${image.id || 'unknown'}.jpg`;
+
+      // 兼容：优先把“本地路径”写入 text/plain（Tauri drop 最稳）
+      // 其次再写入 url，避免某些 WebView 自定义 MIME 类型不稳定
+      e.dataTransfer.setData('text/plain', image.filePath || image.thumbnailPath || url || '');
+
       if (url) {
         e.dataTransfer.setData('application/x-image-url', url);
         e.dataTransfer.setData('text/uri-list', url);
@@ -180,14 +186,55 @@ export const ImageCard = React.memo(function ImageCard({
       if (image.filePath || image.thumbnailPath) {
         e.dataTransfer.setData('application/x-image-path', image.filePath || image.thumbnailPath);
       }
-      e.dataTransfer.setData('application/x-image-name', `ref-${image.id || 'unknown'}.jpg`);
-      e.dataTransfer.setData('text/plain', url || image.filePath || image.thumbnailPath || '');
+      e.dataTransfer.setData('application/x-image-name', name);
+
+      // Blob 兜底：避免 asset:// / CORS 等导致 URL fetch 失败时无法添加参考图
+      // 通过全局 Symbol 传递，drop 端可选择性读取
+      if (typeof window !== 'undefined') {
+        const dragBlobSymbol = Symbol.for('__dragImageBlob');
+        const img = imgRef.current;
+        if (img && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+          const createdAt = Date.now();
+          const blobPromise = new Promise<Blob | null>((resolve) => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.naturalWidth;
+              canvas.height = img.naturalHeight;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) return resolve(null);
+              ctx.drawImage(img, 0, 0);
+              canvas.toBlob((blob) => resolve(blob || null), 'image/jpeg', 0.9);
+            } catch {
+              resolve(null);
+            }
+          });
+
+          (window as any)[dragBlobSymbol] = {
+            id: image.id,
+            name,
+            createdAt,
+            blobPromise
+          };
+          e.dataTransfer.setData('application/x-has-blob', 'true');
+        }
+      }
 
       if (imgRef.current) {
         e.dataTransfer.setDragImage(imgRef.current, 40, 40);
       }
     } catch {}
   }, [isSuccess, image.id, image.url, image.thumbnailUrl, image.filePath, image.thumbnailPath]);
+
+  const handleDragEnd = useCallback(() => {
+    // 延迟清理缓存，给 drop 处理器足够的时间读取
+    setTimeout(() => {
+      const dragBlobSymbol = Symbol.for('__dragImageBlob');
+      const cached = (window as any)?.[dragBlobSymbol];
+      if (cached && cached.id === image.id) {
+        delete (window as any)[dragBlobSymbol];
+      }
+    }, 100);
+  }, [image.id]);
 
   return (
     <div
@@ -196,6 +243,9 @@ export const ImageCard = React.memo(function ImageCard({
         selected ? "ring-2 ring-blue-500 shadow-lg shadow-blue-100/50 scale-[0.98]" : "hover:shadow-md hover:-translate-y-0.5"
       )}
       onClick={() => isSuccess && onClick(image)}
+      draggable={isSuccess}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
     >
       {/* 图片/加载区域 - 统一正方形 */}
       <div className={cn(
@@ -312,11 +362,10 @@ export const ImageCard = React.memo(function ImageCard({
               alt={image.prompt || '图片'}
               className="w-full h-full object-cover"
               loading="lazy"
-              onDragStart={handleDragStart}
             />
             
             {/* 渐变遮罩 - 仅在悬浮时显示更多信息 */}
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300" />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 pointer-events-none" />
 
             {/* 选择框 */}
             {!showConfirm && (

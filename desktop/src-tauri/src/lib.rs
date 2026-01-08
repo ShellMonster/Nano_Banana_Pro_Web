@@ -292,6 +292,54 @@ fn copy_image_to_clipboard(app: tauri::AppHandle, path: String) -> Result<(), St
     rx.recv().map_err(|_| "clipboard task aborted".to_string())?
 }
 
+// 从系统剪贴板读取图片并写入 AppData 临时文件（用于打包环境下 Web ClipboardData 不可用/不稳定的兜底）
+#[tauri::command]
+fn read_image_from_clipboard(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use std::sync::mpsc;
+
+    // macOS 上部分剪贴板实现要求在主线程调用：统一切主线程读剪贴板
+    let (tx, rx) = mpsc::channel::<Result<Option<(usize, usize, Vec<u8>)>, String>>();
+    app.run_on_main_thread(move || {
+        let result = (|| {
+            let mut clipboard =
+                arboard::Clipboard::new().map_err(|e| format!("clipboard init failed: {}", e))?;
+            match clipboard.get_image() {
+                Ok(img) => Ok(Some((img.width, img.height, img.bytes.into_owned()))),
+                Err(e) => {
+                    eprintln!("clipboard get_image failed: {}", e);
+                    Ok(None)
+                }
+            }
+        })();
+        let _ = tx.send(result);
+    })
+    .map_err(|e| format!("run_on_main_thread failed: {}", e))?;
+
+    let Some((width, height, bytes)) = rx
+        .recv()
+        .map_err(|_| "clipboard task aborted".to_string())?? else {
+        return Ok(None);
+    };
+
+    let base = app
+        .path()
+        .app_data_dir()
+        .unwrap_or_else(|_| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let dir = base.join("clipboard");
+    fs::create_dir_all(&dir).map_err(|e| format!("create clipboard dir failed: {}", e))?;
+
+    let out_path = dir.join(format!("clipboard-{}.png", now_ms()));
+    let w = width as u32;
+    let h = height as u32;
+    let buffer = image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>::from_raw(w, h, bytes)
+        .ok_or_else(|| "invalid clipboard image data".to_string())?;
+    buffer
+        .save(&out_path)
+        .map_err(|e| format!("save clipboard image failed: {}", e))?;
+
+    Ok(Some(out_path.to_string_lossy().to_string()))
+}
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -392,7 +440,8 @@ pub fn run() {
             get_app_data_dir,
             get_log_dir,
             write_frontend_logs,
-            copy_image_to_clipboard
+            copy_image_to_clipboard,
+            read_image_from_clipboard
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
