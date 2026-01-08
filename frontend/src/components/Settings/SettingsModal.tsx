@@ -130,6 +130,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             placeholder="https://generativelanguage.googleapis.com"
             className="h-12 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
           />
+          <p className="text-xs text-slate-500 leading-relaxed px-1">
+            推荐使用云雾API获取更稳定的接口与价格：
+            <a
+              href="https://yunwu.ai/register?aff=i4hh"
+              target="_blank"
+              rel="noreferrer"
+              className="ml-1 text-blue-600 hover:text-blue-700 underline underline-offset-2"
+            >
+              https://yunwu.ai/register?aff=i4hh
+            </a>
+          </p>
         </div>
 
         {/* API Key */}

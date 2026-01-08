@@ -17,7 +17,7 @@ function formatBytes(bytes: number) {
 }
 
 export function UpdaterModal() {
-  const { isOpen, status, update, progress, error, close, checkForUpdates, downloadAndInstall } =
+  const { isOpen, status, update, progress, error, close, checkForUpdates, downloadUpdate, installUpdate } =
     useUpdaterStore();
 
   const autoCheckedRef = useRef(false);
@@ -40,15 +40,18 @@ export function UpdaterModal() {
   const percent = useMemo(() => {
     const total = progress?.total || 0;
     const downloaded = progress?.downloaded || 0;
-    if (total <= 0) return 0;
+    if (total <= 0) return status === 'downloaded' ? 100 : 0;
     return Math.max(0, Math.min(100, Math.round((downloaded / total) * 100)));
-  }, [progress?.downloaded, progress?.total]);
+  }, [progress?.downloaded, progress?.total, status]);
 
-  const canClose = status !== 'downloading' && status !== 'installing';
+  const isDownloading = status === 'downloading';
+  const canClose = status !== 'installing';
+  const dismissLabel = isDownloading ? '后台下载' : '稍后';
 
   const title = (() => {
     if (status === 'checking') return '正在检查更新...';
     if (status === 'downloading') return '正在下载更新...';
+    if (status === 'downloaded') return '更新已下载';
     if (status === 'installing') return '正在安装更新...';
     if (status === 'installed') return '更新完成';
     if (status === 'error') return '更新失败';
@@ -104,6 +107,15 @@ export function UpdaterModal() {
                 style={{ width: `${percent}%` }}
               />
             </div>
+            <div className="text-xs text-slate-500">
+              你可以关闭窗口继续使用，下载会在后台进行。
+            </div>
+          </div>
+        )}
+
+        {status === 'downloaded' && (
+          <div className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-2xl p-3">
+            更新包已下载，点击“安装并重启”完成更新。
           </div>
         )}
 
@@ -137,13 +149,20 @@ export function UpdaterModal() {
             disabled={!canClose}
             className={cn(!canClose && 'opacity-50')}
           >
-            稍后
+            {dismissLabel}
           </Button>
 
           {status === 'available' && (
-            <Button type="button" onClick={() => downloadAndInstall()} className="bg-blue-600">
+            <Button type="button" onClick={() => downloadUpdate()} className="bg-blue-600">
               <Download className="w-4 h-4 mr-2" />
-              下载并安装
+              下载更新
+            </Button>
+          )}
+
+          {status === 'downloaded' && (
+            <Button type="button" onClick={() => installUpdate()} className="bg-blue-600">
+              <Download className="w-4 h-4 mr-2" />
+              安装并重启
             </Button>
           )}
 
@@ -162,4 +181,3 @@ export function UpdaterModal() {
     </Modal>
   );
 }
-

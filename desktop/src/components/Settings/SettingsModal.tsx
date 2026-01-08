@@ -176,6 +176,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     toast.success(next ? '已启用详细日志' : '已关闭详细日志');
   };
 
+  const handleOpenYunwu = async () => {
+    const url = 'https://yunwu.ai/register?aff=i4hh';
+    try {
+      const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+      if (isTauri) {
+        const { openUrl } = await import('@tauri-apps/plugin-opener');
+        await openUrl(url);
+        return;
+      }
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.error('打开云雾API链接失败:', err);
+      toast.error('打开链接失败');
+    }
+  };
+
   const handleCheckUpdates = async () => {
     if (isCheckingUpdates) return;
     const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
@@ -252,6 +268,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             placeholder="https://generativelanguage.googleapis.com"
             className="h-12 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
           />
+          <button
+            type="button"
+            onClick={handleOpenYunwu}
+            className="text-left text-xs text-slate-500 leading-relaxed px-1"
+          >
+            推荐使用云雾API获取更稳定的接口与价格：
+            <span className="ml-1 text-blue-600 hover:text-blue-700 underline underline-offset-2">
+              https://yunwu.ai/register?aff=i4hh
+            </span>
+          </button>
         </div>
 
         {/* API Key */}
