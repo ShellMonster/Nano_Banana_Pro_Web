@@ -7,6 +7,7 @@ interface ModalProps {
   onClose: () => void;
   children: React.ReactNode;
   title?: string;
+  headerActions?: React.ReactNode;
   className?: string;
   hideHeader?: boolean;
   density?: 'default' | 'compact';
@@ -17,6 +18,7 @@ export function Modal({
   onClose,
   children,
   title,
+  headerActions,
   className = '',
   hideHeader = false,
   density = 'default'
@@ -72,15 +74,18 @@ export function Modal({
                         {title}
                     </h3>
                 ) : <div />}
-                <button
-                    onClick={onClose}
-                    className={[
-                      'bg-slate-200/30 hover:bg-white rounded-2xl transition-all text-slate-400 hover:text-slate-900 active:scale-90',
-                      density === 'compact' ? 'p-2.5' : 'p-3'
-                    ].join(' ')}
-                >
-                    <X className={density === 'compact' ? 'w-5 h-5' : 'w-6 h-6'} />
-                </button>
+                <div className="flex items-center gap-2">
+                  {headerActions}
+                  <button
+                      onClick={onClose}
+                      className={[
+                        'bg-slate-200/30 hover:bg-white rounded-2xl transition-all text-slate-400 hover:text-slate-900 active:scale-90',
+                        density === 'compact' ? 'p-2.5' : 'p-3'
+                      ].join(' ')}
+                  >
+                      <X className={density === 'compact' ? 'w-5 h-5' : 'w-6 h-6'} />
+                  </button>
+                </div>
             </div>
         )}
         

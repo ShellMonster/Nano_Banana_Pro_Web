@@ -5,6 +5,7 @@ import { generateBatch, generateBatchWithImages, getTaskStatus } from '../servic
 import { useWebSocket } from './useWebSocket';
 import { setUpdateSource, getUpdateSource, clearUpdateSource } from '../store/updateSourceStore';
 import { toast } from '../store/toastStore';
+import { usePromptHistoryStore } from '../store/promptHistoryStore';
 
 // WebSocket 超时时间（毫秒）- 超过此时间无消息则启动轮询
 // 本地后端通常不会推实时进度，过长会导致用户“卡住”的观感
@@ -19,6 +20,7 @@ const MAX_BACKOFF_INTERVAL = 15000;
 export function useGenerate() {
   const config = useConfigStore();
   const { startTask, status, taskId, failTask, updateProgress, updateProgressBatch, completeTask, setConnectionMode, connectionMode, setSubmitting, isSubmitting: isStoreSubmitting } = useGenerateStore();
+  const resetPromptHistory = usePromptHistoryStore((s) => s.reset);
   const [isInternalSubmitting, setIsInternalSubmitting] = useState(false);
 
   const isSubmitting = isInternalSubmitting || isStoreSubmitting;
@@ -193,10 +195,12 @@ export function useGenerate() {
   }, []);
 
   const generate = async () => {
-    if (!config.apiKey) {
-      toast.error('请先在设置中配置 API Key');
+    if (!config.imageApiKey) {
+      toast.error('请先在设置中配置生图 API Key');
       return;
     }
+
+    resetPromptHistory(config.prompt);
 
     // 优化 UX：如果用户在历史页点击“开始生成”，先立刻切到生成页
     // 避免历史页在请求期间/状态切换时出现“跳回顶部再切页”的观感
@@ -216,8 +220,8 @@ export function useGenerate() {
         // --- 场景 A: 图生图 (multipart/form-data) ---
         const formData = new FormData();
         formData.append('prompt', config.prompt);
-        formData.append('provider', config.provider);
-        formData.append('model_id', config.model);
+        formData.append('provider', config.imageProvider);
+        formData.append('model_id', config.imageModel);
         formData.append('aspectRatio', config.aspectRatio);
         formData.append('imageSize', config.imageSize);
         formData.append('count', config.count.toString());
@@ -238,8 +242,8 @@ export function useGenerate() {
       } else {
         // --- 场景 B: 文本生图 (JSON) ---
         response = await generateBatch({
-          provider: config.provider,
-          model_id: config.model,
+          provider: config.imageProvider,
+          model_id: config.imageModel,
           params: {
             prompt: config.prompt,
             count: config.count,

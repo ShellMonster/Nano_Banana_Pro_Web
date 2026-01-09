@@ -1,12 +1,19 @@
 package api
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
+	"time"
 
+	"image-gen-service/internal/config"
 	"image-gen-service/internal/model"
 	"image-gen-service/internal/provider"
 	"image-gen-service/internal/storage"
@@ -14,7 +21,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"os"
 )
 
 // Response 统一 API 响应结构
@@ -177,6 +183,48 @@ func ListProvidersHandler(c *gin.Context) {
 		return
 	}
 	Success(c, configs)
+}
+
+// PromptOptimizeRequest 提示词优化请求
+type PromptOptimizeRequest struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model" binding:"required"`
+	Prompt   string `json:"prompt" binding:"required"`
+}
+
+// OptimizePromptHandler 使用 OpenAI 标准接口优化提示词
+func OptimizePromptHandler(c *gin.Context) {
+	var req PromptOptimizeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Error(c, http.StatusBadRequest, 400, err.Error())
+		return
+	}
+
+	if req.Provider == "" {
+		req.Provider = "openai"
+	}
+	if strings.TrimSpace(req.Prompt) == "" {
+		Error(c, http.StatusBadRequest, 400, "prompt 不能为空")
+		return
+	}
+
+	var cfg model.ProviderConfig
+	if err := model.DB.Where("provider_name = ?", req.Provider).First(&cfg).Error; err != nil {
+		Error(c, http.StatusBadRequest, 400, "未找到指定的 Provider: "+req.Provider)
+		return
+	}
+	if strings.TrimSpace(cfg.APIKey) == "" {
+		Error(c, http.StatusBadRequest, 400, "Provider API Key 未配置")
+		return
+	}
+
+	optimized, err := callOpenAIOptimize(c.Request.Context(), &cfg, req.Model, req.Prompt)
+	if err != nil {
+		Error(c, http.StatusBadRequest, 400, err.Error())
+		return
+	}
+
+	Success(c, gin.H{"prompt": optimized})
 }
 
 // GenerateHandler 处理图片生成请求
@@ -429,4 +477,150 @@ func DownloadImageHandler(c *gin.Context) {
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
 	c.Header("Content-Type", "application/octet-stream")
 	c.File(task.LocalPath)
+}
+
+func getOptimizeSystemPrompt() string {
+	prompt := strings.TrimSpace(config.GlobalConfig.Prompts.OptimizeSystem)
+	if prompt == "" {
+		return config.DefaultOptimizeSystemPrompt
+	}
+	return prompt
+}
+
+func callOpenAIOptimize(ctx context.Context, cfg *model.ProviderConfig, modelName, prompt string) (string, error) {
+	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 60 * time.Second
+	}
+	client := &http.Client{Timeout: timeout}
+
+	endpoint := buildOpenAIChatEndpoint(cfg.APIBase)
+	systemPrompt := getOptimizeSystemPrompt()
+	payload := map[string]interface{}{
+		"model": modelName,
+		"messages": []map[string]interface{}{
+			{
+				"role":    "system",
+				"content": systemPrompt,
+			},
+			{
+				"role":    "user",
+				"content": prompt,
+			},
+		},
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("构建请求失败: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("创建请求失败: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("读取响应失败: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf(parseOpenAIError(respBytes))
+	}
+
+	optimized, err := extractChatMessage(respBytes)
+	if err != nil {
+		return "", err
+	}
+	optimized = strings.TrimSpace(optimized)
+	if optimized == "" {
+		return "", fmt.Errorf("未返回优化结果")
+	}
+	return optimized, nil
+}
+
+func buildOpenAIChatEndpoint(apiBase string) string {
+	base := strings.TrimRight(apiBase, "/")
+	if base == "" {
+		return "https://api.openai.com/v1/chat/completions"
+	}
+	if strings.Contains(base, "/chat/completions") {
+		return base
+	}
+	if strings.HasSuffix(base, "/v1") {
+		return base + "/chat/completions"
+	}
+	return base + "/v1/chat/completions"
+}
+
+func parseOpenAIError(resp []byte) string {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(resp, &payload); err != nil {
+		return string(resp)
+	}
+	if errObj, ok := payload["error"].(map[string]interface{}); ok {
+		if msg, ok := errObj["message"].(string); ok && msg != "" {
+			return msg
+		}
+	}
+	if msg, ok := payload["message"].(string); ok && msg != "" {
+		return msg
+	}
+	return string(resp)
+}
+
+func extractChatMessage(resp []byte) (string, error) {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(resp, &payload); err != nil {
+		return "", fmt.Errorf("解析响应失败: %w", err)
+	}
+	choices, ok := payload["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return "", fmt.Errorf("响应中未找到 choices")
+	}
+	choice, ok := choices[0].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("响应格式错误")
+	}
+	msg, ok := choice["message"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("响应中未找到 message")
+	}
+	return extractTextFromContent(msg["content"]), nil
+}
+
+func extractTextFromContent(content interface{}) string {
+	switch value := content.(type) {
+	case string:
+		return value
+	case []interface{}:
+		var parts []string
+		for _, item := range value {
+			part, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if t, _ := part["type"].(string); t == "text" {
+				if text, _ := part["text"].(string); text != "" {
+					parts = append(parts, text)
+				}
+			}
+		}
+		return strings.Join(parts, "\n")
+	case map[string]interface{}:
+		if text, _ := value["text"].(string); text != "" {
+			return text
+		}
+	}
+	return ""
 }

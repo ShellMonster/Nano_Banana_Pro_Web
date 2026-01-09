@@ -1,11 +1,13 @@
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
+use tauri_plugin_opener::OpenerExt;
 use tauri::{Emitter, State, Manager};
 use std::sync::{Arc, Mutex};
 use std::path::{Path, PathBuf};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::Command;
 
 #[derive(Clone, serde::Serialize)]
 struct PortPayload {
@@ -183,7 +185,50 @@ fn get_app_data_dir(app: tauri::AppHandle) -> String {
 // 获取日志目录，便于用户导出/提交诊断日志
 #[tauri::command]
 fn get_log_dir(state: State<'_, LogState>) -> String {
+    let _ = fs::create_dir_all(&state.dir);
     state.dir.to_string_lossy().to_string()
+}
+
+// 打开日志目录
+#[tauri::command]
+fn open_log_dir(app: tauri::AppHandle, state: State<'_, LogState>) -> Result<(), String> {
+    let _ = fs::create_dir_all(&state.dir);
+    let open_result = app
+        .opener()
+        .open_path(state.dir.to_string_lossy().to_string(), None::<String>);
+
+    if let Err(err) = open_result {
+        open_dir_with_command(&state.dir)
+            .map_err(|fallback| format!("open log dir failed: {} ({})", err, fallback))?;
+    }
+    Ok(())
+}
+
+fn open_dir_with_command(path: &Path) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("open command failed: {}", e))
+    }
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("explorer command failed: {}", e))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("xdg-open command failed: {}", e))
+    }
 }
 
 // 写入前端日志（批量），用于捕获前端异常与关键调试信息
@@ -292,6 +337,32 @@ fn copy_image_to_clipboard(app: tauri::AppHandle, path: String) -> Result<(), St
     rx.recv().map_err(|_| "clipboard task aborted".to_string())?
 }
 
+// 复制文本到系统剪贴板（用于日志路径等）
+#[tauri::command]
+fn copy_text_to_clipboard(app: tauri::AppHandle, text: String) -> Result<(), String> {
+    use std::sync::mpsc;
+
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Err("text is empty".to_string());
+    }
+
+    let content = trimmed.to_string();
+    let (tx, rx) = mpsc::channel::<Result<(), String>>();
+    app.run_on_main_thread(move || {
+        let result = (|| {
+            let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("clipboard init failed: {}", e))?;
+            clipboard
+                .set_text(content)
+                .map_err(|e| format!("clipboard set text failed: {}", e))?;
+            Ok(())
+        })();
+        let _ = tx.send(result);
+    })
+    .map_err(|e| format!("run_on_main_thread failed: {}", e))?;
+
+    rx.recv().map_err(|_| "clipboard task aborted".to_string())?
+}
 // 从系统剪贴板读取图片并写入 AppData 临时文件（用于打包环境下 Web ClipboardData 不可用/不稳定的兜底）
 #[tauri::command]
 fn read_image_from_clipboard(app: tauri::AppHandle) -> Result<Option<String>, String> {
@@ -439,8 +510,10 @@ pub fn run() {
             get_backend_port,
             get_app_data_dir,
             get_log_dir,
+            open_log_dir,
             write_frontend_logs,
             copy_image_to_clipboard,
+            copy_text_to_clipboard,
             read_image_from_clipboard
         ])
         .run(tauri::generate_context!())

@@ -98,6 +98,7 @@ func main() {
 		})
 		v1.GET("/providers", api.ListProvidersHandler)
 		v1.POST("/providers/config", api.UpdateProviderConfigHandler)
+		v1.POST("/prompts/optimize", api.OptimizePromptHandler)
 		v1.POST("/tasks/generate", api.GenerateHandler)
 		v1.POST("/tasks/generate-with-images", api.GenerateWithImagesHandler)
 		v1.GET("/tasks/:task_id", api.GetTaskHandler)

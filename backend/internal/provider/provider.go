@@ -48,7 +48,7 @@ func InitProviders() error {
 	defer initMu.Unlock()
 
 	// 0. 确保基础 Provider 至少存在于数据库中（即使没有配置文件）
-	defaultProviders := []string{"gemini"}
+	defaultProviders := []string{"gemini", "openai"}
 	for _, name := range defaultProviders {
 		var count int64
 		model.DB.Model(&model.ProviderConfig{}).Where("provider_name = ?", name).Count(&count)
@@ -98,6 +98,8 @@ func InitProviders() error {
 		switch cfg.ProviderName {
 		case "gemini":
 			p, err = NewGeminiProvider(&cfg)
+		case "openai":
+			p, err = NewOpenAIProvider(&cfg)
 		default:
 			log.Printf("未知的 Provider 类型: %s", cfg.ProviderName)
 			continue

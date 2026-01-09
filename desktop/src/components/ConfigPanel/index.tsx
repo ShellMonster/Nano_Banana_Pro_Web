@@ -8,7 +8,7 @@ import { useConfigStore } from '../../store/configStore';
 import { useGenerate } from '../../hooks/useGenerate';
 
 export default function ConfigPanel() {
-  const apiKey = useConfigStore(s => s.apiKey);
+  const apiKey = useConfigStore(s => s.imageApiKey);
   const prompt = useConfigStore(s => s.prompt);
   const hasRefImages = useConfigStore(s => s.refFiles.length > 0);
   const { generate } = useGenerate();
@@ -33,7 +33,7 @@ export default function ConfigPanel() {
           {!apiKey && (
             <div className="mb-3 text-xs text-amber-600 bg-amber-50 p-3 rounded-2xl border border-amber-200 flex items-center gap-2">
               <Settings className="w-3 h-3" />
-              请先在右上角配置 API Key
+              请先在右上角配置生图 API Key
             </div>
           )}
           <Button

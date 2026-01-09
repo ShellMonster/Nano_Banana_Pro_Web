@@ -85,7 +85,7 @@ export function PromptInput() {
     setIsOptimizing(true);
     try {
       const res = await optimizePrompt({ provider: 'openai-chat', model: chatModelValue, prompt: raw });
-      const nextPrompt = String(res?.data?.prompt || '').trim();
+      const nextPrompt = String(res?.prompt || '').trim();
       if (!nextPrompt) {
         toast.error('优化失败，未返回内容');
         return;
@@ -95,7 +95,11 @@ export function PromptInput() {
       setPrompt(nextPrompt);
     } catch (error) {
       const message = error instanceof Error ? error.message : '优化失败';
-      toast.error(message || '优化失败');
+      if (message.includes('未找到指定的 Provider') || message.includes('Provider API Key 未配置')) {
+        toast.error('请先在设置中同步保存对话模型配置');
+      } else {
+        toast.error(message || '优化失败');
+      }
     } finally {
       setIsOptimizing(false);
     }
@@ -103,18 +107,12 @@ export function PromptInput() {
 
   return (
     <div className="flex flex-col gap-2 h-full">
-      <label className="text-sm font-medium text-gray-700 flex items-center gap-2 flex-shrink-0">
-        <MessageSquare className="w-4 h-4" />
-        提示词 (Prompt)
-      </label>
-      <div className="relative flex-1">
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="描述你想要生成的图片..."
-          className="w-full h-full rounded-2xl border-none bg-slate-100 px-4 py-3 pr-16 pt-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all duration-200 resize-none min-h-[80px]"
-        />
-        <div className="absolute top-2 right-2 flex items-center gap-1.5">
+      <div className="flex items-center justify-between gap-3 flex-shrink-0">
+        <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+          <MessageSquare className="w-4 h-4" />
+          提示词 (Prompt)
+        </label>
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={handleOptimize}
@@ -137,10 +135,12 @@ export function PromptInput() {
               <button
                 type="button"
                 onClick={handleUndo}
-                disabled={!canUndo}
+                disabled={!canUndo || isOptimizing}
                 title="撤销"
                 className={`p-1.5 rounded-lg transition-all ${
-                  canUndo ? 'bg-slate-100 text-slate-700 hover:bg-white' : 'opacity-40 cursor-not-allowed bg-slate-100'
+                  canUndo && !isOptimizing
+                    ? 'bg-slate-100 text-slate-700 hover:bg-white'
+                    : 'opacity-40 cursor-not-allowed bg-slate-100'
                 }`}
               >
                 <Undo2 className="w-4 h-4" />
@@ -148,10 +148,12 @@ export function PromptInput() {
               <button
                 type="button"
                 onClick={handleRedo}
-                disabled={!canRedo}
+                disabled={!canRedo || isOptimizing}
                 title="重做"
                 className={`p-1.5 rounded-lg transition-all ${
-                  canRedo ? 'bg-slate-100 text-slate-700 hover:bg-white' : 'opacity-40 cursor-not-allowed bg-slate-100'
+                  canRedo && !isOptimizing
+                    ? 'bg-slate-100 text-slate-700 hover:bg-white'
+                    : 'opacity-40 cursor-not-allowed bg-slate-100'
                 }`}
               >
                 <Redo2 className="w-4 h-4" />
@@ -159,6 +161,14 @@ export function PromptInput() {
             </>
           )}
         </div>
+      </div>
+      <div className="relative flex-1">
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="描述你想要生成的图片..."
+          className="w-full h-full rounded-2xl border-none bg-slate-100 px-4 py-3 pt-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all duration-200 resize-none min-h-[80px]"
+        />
       </div>
     </div>
   );
