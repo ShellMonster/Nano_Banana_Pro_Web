@@ -412,8 +412,10 @@ export function ReferenceImageUpload() {
     e.stopPropagation();
     setIsDraggingOver(false);
 
-    // 只在展开状态处理
-    if (!isExpanded) return;
+    // 收起状态也允许拖入：自动展开，避免“无提示/无响应”的体验
+    if (!isExpanded) {
+      setIsExpanded(true);
+    }
 
     // 并发操作保护
     try {
@@ -421,26 +423,41 @@ export function ReferenceImageUpload() {
         const filesToAdd: File[] = [];
         const remainingSlots = 10 - refFiles.length;
 
-        // 调试日志
+        if (remainingSlots <= 0) {
+          toast.error('参考图已满');
+          return;
+        }
 
         // 优先处理缓存的 Blob 数据（避免 CORS 问题）
         // 使用 Symbol 避免全局变量污染
         const dragBlobSymbol = Symbol.for('__dragImageBlob');
-        const hasBlob = e.dataTransfer.getData('application/x-has-blob');
-        if (hasBlob === 'true' && (window as any)[dragBlobSymbol]) {
-          const cachedData = (window as any)[dragBlobSymbol];
+        const hasBlobFlag = (e.dataTransfer.getData('application/x-has-blob') || '').trim();
+        const cachedData = (window as any)[dragBlobSymbol];
+        const canUseCachedBlob =
+          cachedData &&
+          (hasBlobFlag === 'true' || Boolean(cachedData.blob) || Boolean(cachedData.blobPromise));
 
-          if (filesToAdd.length < remainingSlots) {
-            try {
-              const file = new File([cachedData.blob], cachedData.name, { type: 'image/jpeg' });
+        if (canUseCachedBlob) {
+          const createdAt = typeof cachedData.createdAt === 'number' ? cachedData.createdAt : 0;
+          if (!createdAt || Date.now() - createdAt < 60_000) {
+            if (filesToAdd.length < remainingSlots) {
+              try {
+                let blob: Blob | null | undefined = cachedData.blob;
+                if (!blob && cachedData.blobPromise) {
+                  const timeout = new Promise<Blob | null>((resolve) => setTimeout(() => resolve(null), 1500));
+                  blob = await Promise.race([cachedData.blobPromise, timeout]);
+                }
 
-              // 检查文件大小
-              if (file.size / 1024 / 1024 < 5) {
-                filesToAdd.push(file);
-              } else {
-                toast.error('图片超过 5MB');
+                if (blob) {
+                  const file = new File([blob], cachedData.name || 'ref-image.jpg', { type: blob.type || 'image/jpeg' });
+                  if (file.size / 1024 / 1024 < 5) {
+                    filesToAdd.push(file);
+                  } else {
+                    toast.error('图片超过 5MB');
+                  }
+                }
+              } catch (err) {
               }
-            } catch (err) {
             }
           }
 
@@ -473,6 +490,26 @@ export function ReferenceImageUpload() {
             }
           }
 
+
+          // 兼容：部分浏览器只提供 text/plain
+          if (!imageUrl) {
+            const plain = e.dataTransfer.getData('text/plain');
+            const trimmed = (plain || '').trim();
+            if (
+              trimmed &&
+              (trimmed.startsWith('http://') ||
+                trimmed.startsWith('https://') ||
+                trimmed.startsWith('asset:') ||
+                trimmed.startsWith('tauri:') ||
+                trimmed.startsWith('ipc:') ||
+                trimmed.startsWith('blob:') ||
+                trimmed.startsWith('data:') ||
+                trimmed.startsWith('http://asset.localhost'))
+            ) {
+              imageUrl = trimmed;
+              if (!imageName) imageName = 'ref-image.jpg';
+            }
+          }
 
           if (imageUrl && imageName) {
             if (validatedFiles.length + rawFiles.length >= remainingSlots) {

@@ -1,11 +1,10 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -21,6 +20,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 )
 
 // Response 统一 API 响应结构
@@ -98,6 +99,17 @@ func buildConfigSnapshot(providerName, modelID string, params map[string]interfa
 	return string(b)
 }
 
+func fetchProviderConfig(providerName string) *model.ProviderConfig {
+	if model.DB == nil {
+		return nil
+	}
+	var cfg model.ProviderConfig
+	if err := model.DB.Where("provider_name = ?", providerName).First(&cfg).Error; err != nil {
+		return nil
+	}
+	return &cfg
+}
+
 // ProviderConfigRequest 设置 Provider 配置请求
 type ProviderConfigRequest struct {
 	ProviderName string `json:"provider_name" binding:"required"`
@@ -105,6 +117,7 @@ type ProviderConfigRequest struct {
 	APIBase      string `json:"api_base" binding:"required"`
 	APIKey       string `json:"api_key" binding:"required"`
 	Enabled      bool   `json:"enabled"`
+	ModelID      string `json:"model_id"`
 }
 
 // UpdateProviderConfigHandler 更新 Provider 配置
@@ -131,11 +144,13 @@ func UpdateProviderConfigHandler(c *gin.Context) {
 	if err != nil {
 		log.Printf("[API] 配置不存在，准备创建: %s\n", req.ProviderName)
 		// 不存在则创建
+		modelsJSON := buildModelsJSON(req.ProviderName, req.ModelID, "")
 		configData = model.ProviderConfig{
 			ProviderName: req.ProviderName,
 			DisplayName:  req.DisplayName,
 			APIBase:      req.APIBase,
 			APIKey:       req.APIKey,
+			Models:       modelsJSON,
 			Enabled:      req.Enabled,
 		}
 		if err := model.DB.Create(&configData).Error; err != nil {
@@ -153,6 +168,9 @@ func UpdateProviderConfigHandler(c *gin.Context) {
 		}
 		if req.DisplayName != "" {
 			updates["display_name"] = req.DisplayName
+		}
+		if modelsJSON := buildModelsJSON(req.ProviderName, req.ModelID, configData.Models); modelsJSON != "" {
+			updates["models"] = modelsJSON
 		}
 		if err := model.DB.Model(&configData).Updates(updates).Error; err != nil {
 			log.Printf("[API] 更新配置失败: %v\n", err)
@@ -188,7 +206,7 @@ func ListProvidersHandler(c *gin.Context) {
 // PromptOptimizeRequest 提示词优化请求
 type PromptOptimizeRequest struct {
 	Provider string `json:"provider"`
-	Model    string `json:"model" binding:"required"`
+	Model    string `json:"model"`
 	Prompt   string `json:"prompt" binding:"required"`
 }
 
@@ -218,7 +236,18 @@ func OptimizePromptHandler(c *gin.Context) {
 		return
 	}
 
-	optimized, err := callOpenAIOptimize(c.Request.Context(), &cfg, req.Model, req.Prompt)
+	modelName := provider.ResolveModelID(provider.ModelResolveOptions{
+		ProviderName: req.Provider,
+		Purpose:      provider.PurposeChat,
+		RequestModel: req.Model,
+		Config:       &cfg,
+	}).ID
+	if modelName == "" {
+		Error(c, http.StatusBadRequest, 400, "未找到可用的模型")
+		return
+	}
+
+	optimized, err := callOpenAIOptimize(c.Request.Context(), &cfg, modelName, req.Prompt)
 	if err != nil {
 		Error(c, http.StatusBadRequest, 400, err.Error())
 		return
@@ -242,6 +271,20 @@ func GenerateHandler(c *gin.Context) {
 		return
 	}
 
+	if req.Params == nil {
+		req.Params = map[string]interface{}{}
+	}
+	modelID := provider.ResolveModelID(provider.ModelResolveOptions{
+		ProviderName: req.Provider,
+		Purpose:      provider.PurposeImage,
+		RequestModel: req.ModelID,
+		Params:       req.Params,
+		Config:       fetchProviderConfig(req.Provider),
+	}).ID
+	if modelID != "" {
+		req.Params["model_id"] = modelID
+	}
+
 	// 2. 校验参数（包含你提到的比例和分辨率）
 	if err := p.ValidateParams(req.Params); err != nil {
 		Error(c, http.StatusBadRequest, 400, err.Error())
@@ -259,10 +302,10 @@ func GenerateHandler(c *gin.Context) {
 		TaskID:         taskID,
 		Prompt:         prompt,
 		ProviderName:   req.Provider,
-		ModelID:        req.ModelID,
+		ModelID:        modelID,
 		TotalCount:     1, // 目前单次请求只生成一张，后续可扩展
 		Status:         "pending",
-		ConfigSnapshot: buildConfigSnapshot(req.Provider, req.ModelID, req.Params),
+		ConfigSnapshot: buildConfigSnapshot(req.Provider, modelID, req.Params),
 	}
 
 	if count, ok := req.Params["count"].(float64); ok {
@@ -334,10 +377,16 @@ func GenerateWithImagesHandler(c *gin.Context) {
 		}
 	}
 
+	modelID := provider.ResolveModelID(provider.ModelResolveOptions{
+		ProviderName: req.Provider,
+		Purpose:      provider.PurposeImage,
+		RequestModel: req.ModelID,
+		Config:       fetchProviderConfig(req.Provider),
+	}).ID
 	taskParams := map[string]interface{}{
 		"prompt":           req.Prompt,
 		"provider":         req.Provider,
-		"model_id":         req.ModelID,
+		"model_id":         modelID,
 		"aspect_ratio":     req.AspectRatio,
 		"resolution_level": req.ImageSize,
 		"count":            req.Count,
@@ -357,10 +406,10 @@ func GenerateWithImagesHandler(c *gin.Context) {
 		TaskID:         taskID,
 		Prompt:         req.Prompt,
 		ProviderName:   req.Provider,
-		ModelID:        req.ModelID,
+		ModelID:        modelID,
 		TotalCount:     req.Count,
 		Status:         "pending",
-		ConfigSnapshot: buildConfigSnapshot(req.Provider, req.ModelID, taskParams),
+		ConfigSnapshot: buildConfigSnapshot(req.Provider, modelID, taskParams),
 	}
 
 	if err := model.DB.Create(taskModel).Error; err != nil {
@@ -492,50 +541,29 @@ func callOpenAIOptimize(ctx context.Context, cfg *model.ProviderConfig, modelNam
 	if timeout <= 0 {
 		timeout = 60 * time.Second
 	}
-	client := &http.Client{Timeout: timeout}
+	httpClient := &http.Client{Timeout: timeout}
+	apiBase := provider.NormalizeOpenAIBaseURL(cfg.APIBase)
+	opts := []option.RequestOption{
+		option.WithAPIKey(cfg.APIKey),
+		option.WithHTTPClient(httpClient),
+	}
+	if apiBase != "" {
+		opts = append(opts, option.WithBaseURL(apiBase))
+	}
+	client := openai.NewClient(opts...)
 
-	endpoint := buildOpenAIChatEndpoint(cfg.APIBase)
 	systemPrompt := getOptimizeSystemPrompt()
 	payload := map[string]interface{}{
 		"model": modelName,
-		"messages": []map[string]interface{}{
-			{
-				"role":    "system",
-				"content": systemPrompt,
-			},
-			{
-				"role":    "user",
-				"content": prompt,
-			},
+		"messages": []openai.ChatCompletionMessageParamUnion{
+			openai.SystemMessage(systemPrompt),
+			openai.UserMessage(prompt),
 		},
 	}
 
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return "", fmt.Errorf("构建请求失败: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("创建请求失败: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("请求失败: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("读取响应失败: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf(parseOpenAIError(respBytes))
+	var respBytes []byte
+	if err := client.Post(ctx, "/chat/completions", payload, &respBytes); err != nil {
+		return "", fmt.Errorf("请求失败: %s", formatOpenAIClientError(err))
 	}
 
 	optimized, err := extractChatMessage(respBytes)
@@ -549,34 +577,37 @@ func callOpenAIOptimize(ctx context.Context, cfg *model.ProviderConfig, modelNam
 	return optimized, nil
 }
 
-func buildOpenAIChatEndpoint(apiBase string) string {
-	base := strings.TrimRight(apiBase, "/")
-	if base == "" {
-		return "https://api.openai.com/v1/chat/completions"
+func buildModelsJSON(_ string, modelID, _ string) string {
+	modelID = strings.TrimSpace(modelID)
+	if modelID == "" {
+		return ""
 	}
-	if strings.Contains(base, "/chat/completions") {
-		return base
+	payload := []map[string]interface{}{
+		{
+			"id":      modelID,
+			"name":    modelID,
+			"default": true,
+		},
 	}
-	if strings.HasSuffix(base, "/v1") {
-		return base + "/chat/completions"
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return ""
 	}
-	return base + "/v1/chat/completions"
+	return string(data)
 }
 
-func parseOpenAIError(resp []byte) string {
-	var payload map[string]interface{}
-	if err := json.Unmarshal(resp, &payload); err != nil {
-		return string(resp)
-	}
-	if errObj, ok := payload["error"].(map[string]interface{}); ok {
-		if msg, ok := errObj["message"].(string); ok && msg != "" {
+func formatOpenAIClientError(err error) string {
+	var apiErr *openai.Error
+	if errors.As(err, &apiErr) {
+		msg := strings.TrimSpace(apiErr.Message)
+		if msg == "" {
+			msg = strings.TrimSpace(apiErr.RawJSON())
+		}
+		if msg != "" {
 			return msg
 		}
 	}
-	if msg, ok := payload["message"].(string); ok && msg != "" {
-		return msg
-	}
-	return string(resp)
+	return err.Error()
 }
 
 func extractChatMessage(resp []byte) (string, error) {

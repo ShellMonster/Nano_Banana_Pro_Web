@@ -6,6 +6,8 @@ export interface ProviderConfig {
   api_key: string;
   api_base: string;
   enabled: boolean;
+  model_id?: string;
+  models?: string;
 }
 
 // 更新 Provider 配置

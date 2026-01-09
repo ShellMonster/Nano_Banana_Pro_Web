@@ -1,10 +1,10 @@
 package provider
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image-gen-service/internal/model"
 	"io"
@@ -13,23 +13,17 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 )
 
 type OpenAIProvider struct {
-	config    *model.ProviderConfig
-	client    *http.Client
-	apiBase   string
-	userAgent string
-}
-
-type openAIContentPart struct {
-	Type     string          `json:"type"`
-	Text     string          `json:"text,omitempty"`
-	ImageURL *openAIImageURL `json:"image_url,omitempty"`
-}
-
-type openAIImageURL struct {
-	URL string `json:"url"`
+	config     *model.ProviderConfig
+	client     *openai.Client
+	httpClient *http.Client
+	apiBase    string
+	userAgent  string
 }
 
 func NewOpenAIProvider(config *model.ProviderConfig) (*OpenAIProvider, error) {
@@ -38,16 +32,27 @@ func NewOpenAIProvider(config *model.ProviderConfig) (*OpenAIProvider, error) {
 		timeout = 60 * time.Second
 	}
 
-	apiBase := strings.TrimRight(config.APIBase, "/")
-	if apiBase == "" {
-		apiBase = "https://api.openai.com/v1"
+	apiBase := NormalizeOpenAIBaseURL(config.APIBase)
+	httpClient := &http.Client{Timeout: timeout}
+	userAgent := "image-gen-service/1.0"
+	opts := []option.RequestOption{
+		option.WithAPIKey(config.APIKey),
+		option.WithHTTPClient(httpClient),
 	}
+	if apiBase != "" {
+		opts = append(opts, option.WithBaseURL(apiBase))
+	}
+	if userAgent != "" {
+		opts = append(opts, option.WithHeader("User-Agent", userAgent))
+	}
+	client := openai.NewClient(opts...)
 
 	return &OpenAIProvider{
-		config: config,
-		client: &http.Client{Timeout: timeout},
-		apiBase: apiBase,
-		userAgent: "image-gen-service/1.0",
+		config:     config,
+		client:     &client,
+		httpClient: httpClient,
+		apiBase:    apiBase,
+		userAgent:  userAgent,
 	}, nil
 }
 
@@ -70,7 +75,12 @@ func (p *OpenAIProvider) Generate(ctx context.Context, params map[string]interfa
 	}
 	log.Printf("[OpenAI] Generate 被调用, Params: %+v\n", logParams)
 
-	modelID := getModelID(params, p.config.Models)
+	modelID := ResolveModelID(ModelResolveOptions{
+		ProviderName: p.Name(),
+		Purpose:      PurposeImage,
+		Params:       params,
+		Config:       p.config,
+	}).ID
 	if modelID == "" {
 		return nil, fmt.Errorf("缺少 model_id 参数")
 	}
@@ -96,28 +106,22 @@ func (p *OpenAIProvider) Generate(ctx context.Context, params map[string]interfa
 		}
 
 		if len(refParts) == 0 {
-			reqBody["messages"] = []map[string]interface{}{
-				{
-					"role":    "user",
-					"content": prompt,
-				},
+			reqBody["messages"] = []openai.ChatCompletionMessageParamUnion{
+				openai.UserMessage(prompt),
 			}
 		} else {
-			content := append(refParts, openAIContentPart{
-				Type: "text",
-				Text: prompt,
-			})
-			reqBody["messages"] = []map[string]interface{}{
-				{
-					"role":    "user",
-					"content": content,
-				},
+			content := append(refParts, openai.TextContentPart(prompt))
+			reqBody["messages"] = []openai.ChatCompletionMessageParamUnion{
+				openai.UserMessage(content),
 			}
 		}
 	}
 
 	if count, ok := toInt(params["count"]); ok && count > 1 {
 		reqBody["n"] = count
+	}
+	if _, ok := reqBody["modalities"]; !ok {
+		reqBody["modalities"] = []string{"text", "image"}
 	}
 	applyOpenAIOptions(reqBody, params)
 
@@ -153,51 +157,15 @@ func (p *OpenAIProvider) ValidateParams(params map[string]interface{}) error {
 }
 
 func (p *OpenAIProvider) doChatRequest(ctx context.Context, body map[string]interface{}) ([]byte, error) {
-	endpoint := p.chatEndpoint()
-
-	payload, err := json.Marshal(body)
+	var respBytes []byte
+	err := p.client.Post(ctx, "/chat/completions", body, &respBytes)
 	if err != nil {
-		return nil, fmt.Errorf("构建请求失败: %w", err)
+		return nil, fmt.Errorf("请求失败: %s", formatOpenAIClientError(err))
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
-	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
+	if len(respBytes) == 0 {
+		return nil, fmt.Errorf("接口未返回内容")
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", p.userAgent)
-	if p.config.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+p.config.APIKey)
-	}
-
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("请求失败: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("接口返回错误: %s", parseOpenAIError(respBytes))
-	}
-
 	return respBytes, nil
-}
-
-func (p *OpenAIProvider) chatEndpoint() string {
-	base := strings.TrimRight(p.apiBase, "/")
-	if strings.Contains(base, "/chat/completions") {
-		return base
-	}
-	if strings.HasSuffix(base, "/v1") {
-		return base + "/chat/completions"
-	}
-	return base + "/v1/chat/completions"
 }
 
 func (p *OpenAIProvider) extractImages(ctx context.Context, respBytes []byte) ([][]byte, error) {
@@ -333,7 +301,7 @@ func (p *OpenAIProvider) fetchImage(ctx context.Context, url string) ([]byte, er
 	if err != nil {
 		return nil, err
 	}
-	resp, err := p.client.Do(req)
+	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -344,13 +312,13 @@ func (p *OpenAIProvider) fetchImage(ctx context.Context, url string) ([]byte, er
 	return io.ReadAll(resp.Body)
 }
 
-func buildImageParts(raw interface{}) ([]openAIContentPart, error) {
+func buildImageParts(raw interface{}) ([]openai.ChatCompletionContentPartUnionParam, error) {
 	refImgs, ok := raw.([]interface{})
 	if !ok || len(refImgs) == 0 {
 		return nil, nil
 	}
 
-	var parts []openAIContentPart
+	var parts []openai.ChatCompletionContentPartUnionParam
 	for idx, ref := range refImgs {
 		var imgBytes []byte
 		switch v := ref.(type) {
@@ -376,12 +344,9 @@ func buildImageParts(raw interface{}) ([]openAIContentPart, error) {
 			mimeType = "image/png"
 		}
 		dataURL := fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(imgBytes))
-		parts = append(parts, openAIContentPart{
-			Type: "image_url",
-			ImageURL: &openAIImageURL{
-				URL: dataURL,
-			},
-		})
+		parts = append(parts, openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{
+			URL: dataURL,
+		}))
 	}
 	return parts, nil
 }
@@ -414,34 +379,6 @@ func appendPromptHints(prompt string, params map[string]interface{}) string {
 	return fmt.Sprintf("%s\n\n%s", prompt, strings.Join(hintParts, "，"))
 }
 
-func getModelID(params map[string]interface{}, fallbackModels string) string {
-	if v, ok := params["model_id"].(string); ok && v != "" {
-		return v
-	}
-	if v, ok := params["model"].(string); ok && v != "" {
-		return v
-	}
-	if fallbackModels == "" {
-		return ""
-	}
-	var models []struct {
-		ID      string `json:"id"`
-		Default bool   `json:"default"`
-	}
-	if err := json.Unmarshal([]byte(fallbackModels), &models); err != nil {
-		return ""
-	}
-	for _, m := range models {
-		if m.Default && m.ID != "" {
-			return m.ID
-		}
-	}
-	if len(models) > 0 {
-		return models[0].ID
-	}
-	return ""
-}
-
 func applyOpenAIOptions(body map[string]interface{}, params map[string]interface{}) {
 	keys := []string{
 		"temperature",
@@ -450,6 +387,7 @@ func applyOpenAIOptions(body map[string]interface{}, params map[string]interface
 		"presence_penalty",
 		"frequency_penalty",
 		"response_format",
+		"modalities",
 		"stream",
 		"stop",
 		"user",
@@ -461,6 +399,41 @@ func applyOpenAIOptions(body map[string]interface{}, params map[string]interface
 			body[key] = val
 		}
 	}
+}
+
+func NormalizeOpenAIBaseURL(apiBase string) string {
+	base := strings.TrimSpace(apiBase)
+	if base == "" {
+		return "https://api.openai.com/v1"
+	}
+
+	base = strings.TrimRight(base, "/")
+	if strings.Contains(base, "/chat/completions") {
+		base = strings.Split(base, "/chat/completions")[0]
+		base = strings.TrimRight(base, "/")
+	}
+	if strings.Contains(base, "/v1/") {
+		base = strings.Split(base, "/v1/")[0] + "/v1"
+		return base
+	}
+	if strings.HasSuffix(base, "/v1") {
+		return base
+	}
+	return base + "/v1"
+}
+
+func formatOpenAIClientError(err error) string {
+	var apiErr *openai.Error
+	if errors.As(err, &apiErr) {
+		msg := strings.TrimSpace(apiErr.Message)
+		if msg == "" {
+			msg = strings.TrimSpace(apiErr.RawJSON())
+		}
+		if msg != "" {
+			return msg
+		}
+	}
+	return err.Error()
 }
 
 func parseOpenAIError(resp []byte) string {

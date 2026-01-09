@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { Check, AlertCircle, Loader2, XCircle } from 'lucide-react';
 import { GeneratedImage } from '../../types';
 import { cn } from '../common/Button';
@@ -19,6 +19,8 @@ export const ImageCard = React.memo(function ImageCard({
   elapsed = '0.0'
 }: ImageCardProps) {
   const isPending = image.status === 'pending' || !image.url;
+  const isSuccess = !isPending && image.status !== 'failed';
+  const imgRef = useRef<HTMLImageElement>(null);
 
   // 使用 useMemo 优化规格信息解析
   const specs = useMemo(() => {
@@ -44,6 +46,67 @@ export const ImageCard = React.memo(function ImageCard({
     return specs.split(' · ');
   }, [specs]);
 
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    if (!isSuccess) return;
+
+    try {
+      e.dataTransfer.effectAllowed = 'copy';
+
+      const url = image.url || image.thumbnailUrl || '';
+      const name = `ref-${image.id || 'unknown'}.jpg`;
+
+      e.dataTransfer.setData('text/plain', url || '');
+      if (url) {
+        e.dataTransfer.setData('application/x-image-url', url);
+        e.dataTransfer.setData('text/uri-list', url);
+      }
+      e.dataTransfer.setData('application/x-image-name', name);
+
+      if (typeof window !== 'undefined') {
+        const dragBlobSymbol = Symbol.for('__dragImageBlob');
+        const img = imgRef.current;
+        if (img && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+          const createdAt = Date.now();
+          const blobPromise = new Promise<Blob | null>((resolve) => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.naturalWidth;
+              canvas.height = img.naturalHeight;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) return resolve(null);
+              ctx.drawImage(img, 0, 0);
+              canvas.toBlob((blob) => resolve(blob || null), 'image/jpeg', 0.9);
+            } catch {
+              resolve(null);
+            }
+          });
+
+          (window as any)[dragBlobSymbol] = {
+            id: image.id,
+            name,
+            createdAt,
+            blobPromise
+          };
+          e.dataTransfer.setData('application/x-has-blob', 'true');
+        }
+      }
+
+      if (imgRef.current) {
+        e.dataTransfer.setDragImage(imgRef.current, 40, 40);
+      }
+    } catch {}
+  }, [isSuccess, image.id, image.url, image.thumbnailUrl]);
+
+  const handleDragEnd = useCallback(() => {
+    setTimeout(() => {
+      const dragBlobSymbol = Symbol.for('__dragImageBlob');
+      const cached = (window as any)?.[dragBlobSymbol];
+      if (cached && cached.id === image.id) {
+        delete (window as any)[dragBlobSymbol];
+      }
+    }, 100);
+  }, [image.id]);
+
   return (
     <div
       className={cn(
@@ -51,6 +114,9 @@ export const ImageCard = React.memo(function ImageCard({
         selected ? "ring-2 ring-blue-500 shadow-lg shadow-blue-100/50 scale-[0.98]" : "hover:shadow-md hover:-translate-y-0.5"
       )}
       onClick={() => !isPending && onClick(image)}
+      draggable={isSuccess}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
     >
       {/* 图片/加载区域 - 统一正方形 */}
       <div className={cn(
@@ -104,6 +170,7 @@ export const ImageCard = React.memo(function ImageCard({
         ) : image.status === 'success' ? (
           <div className="w-full h-full relative">
             <img
+              ref={imgRef}
               src={image.thumbnailUrl || image.url}
               alt={image.prompt || '图片'}
               className="w-full h-full object-cover"

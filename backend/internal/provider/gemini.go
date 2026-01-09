@@ -94,9 +94,14 @@ func (p *GeminiProvider) Generate(ctx context.Context, params map[string]interfa
 		return nil, fmt.Errorf("缺少 prompt 参数")
 	}
 
-	modelID, _ := params["model_id"].(string)
+	modelID := ResolveModelID(ModelResolveOptions{
+		ProviderName: p.Name(),
+		Purpose:      PurposeImage,
+		Params:       params,
+		Config:       p.config,
+	}).ID
 	if modelID == "" {
-		modelID = "gemini-3-pro-image-preview" // 统一使用指定的最新模型
+		return nil, fmt.Errorf("缺少 model_id 参数")
 	}
 
 	// 准备生成配置 (使用 GenerateContentConfig 适配 Gemini 3)
