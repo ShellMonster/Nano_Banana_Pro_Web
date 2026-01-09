@@ -7,7 +7,7 @@ import { toast } from '../../store/toastStore';
 import { useGenerateStore } from '../../store/generateStore';
 
 export function PromptInput() {
-  const { prompt, setPrompt, chatApiBaseUrl, chatApiKey, chatModel } = useConfigStore();
+  const { prompt, setPrompt, chatProvider, chatApiBaseUrl, chatApiKey, chatModel, chatSyncedConfig } = useConfigStore();
   const { history, index, record, undo, redo, reset } = usePromptHistoryStore();
   const status = useGenerateStore((s) => s.status);
   const isSubmitting = useGenerateStore((s) => s.isSubmitting);
@@ -19,6 +19,8 @@ export function PromptInput() {
 
   const canUndo = index > 0;
   const canRedo = index >= 0 && index < history.length - 1;
+  const chatSignature = (base: string, key: string, model: string) =>
+    `${base.trim()}::${key.trim()}::${model.trim()}`;
 
   useEffect(() => {
     if (!initializedRef.current) {
@@ -76,6 +78,14 @@ export function PromptInput() {
       toast.error('请先在设置中配置对话模型');
       return;
     }
+    if (chatSyncedConfig) {
+      const currentSignature = chatSignature(chatBase, chatKey, chatModelValue);
+      const syncedSignature = chatSignature(chatSyncedConfig.apiBaseUrl, chatSyncedConfig.apiKey, chatSyncedConfig.model);
+      if (currentSignature !== syncedSignature) {
+        toast.error('对话模型配置已修改，请先在设置中同步保存');
+        return;
+      }
+    }
     if (isOptimizing) return;
 
     if (debounceRef.current) {
@@ -84,7 +94,7 @@ export function PromptInput() {
     record(prompt);
     setIsOptimizing(true);
     try {
-      const res = await optimizePrompt({ provider: 'openai-chat', model: chatModelValue, prompt: raw });
+      const res = await optimizePrompt({ provider: chatProvider, model: chatModelValue, prompt: raw });
       const nextPrompt = String(res?.prompt || '').trim();
       if (!nextPrompt) {
         toast.error('优化失败，未返回内容');
@@ -93,13 +103,35 @@ export function PromptInput() {
       record(nextPrompt);
       skipRecordRef.current = true;
       setPrompt(nextPrompt);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '优化失败';
-      if (message.includes('未找到指定的 Provider') || message.includes('Provider API Key 未配置')) {
-        toast.error('请先在设置中同步保存对话模型配置');
-      } else {
-        toast.error(message || '优化失败');
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const backendMessage = typeof error?.response?.data?.message === 'string' ? error.response.data.message : '';
+      const fallbackMessage = error instanceof Error ? error.message : '';
+      const rawMessage = backendMessage || fallbackMessage;
+      const isAxiosStatusMessage = rawMessage.startsWith('Request failed with status code');
+
+      let message = rawMessage || '优化失败';
+      if (status === 400) {
+        if (message.includes('未找到指定的 Provider') || message.includes('Provider API Key 未配置')) {
+          message = '请先在设置中同步保存对话模型配置';
+        } else if (message.includes('未找到可用的模型')) {
+          message = '请先在设置中填写对话模型并同步保存';
+        } else if (message.includes('prompt 不能为空')) {
+          message = '请输入提示词';
+        } else if (isAxiosStatusMessage) {
+          message = '优化失败，请检查对话模型配置';
+        }
+      } else if (status === 401 || status === 403) {
+        message = 'API Key 无效或权限不足';
+      } else if (status === 404) {
+        message = 'Base URL 不正确或接口未开启';
+      } else if (rawMessage.includes('timeout') || rawMessage.includes('context deadline exceeded')) {
+        message = '请求超时，请稍后重试';
+      } else if (isAxiosStatusMessage) {
+        message = '优化失败，请稍后重试';
       }
+
+      toast.error(message);
     } finally {
       setIsOptimizing(false);
     }

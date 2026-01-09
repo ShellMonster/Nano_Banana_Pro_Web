@@ -8,7 +8,11 @@ import { Modal } from '../common/Modal';
 import { getProviders, updateProviderConfig, ProviderConfig } from '../../services/providerApi';
 import { toast } from '../../store/toastStore';
 
-const CHAT_PROVIDER_NAME = 'openai-chat';
+const CHAT_PROVIDER_OPTIONS = [
+  { value: 'gemini-chat', label: 'Gemini(/v1beta)', defaultBase: 'https://generativelanguage.googleapis.com' },
+  { value: 'openai-chat', label: 'OpenAI(/v1)', defaultBase: 'https://api.openai.com/v1' }
+];
+const DEFAULT_CHAT_PROVIDER = 'openai-chat';
 
 type SettingsTab = 'image' | 'chat';
 
@@ -31,15 +35,26 @@ const getDefaultModelId = (models?: string): string => {
   }
 };
 
+const getChatProviderDefaults = (provider: string) => {
+  const fallback = CHAT_PROVIDER_OPTIONS.find((item) => item.value === DEFAULT_CHAT_PROVIDER);
+  const current = CHAT_PROVIDER_OPTIONS.find((item) => item.value === provider) || fallback;
+  return {
+    baseUrl: current?.defaultBase || 'https://api.openai.com/v1',
+    model: 'gemini-3-flash-preview'
+  };
+};
+
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const {
     imageProvider, setImageProvider,
     imageApiKey, setImageApiKey,
     imageApiBaseUrl, setImageApiBaseUrl,
     imageModel, setImageModel,
+    chatProvider, setChatProvider,
     chatApiBaseUrl, setChatApiBaseUrl,
     chatApiKey, setChatApiKey,
-    chatModel, setChatModel
+    chatModel, setChatModel,
+    setChatSyncedConfig
   } = useConfigStore();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('image');
@@ -75,7 +90,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         }
       }
 
-      const chatConfig = data.find((p) => p.provider_name === CHAT_PROVIDER_NAME);
+      const chatConfig = data.find((p) => p.provider_name === chatProvider);
       if (chatConfig) {
         setChatApiBaseUrl(chatConfig.api_base);
         setChatApiKey(chatConfig.api_key);
@@ -83,6 +98,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         if (modelFromConfig) {
           setChatModel(modelFromConfig);
         }
+        setChatSyncedConfig({
+          apiBaseUrl: chatConfig.api_base || '',
+          apiKey: chatConfig.api_key || '',
+          model: modelFromConfig || ''
+        });
+      } else {
+        const defaults = getChatProviderDefaults(chatProvider);
+        setChatApiBaseUrl(defaults.baseUrl);
+        setChatModel(defaults.model);
+        setChatSyncedConfig(null);
       }
     } catch (error) {
       console.error('获取配置失败:', error);
@@ -109,7 +134,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       toast.error('请完整配置对话模型');
       return;
     }
-    if (wantsChat && chatModelValue.toLowerCase().startsWith('gemini') && chatBase.includes('api.openai.com')) {
+    if (
+      wantsChat &&
+      chatProvider === DEFAULT_CHAT_PROVIDER &&
+      chatModelValue.toLowerCase().startsWith('gemini') &&
+      chatBase.includes('api.openai.com')
+    ) {
       toast.error('OpenAI 官方 Base URL 不支持 Gemini 模型，请更换兼容接口');
       return;
     }
@@ -127,13 +157,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
       if (wantsChat) {
         await updateProviderConfig({
-          provider_name: CHAT_PROVIDER_NAME,
-          display_name: CHAT_PROVIDER_NAME,
+          provider_name: chatProvider,
+          display_name: chatProvider,
           api_base: chatBase,
           api_key: chatKey,
           enabled: false,
           model_id: chatModelValue
         });
+        setChatSyncedConfig({ apiBaseUrl: chatBase, apiKey: chatKey, model: chatModelValue });
+      } else {
+        setChatSyncedConfig(null);
       }
 
       toast.success('配置已成功同步到服务器');
@@ -159,6 +192,32 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (modelFromConfig) {
         setImageModel(modelFromConfig);
       }
+    }
+  };
+
+  const handleChatProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newProvider = e.target.value;
+    setChatProvider(newProvider);
+
+    const config = providers.find(p => p.provider_name === newProvider);
+    if (config) {
+      setChatApiBaseUrl(config.api_base);
+      setChatApiKey(config.api_key);
+      const modelFromConfig = getDefaultModelId(config.models);
+      if (modelFromConfig) {
+        setChatModel(modelFromConfig);
+      }
+      setChatSyncedConfig({
+        apiBaseUrl: config.api_base || '',
+        apiKey: config.api_key || '',
+        model: modelFromConfig || ''
+      });
+    } else {
+      const defaults = getChatProviderDefaults(newProvider);
+      setChatApiBaseUrl(defaults.baseUrl);
+      setChatApiKey('');
+      setChatModel(defaults.model);
+      setChatSyncedConfig(null);
     }
   };
 
@@ -297,17 +356,53 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </>
         ) : (
           <>
-            {/* API Base URL */}
+            {/* Provider Selection */}
             <div className="space-y-3">
               <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
-                <Globe className="w-4 h-4 text-blue-600" />
-                Base URL
+                <Box className="w-4 h-4 text-blue-600" />
+                AI对接方式
               </label>
+              <Select
+                value={chatProvider}
+                onChange={handleChatProviderChange}
+                className="h-10 bg-slate-100 text-slate-900 font-bold rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              >
+                {CHAT_PROVIDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            {/* API Base URL */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-blue-600" />
+                  Base URL
+                </label>
+                <span className="text-xs text-slate-500">
+                  推荐平台：
+                  <a
+                    href="https://yunwu.ai/register?aff=i4hh"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-600 hover:text-blue-700 underline underline-offset-2"
+                  >
+                    云雾API
+                  </a>
+                </span>
+              </div>
               <Input
                 type="text"
                 value={chatApiBaseUrl || ''}
                 onChange={(e) => setChatApiBaseUrl(e.target.value)}
-                placeholder="https://api.openai.com/v1"
+                placeholder={
+                  chatProvider === 'gemini-chat'
+                    ? 'https://generativelanguage.googleapis.com'
+                    : 'https://api.openai.com/v1'
+                }
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
             </div>

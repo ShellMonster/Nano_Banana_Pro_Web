@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"google.golang.org/genai"
 )
 
 // Response 统一 API 响应结构
@@ -218,9 +220,17 @@ func OptimizePromptHandler(c *gin.Context) {
 		return
 	}
 
-	if req.Provider == "" {
-		req.Provider = "openai"
+	providerName := strings.TrimSpace(strings.ToLower(req.Provider))
+	if providerName == "" {
+		providerName = "openai-chat"
 	}
+	if providerName == "openai" {
+		providerName = "openai-chat"
+	}
+	if providerName == "gemini" {
+		providerName = "gemini-chat"
+	}
+	req.Provider = providerName
 	if strings.TrimSpace(req.Prompt) == "" {
 		Error(c, http.StatusBadRequest, 400, "prompt 不能为空")
 		return
@@ -247,7 +257,13 @@ func OptimizePromptHandler(c *gin.Context) {
 		return
 	}
 
-	optimized, err := callOpenAIOptimize(c.Request.Context(), &cfg, modelName, req.Prompt)
+	var optimized string
+	var err error
+	if req.Provider == "gemini-chat" {
+		optimized, err = callGeminiOptimize(c.Request.Context(), &cfg, modelName, req.Prompt)
+	} else {
+		optimized, err = callOpenAIOptimize(c.Request.Context(), &cfg, modelName, req.Prompt)
+	}
 	if err != nil {
 		Error(c, http.StatusBadRequest, 400, err.Error())
 		return
@@ -534,6 +550,65 @@ func getOptimizeSystemPrompt() string {
 		return config.DefaultOptimizeSystemPrompt
 	}
 	return prompt
+}
+
+func callGeminiOptimize(ctx context.Context, cfg *model.ProviderConfig, modelName, prompt string) (string, error) {
+	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 60 * time.Second
+	}
+
+	httpClient := &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			DisableKeepAlives:   true,
+			ForceAttemptHTTP2:   false,
+			MaxIdleConns:        0,
+			MaxIdleConnsPerHost: 0,
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
+		},
+	}
+
+	clientConfig := &genai.ClientConfig{
+		APIKey:     cfg.APIKey,
+		Backend:    genai.BackendGeminiAPI,
+		HTTPClient: httpClient,
+	}
+
+	if apiBase := strings.TrimRight(strings.TrimSpace(cfg.APIBase), "/"); apiBase != "" && apiBase != "https://generativelanguage.googleapis.com" {
+		clientConfig.HTTPOptions = genai.HTTPOptions{BaseURL: apiBase}
+	}
+
+	client, err := genai.NewClient(ctx, clientConfig)
+	if err != nil {
+		return "", fmt.Errorf("创建 Gemini 客户端失败: %w", err)
+	}
+
+	systemPrompt := getOptimizeSystemPrompt()
+	config := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{
+			Parts: []*genai.Part{{Text: systemPrompt}},
+		},
+	}
+	contents := []*genai.Content{
+		{
+			Role:  "user",
+			Parts: []*genai.Part{{Text: prompt}},
+		},
+	}
+
+	resp, err := client.Models.GenerateContent(ctx, modelName, contents, config)
+	if err != nil {
+		return "", fmt.Errorf("请求失败: %w", err)
+	}
+
+	optimized := strings.TrimSpace(resp.Text())
+	if optimized == "" {
+		return "", fmt.Errorf("未返回优化结果")
+	}
+	return optimized, nil
 }
 
 func callOpenAIOptimize(ctx context.Context, cfg *model.ProviderConfig, modelName, prompt string) (string, error) {
