@@ -43,12 +43,19 @@ frontend/前后端API对接文档.md
 frontend/_temp_hold/
 backend/前后端对接文档.md
 # Tauri Binaries
+desktop/src-tauri/binaries/
 desktop/src-tauri/bin/
+desktop/src-tauri/gen/
+desktop/src-tauri/target/
+desktop/src-tauri/*-apple-darwin
+desktop/src-tauri/*-pc-windows-msvc.exe
+desktop/src-tauri/*.app
+desktop/src-tauri/*.dmg
+desktop/src-tauri/*.tar.gz
 backend/server
 backend/desktop/src-tauri/bin/
 *.png
 !assets/*.png
 !desktop/src-tauri/icons/*.png
-desktop/src-tauri/target/
 desktop/node_modules/
 desktop/dist/
