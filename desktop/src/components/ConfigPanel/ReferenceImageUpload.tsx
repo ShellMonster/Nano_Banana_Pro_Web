@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { ImagePlus, X, Image as ImageIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import { useConfigStore } from '../../store/configStore';
+import { useInternalDragStore, type InternalDragPayload } from '../../store/internalDragStore';
 import { cn } from '../common/Button';
 import { toast } from '../../store/toastStore';
 import { ExtendedFile } from '../../types';
@@ -13,6 +14,7 @@ export function ReferenceImageUpload() {
   const removeRefFile = useConfigStore((s) => s.removeRefFile);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
   const [isExpanded, setIsExpanded] = useState(true);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const objectUrlsRef = useRef<Map<string, string>>(new Map());
@@ -20,6 +22,12 @@ export function ReferenceImageUpload() {
   const fileMd5MapRef = useRef<Map<string, string>>(new Map());
   const isProcessingRef = useRef<boolean>(false); // 防止并发操作
   const prevRefFilesLengthRef = useRef(0); // 记录上一次 refFiles 的长度，用于检测新增文件
+  const isInternalDragging = useInternalDragStore((s) => s.isDragging);
+  const isOverDropTarget = useInternalDragStore((s) => s.isOverDropTarget);
+  const setDropTarget = useInternalDragStore((s) => s.setDropTarget);
+  const dropPayload = useInternalDragStore((s) => s.droppedPayload);
+  const dropCounter = useInternalDragStore((s) => s.dropCounter);
+  const clearDrop = useInternalDragStore((s) => s.clearDrop);
 
   // 计算文件 MD5（使用工具函数）
   const calculateMd5Callback = useCallback(calculateMd5, []);
@@ -94,6 +102,13 @@ export function ReferenceImageUpload() {
     });
   }, [refFiles]);
 
+  useEffect(() => {
+    setDropTarget(dropRef.current);
+    return () => {
+      setDropTarget(null);
+    };
+  }, [setDropTarget]);
+
   // 带并发保护的包装函数（添加超时机制）
   const withProcessingLock = useCallback(async (fn: () => Promise<any>, timeoutMs: number = 60000) => {
     if (isProcessingRef.current) {
@@ -127,6 +142,24 @@ export function ReferenceImageUpload() {
 
   // 从URL获取文件并计算MD5（使用工具函数）
   const fetchFileWithMd5Callback = useCallback(fetchFileWithMd5, []);
+
+  // 从URL或File创建图片文件（支持压缩）
+  const createImageFileFromUrl = useCallback(async (url: string, filename: string): Promise<File | null> => {
+    try {
+      // 1) 下载并计算 MD5
+      const res = await fetchFileWithMd5Callback(url);
+      if (!res || !res.blob || !res.md5) return null;
+
+      // 2) 封装为 File
+      const file = new File([res.blob], filename, { type: res.blob.type || 'image/jpeg' }) as ExtendedFile;
+      file.__md5 = res.md5;
+
+      return file;
+    } catch (err) {
+      console.error('[ReferenceImageUpload] createImageFileFromUrl failed:', err);
+      return null;
+    }
+  }, [fetchFileWithMd5Callback]);
 
   // 公共的文件去重和添加函数（支持压缩）
   const processFilesWithMd5 = useCallback(async (files: File[]): Promise<File[]> => {
@@ -222,6 +255,85 @@ export function ReferenceImageUpload() {
 
     return uniqueFiles;
   }, [calculateMd5Callback, compressImageCallback]);
+
+  const handleInternalDrop = useCallback(async (payload: InternalDragPayload) => {
+    if (!payload) return;
+
+    if (!isExpanded) {
+      setIsExpanded(true);
+    }
+
+    try {
+      await withProcessingLock(async () => {
+        const remainingSlots = 10 - refFiles.length;
+        if (remainingSlots <= 0) {
+          toast.error('参考图已满');
+          return;
+        }
+
+        const path = String(payload.filePath || payload.thumbnailPath || payload.path || '').trim();
+        if (path) {
+          const md5Key = `path-${path}`;
+          if (fileMd5SetRef.current.has(md5Key)) {
+            toast.info('图片已存在');
+            return;
+          }
+          const name = String(payload.name || '').trim() || path.split(/[/\\]/).pop() || 'ref-image.jpg';
+          const file = new File([], name, { type: 'image/jpeg' }) as ExtendedFile;
+          file.__path = path;
+          file.__md5 = md5Key;
+          addRefFiles([file]);
+          toast.success('已添加 1 张参考图');
+          return;
+        }
+
+        const url = String(payload.url || payload.thumbnailUrl || '').trim();
+        if (url) {
+          const name = String(payload.name || '').trim() || `ref-${Date.now()}.jpg`;
+          const file = await createImageFileFromUrl(url, name);
+          if (file) {
+            addRefFiles([file]);
+            toast.success('已添加 1 张参考图');
+          } else {
+            toast.error('获取图片失败');
+          }
+          return;
+        }
+
+        if (payload.getBlob) {
+          const blob = await payload.getBlob();
+          if (blob) {
+            const name = String(payload.name || '').trim() || `ref-${Date.now()}.jpg`;
+            const file = new File([blob], name, { type: blob.type || 'image/jpeg' });
+            const uniqueFiles = await processFilesWithMd5([file]);
+            if (uniqueFiles.length > 0) {
+              addRefFiles(uniqueFiles);
+              toast.success('已添加 1 张参考图');
+            } else {
+              toast.info('图片已存在');
+            }
+          } else {
+            toast.error('获取图片失败');
+          }
+          return;
+        }
+
+        toast.error('未检测到可添加的图片');
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === '操作正在进行中，请稍候') {
+        toast.info('请等待当前操作完成');
+      } else {
+        toast.error(`添加参考图失败：${error instanceof Error ? error.message : '未知错误'}`);
+      }
+    }
+  }, [addRefFiles, createImageFileFromUrl, isExpanded, processFilesWithMd5, refFiles.length, withProcessingLock]);
+
+  useEffect(() => {
+    if (!dropPayload) return;
+    void handleInternalDrop(dropPayload);
+    clearDrop();
+  }, [dropCounter, dropPayload, handleInternalDrop, clearDrop]);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -461,64 +573,53 @@ export function ReferenceImageUpload() {
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
   }, []);
 
-  // 从URL或File创建图片文件（支持压缩）
-  const createImageFileFromUrl = useCallback(async (url: string, filename: string): Promise<File | null> => {
-    try {
-      // 边下载边计算 MD5
-      const result = await fetchFileWithMd5Callback(url);
-      if (!result) {
-        toast.error('获取图片失败');
-        return null;
-      }
+  const normalizePathFromUri = useCallback((raw: string): string => {
+    const trimmed = (raw || '').trim();
+    if (!trimmed) return '';
 
-      const { blob, md5 } = result;
+    const stripHostPrefix = (value: string) => {
+      let next = value.replace(/^localhost\//, '');
+      return next.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(next) ? next : `/${next}`;
+    };
 
-      // 确保是图片类型
-      if (!blob.type.startsWith('image/')) {
-        return null;
-      }
-
-      // 检查是否重复（使用下载时计算的 MD5）
-      if (fileMd5SetRef.current.has(md5)) {
-        return null;
-      }
-
-      const originalFile = new File([blob], filename, { type: blob.type });
-      const sizeMB = originalFile.size / 1024 / 1024;
-
-      // 如果超过 1MB，进行压缩
-      if (sizeMB > 1) {
-        try {
-          const compressedFile = await compressImageCallback(originalFile, 1);
-          // 压缩后重新计算 MD5（因为文件内容变了）
-          const compressedMd5 = await calculateMd5Callback(compressedFile);
-          if (fileMd5SetRef.current.has(compressedMd5)) {
-            return null;
-          }
-          // 将压缩后的 MD5 存储到文件对象上，供后续使用
-          (compressedFile as ExtendedFile).__md5 = compressedMd5;
-          return compressedFile;
-        } catch (error) {
-          // 压缩失败，使用原始文件（但需要检查原始文件的 MD5）
-          if (fileMd5SetRef.current.has(md5)) {
-            return null;
-          }
-          (originalFile as ExtendedFile).__md5 = md5;
-          return originalFile;
-        }
-      }
-
-      // 未压缩，将 MD5 存储到文件对象上
-      (originalFile as ExtendedFile).__md5 = md5;
-      return originalFile;
-    } catch (error) {
-      console.error('Failed to fetch image:', error);
-          toast.error(`获取图片失败: ${error instanceof Error ? error.message : '未知错误'}`);
-      return null;
+    if (trimmed.startsWith('file://')) {
+      const withoutScheme = trimmed.replace(/^file:\/\//, '');
+      return decodeURIComponent(stripHostPrefix(withoutScheme));
     }
-  }, [fetchFileWithMd5Callback, compressImageCallback, calculateMd5Callback]);
+    if (trimmed.startsWith('asset://')) {
+      const withoutScheme = trimmed.replace(/^asset:\/\//, '');
+      return decodeURIComponent(stripHostPrefix(withoutScheme));
+    }
+    if (trimmed.startsWith('tauri://')) {
+      const withoutScheme = trimmed.replace(/^tauri:\/\//, '');
+      return decodeURIComponent(stripHostPrefix(withoutScheme));
+    }
+    if (trimmed.startsWith('http://asset.localhost') || trimmed.startsWith('https://asset.localhost')) {
+      try {
+        const parsed = new URL(trimmed);
+        return decodeURIComponent(parsed.pathname || '');
+      } catch {
+        return '';
+      }
+    }
+
+    try {
+      const parsed = new URL(trimmed);
+      const path = decodeURIComponent(parsed.pathname || '');
+      if (path.includes('/storage/')) {
+        return path.replace(/^\/+/, '');
+      }
+    } catch {
+      // ignore
+    }
+
+    return '';
+  }, []);
 
   // 处理拖拽释放
   const handleDrop = useCallback(async (e: React.DragEvent) => {
@@ -543,6 +644,10 @@ export function ReferenceImageUpload() {
         }
 
         const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+        const dragBlobSymbol = Symbol.for('__dragImageBlob');
+        const cachedData = (window as any)[dragBlobSymbol];
+        const cachedCreatedAt = typeof cachedData?.createdAt === 'number' ? cachedData.createdAt : 0;
+        const isCachedFresh = cachedCreatedAt > 0 && Date.now() - cachedCreatedAt < 60_000;
 
         // 1) 优先处理“内部拖拽”的本地路径（Tauri 下最稳：不依赖 fetch/asset/CORS）
         if (isTauri) {
@@ -559,6 +664,21 @@ export function ReferenceImageUpload() {
           if (!imagePath) {
             const fromPlain = (e.dataTransfer.getData('text/plain') || '').trim();
             if (looksLikePath(fromPlain)) imagePath = fromPlain;
+          }
+          if (!imagePath) {
+            const uriCandidate =
+              e.dataTransfer.getData('application/x-image-url') ||
+              e.dataTransfer.getData('text/uri-list') ||
+              e.dataTransfer.getData('text/plain');
+            const normalized = normalizePathFromUri(uriCandidate || '');
+            if (normalized) imagePath = normalized;
+          }
+          if (!imagePath && isCachedFresh && cachedData?.path && looksLikePath(cachedData.path)) {
+            imagePath = String(cachedData.path);
+          }
+          if (!imagePath && isCachedFresh && cachedData?.url) {
+            const normalized = normalizePathFromUri(String(cachedData.url));
+            if (normalized) imagePath = normalized;
           }
 
           if (imagePath && !imagePath.includes('://')) {
@@ -584,9 +704,7 @@ export function ReferenceImageUpload() {
 
         // 优先处理缓存的 Blob 数据（避免 CORS / asset:// 导致 URL fetch 失败）
         // 使用 Symbol 避免全局变量污染（拖拽源会写入 window[Symbol.for('__dragImageBlob')]）
-        const dragBlobSymbol = Symbol.for('__dragImageBlob');
         const hasBlobFlag = (e.dataTransfer.getData('application/x-has-blob') || '').trim();
-        const cachedData = (window as any)[dragBlobSymbol];
         const canUseCachedBlob =
           cachedData &&
           (hasBlobFlag === 'true' || Boolean(cachedData.blob) || Boolean(cachedData.blobPromise));
@@ -667,6 +785,11 @@ export function ReferenceImageUpload() {
             }
           }
 
+          if (!imageUrl && isCachedFresh && cachedData?.url) {
+            imageUrl = String(cachedData.url);
+            if (!imageName) imageName = cachedData.name || 'ref-image.jpg';
+          }
+
           if (imageUrl && imageName) {
             if (validatedFiles.length + rawFiles.length >= remainingSlots) {
               toast.error('参考图已满');
@@ -735,7 +858,7 @@ export function ReferenceImageUpload() {
         toast.error(`添加参考图失败：${error instanceof Error ? error.message : '未知错误'}`);
       }
     }
-  }, [isExpanded, refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5, createImageFileFromUrl]);
+  }, [isExpanded, refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5, createImageFileFromUrl, normalizePathFromUri]);
 
   // 处理删除文件（同时清理MD5和ObjectURL）
   // 使用 useConfigStore.getState() 避免依赖 refFiles 数组
@@ -825,20 +948,24 @@ export function ReferenceImageUpload() {
     fileInputRef.current?.click();
   };
 
+  const showDragOver = isDraggingOver || (isInternalDragging && isOverDropTarget);
+
   return (
     <div
+      ref={dropRef}
       className="space-y-2"
       onPaste={handlePaste}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      style={{ WebkitAppRegion: 'no-drag' } as any}
     >
       {/* 标题行 + 折叠按钮 */}
       <div
         className={cn(
           "flex items-center justify-between rounded-xl transition-all",
-          isDraggingOver && "bg-blue-50 ring-2 ring-blue-400 ring-dashed"
+          showDragOver && "bg-blue-50 ring-2 ring-blue-400 ring-dashed"
         )}
         onClick={handleAreaClick}
       >
@@ -861,12 +988,12 @@ export function ReferenceImageUpload() {
           </label>
         </div>
         <div className="flex items-center gap-2">
-          {isDraggingOver && (
+          {showDragOver && (
             <span className="text-[10px] text-blue-600 font-medium">
               松开添加图片
             </span>
           )}
-          {refFiles.length > 0 && !isDraggingOver && (
+          {refFiles.length > 0 && !showDragOver && (
             <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">
               图生图模式已激活
             </span>

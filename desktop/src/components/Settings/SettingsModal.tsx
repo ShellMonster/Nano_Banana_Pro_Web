@@ -19,6 +19,20 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+const getDefaultModelId = (models?: string): string => {
+  if (!models) return '';
+  try {
+    const parsed = typeof models === 'string' ? JSON.parse(models) : models;
+    if (!Array.isArray(parsed)) return '';
+    const preferred = parsed.find((item) => item && item.default && typeof item.id === 'string');
+    if (preferred?.id) return preferred.id;
+    const fallback = parsed.find((item) => item && typeof item.id === 'string');
+    return fallback?.id || '';
+  } catch {
+    return '';
+  }
+};
+
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const {
     imageProvider, setImageProvider,
@@ -74,12 +88,20 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (imageConfig) {
         setImageApiBaseUrl(imageConfig.api_base);
         setImageApiKey(imageConfig.api_key);
+        const modelFromConfig = getDefaultModelId(imageConfig.models);
+        if (modelFromConfig) {
+          setImageModel(modelFromConfig);
+        }
       }
 
       const chatConfig = data.find((p) => p.provider_name === CHAT_PROVIDER_NAME);
       if (chatConfig) {
         setChatApiBaseUrl(chatConfig.api_base);
         setChatApiKey(chatConfig.api_key);
+        const modelFromConfig = getDefaultModelId(chatConfig.models);
+        if (modelFromConfig) {
+          setChatModel(modelFromConfig);
+        }
       }
     } catch (error) {
       console.error('获取配置失败:', error);
@@ -118,7 +140,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         display_name: imageProvider,
         api_base: imageBase,
         api_key: imageKey,
-        enabled: true
+        enabled: true,
+        model_id: imageModelValue
       });
 
       if (wantsChat) {
@@ -127,7 +150,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           display_name: CHAT_PROVIDER_NAME,
           api_base: chatBase,
           api_key: chatKey,
-          enabled: false
+          enabled: false,
+          model_id: chatModelValue
         });
       }
 
@@ -151,6 +175,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     if (config) {
       setImageApiBaseUrl(config.api_base);
       setImageApiKey(config.api_key);
+      const modelFromConfig = getDefaultModelId(config.models);
+      if (modelFromConfig) {
+        setImageModel(modelFromConfig);
+      }
     }
   };
 
@@ -395,6 +423,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 placeholder="https://generativelanguage.googleapis.com"
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
+              {imageProvider === 'openai' && (
+                <p className="text-xs text-red-500 px-1">OpenAI 类型当前仅支持生成 1K 图片</p>
+              )}
             </div>
 
             {/* API Key */}

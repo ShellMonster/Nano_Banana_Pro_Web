@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, SlidersHorizontal, X, AlertTriangle, Loader2
 import api from '../../services/api';
 import { toast } from '../../store/toastStore';
 import { VersionBadge } from '../common/VersionBadge';
+import { InternalDragLayer } from '../common/InternalDragLayer';
 import { getTaskStatus } from '../../services/generateApi';
 import { getUpdateSource } from '../../store/updateSourceStore';
 
@@ -288,6 +289,7 @@ export default function MainLayout() {
       )}
 
       <Header />
+      <InternalDragLayer />
 
       {isBackendHealthy === false && (
         <div className="mx-4 mt-2 p-3 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 animate-in fade-in slide-in-from-top-2">

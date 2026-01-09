@@ -1,5 +1,5 @@
 use tauri_plugin_shell::ShellExt;
-use tauri_plugin_shell::process::CommandEvent;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_opener::OpenerExt;
 use tauri::{Emitter, State, Manager};
 use std::sync::{Arc, Mutex};
@@ -15,6 +15,7 @@ struct PortPayload {
 }
 
 struct BackendPort(Arc<Mutex<u16>>);
+struct SidecarState(Arc<Mutex<Option<CommandChild>>>);
 
 #[derive(Clone)]
 struct LogWriter {
@@ -416,6 +417,18 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+fn kill_sidecar(app_handle: &tauri::AppHandle) {
+    let sidecar_state = app_handle.state::<SidecarState>();
+    let log_state = app_handle.state::<LogState>();
+    let mut guard = sidecar_state.0.lock().unwrap();
+    if let Some(child) = guard.take() {
+        log_state.log_app("INFO", "Killing sidecar process on app exit.");
+        if let Err(err) = child.kill() {
+            log_state.log_app("ERROR", &format!("Failed to kill sidecar: {}", err));
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let port_state = Arc::new(Mutex::new(0u16)); // 初始为 0
@@ -452,8 +465,9 @@ pub fn run() {
             println!("Sidecar spawned with PID: {:?}", child.pid());
             log_state.log_app("INFO", &format!("Sidecar spawned with PID: {:?}", child.pid()));
 
-            let child_for_exit = Arc::new(Mutex::new(Some(child)));
-            let child_clone = child_for_exit.clone();
+            let sidecar_state = Arc::new(Mutex::new(Some(child)));
+            app.manage(SidecarState(sidecar_state.clone()));
+            let child_clone = sidecar_state.clone();
 
             let app_handle = app.handle().clone();
             let port_state_inner = port_state_for_setup.clone();
@@ -516,6 +530,14 @@ pub fn run() {
             copy_text_to_clipboard,
             read_image_from_clipboard
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app_handle, event| {
+            match event {
+                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit { .. } => {
+                    kill_sidecar(app_handle);
+                }
+                _ => {}
+            }
+        });
 }

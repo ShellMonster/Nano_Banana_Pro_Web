@@ -4,6 +4,7 @@ import { FlattenedImage } from './HistoryList';
 import { formatDateTime } from '../../utils/date';
 import { toast } from '../../store/toastStore';
 import { useHistoryStore } from '../../store/historyStore';
+import { useInternalDragStore } from '../../store/internalDragStore';
 
 interface ImageCardProps {
     image: FlattenedImage;
@@ -17,6 +18,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
     const confirmTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
     const imgRef = React.useRef<HTMLImageElement>(null);
     const hasNotifiedCopyRef = React.useRef(false); // 标记是否已提示过复制
+    const startDrag = useInternalDragStore((s) => s.startDrag);
 
     // 清理定时器
     useEffect(() => {
@@ -67,6 +69,8 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
     }, []);
 
     const handleClick = useCallback(() => {
+        const lastDragEndAt = useInternalDragStore.getState().lastDragEndAt;
+        if (Date.now() - lastDragEndAt < 200) return;
         onClick(image);
     }, [image.id, onClick]);
 
@@ -101,87 +105,63 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
         }
     }, [showConfirm, image.id, image.taskId]);
 
-    // 拖拽开始处理
-    const handleDragStart = useCallback(async (e: React.DragEvent) => {
-        // 设置拖拽数据
-        e.dataTransfer.effectAllowed = 'copy';
+    const handlePointerDown = useCallback((e: React.PointerEvent) => {
+        if (e.button !== 0) return;
+        const target = e.target as HTMLElement | null;
+        if (target?.closest('button')) return;
 
-        // 尝试使用多种方式设置数据，提高兼容性
-        if (image.url) {
-          e.dataTransfer.setData('application/x-image-url', image.url);
-          e.dataTransfer.setData('text/uri-list', image.url); // 备用：标准MIME类型
-        }
-        // Tauri 内部拖拽：传递本地路径（优先 filePath，其次 thumbnailPath）
-        if (image.filePath || image.thumbnailPath) {
-          e.dataTransfer.setData('application/x-image-path', image.filePath || image.thumbnailPath);
-        }
-        e.dataTransfer.setData('application/x-image-name', `ref-${image.id || 'unknown'}.jpg`);
-        // 兼容：部分 WebView 读取自定义类型不稳定，补一份 text/plain
-        // 优先写入本地路径，drop 端可直接走 refPaths（Tauri 最稳）
-        e.dataTransfer.setData('text/plain', image.filePath || image.thumbnailPath || image.url || '');
+        const name = `ref-${image.id || 'unknown'}.jpg`;
+        const url = image.url || '';
+        const thumbnailUrl = image.thumbnailUrl || '';
+        const filePath = image.filePath || '';
+        const thumbnailPath = image.thumbnailPath || '';
+        const hasSource = Boolean(url || thumbnailUrl || filePath || thumbnailPath);
+        if (!hasSource) return;
 
-        // 设置拖拽图像为当前图片
-        if (imgRef.current) {
-            e.dataTransfer.setDragImage(imgRef.current, 40, 40);
-        }
-
-        // 尝试从已加载的图片获取 Blob 数据，避免 CORS 问题
-        if (imgRef.current && imgRef.current.complete) {
+        const getBlob = () => new Promise<Blob | null>((resolve) => {
+            const img = imgRef.current;
+            if (!img || !img.complete || img.naturalWidth <= 0 || img.naturalHeight <= 0) {
+                resolve(null);
+                return;
+            }
             try {
-                // 注意：不要直接把 Blob 放到 dataTransfer（兼容性差）
-                // 通过 window[Symbol.for('__dragImageBlob')] 传递，drop 端可短等待 blobPromise
-                const img = imgRef.current;
                 const canvas = document.createElement('canvas');
                 canvas.width = img.naturalWidth;
                 canvas.height = img.naturalHeight;
                 const ctx = canvas.getContext('2d');
-                if (!ctx) return;
-                ctx.drawImage(img, 0, 0);
-
-                const dragBlobSymbol = Symbol.for('__dragImageBlob');
-                const createdAt = Date.now();
-                const name = `ref-${image.id}.jpg`;
-                const blobPromise = new Promise<Blob | null>((resolve) => {
-                  try {
-                    canvas.toBlob((blob) => resolve(blob || null), 'image/jpeg', 0.9);
-                  } catch {
+                if (!ctx) {
                     resolve(null);
-                  }
-                });
-
-                (window as any)[dragBlobSymbol] = {
-                  id: image.id,
-                  name,
-                  createdAt,
-                  blobPromise
-                };
-                e.dataTransfer.setData('application/x-has-blob', 'true');
-            } catch (err) {
-                // 忽略错误
+                    return;
+                }
+                ctx.drawImage(img, 0, 0);
+                canvas.toBlob((blob) => resolve(blob || null), 'image/jpeg', 0.9);
+            } catch {
+                resolve(null);
             }
-        }
-    }, [image.url, image.filePath, image.thumbnailPath, image.id]);
+        });
 
-    // 拖拽结束处理 - 延迟清理缓存
-    const handleDragEnd = useCallback(() => {
-        // 延迟清理缓存，给 drop 处理器足够的时间读取
-        setTimeout(() => {
-            const dragBlobSymbol = Symbol.for('__dragImageBlob');
-            const cached = (window as any)?.[dragBlobSymbol];
-            if (cached && cached.id === image.id) {
-              delete (window as any)[dragBlobSymbol];
-            }
-        }, 100);
-    }, [image.id]);
+        startDrag(
+            {
+                id: image.id,
+                name,
+                url,
+                thumbnailUrl,
+                filePath,
+                thumbnailPath,
+                getBlob
+            },
+            e.pointerId,
+            e.clientX,
+            e.clientY
+        );
+    }, [image.id, image.url, image.thumbnailUrl, image.filePath, image.thumbnailPath, startDrag]);
 
     return (
         <div
             className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md cursor-pointer group relative flex flex-col"
             style={{ contentVisibility: 'auto' }}
             onClick={handleClick}
-            draggable
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
+            onPointerDown={handlePointerDown}
         >
             {/* 拖拽指示器 - 左上角 */}
             <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
@@ -270,6 +250,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
                     alt={image.prompt}
                     className="w-full h-full object-cover"
                     loading="lazy"
+                    draggable={false}
                 />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
             </div>

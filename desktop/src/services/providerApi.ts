@@ -6,6 +6,8 @@ export interface ProviderConfig {
     api_base: string;
     api_key: string;
     enabled: boolean;
+    model_id?: string;
+    models?: string;
 }
 
 export const getProviders = async (): Promise<ProviderConfig[]> => {

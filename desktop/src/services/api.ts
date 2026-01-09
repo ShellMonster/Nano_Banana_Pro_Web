@@ -12,6 +12,11 @@ const api = axios.create({
 
 // 标记是否已经获取到了动态端口
 let isPortDetected = false;
+let portDetectedResolve: (() => void) | null = null;
+const portDetectedPromise = new Promise<void>((resolve) => {
+  portDetectedResolve = resolve;
+});
+let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
 // 应用数据目录，用于拼接本地图片路径
 let appDataDir: string | null = null;
 let resolveInit: (value: void | PromiseLike<void>) => void;
@@ -28,6 +33,7 @@ if (window.__TAURI_INTERNALS__) {
 
       // 将 convertFileSrc 挂载到 window 方便全局使用
       (window as any).convertFileSrc = convertFileSrc;
+      tauriInvoke = invoke;
 
       // 1. 先尝试获取当前已记录的端口
       const port = await invoke<number>('get_backend_port');
@@ -64,19 +70,57 @@ function updateBaseUrl(port: number) {
   BASE_URL = newBaseUrl;
   api.defaults.baseURL = newBaseUrl;
   isPortDetected = true;
+  if (portDetectedResolve) {
+    portDetectedResolve();
+    portDetectedResolve = null;
+  }
   console.log('API base URL updated to:', newBaseUrl);
+}
+
+async function waitForBackendPort(timeoutMs = 10000) {
+  if (!window.__TAURI_INTERNALS__) return;
+
+  await tauriInitPromise;
+  if (isPortDetected) return;
+
+  if (!tauriInvoke) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      tauriInvoke = invoke;
+    } catch (err) {
+      console.warn('Failed to load Tauri invoke API:', err);
+    }
+  }
+
+  const start = Date.now();
+  while (!isPortDetected && Date.now() - start < timeoutMs) {
+    if (tauriInvoke) {
+      try {
+        const port = await tauriInvoke('get_backend_port');
+        if (typeof port === 'number' && port > 0) {
+          updateBaseUrl(port);
+          break;
+        }
+      } catch (err) {
+        console.warn('Failed to fetch backend port:', err);
+      }
+    }
+
+    await Promise.race([
+      portDetectedPromise,
+      new Promise((resolve) => setTimeout(resolve, 200)),
+    ]);
+  }
+
+  if (!isPortDetected) {
+    console.warn('Backend port not detected within timeout, continuing with default base URL.');
+  }
 }
 
 // 请求拦截器
 api.interceptors.request.use(async (config) => {
-  // 如果在 Tauri 环境下且还没检测到端口，且不是第一次尝试 8080，则稍微等待一下
-  // 这可以减少刚启动时的竞争
-  if (window.__TAURI_INTERNALS__ && !isPortDetected && config.baseURL?.includes('127.0.0.1:8080')) {
-     // 最多等待 2 秒 (Sidecar 启动可能慢)
-     for (let i = 0; i < 20; i++) {
-       if (isPortDetected) break;
-       await new Promise(resolve => setTimeout(resolve, 100));
-     }
+  if (window.__TAURI_INTERNALS__ && !isPortDetected) {
+    await waitForBackendPort();
   }
 
   // 确保 config.baseURL 使用最新的 BASE_URL（如果还没设置的话）
