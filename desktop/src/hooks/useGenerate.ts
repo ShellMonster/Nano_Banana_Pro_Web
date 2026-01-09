@@ -276,8 +276,7 @@ export function useGenerate() {
       // 记录当前任务ID，供超时回调验证
       expectedTaskIdRef.current = newTaskId;
 
-      // 成功后自动清空参考图列表
-      config.clearRefFiles();
+      // 保留参考图，让用户手动清空
 
       // 启动 WebSocket 超时检测（如果15秒内没有消息，切换到轮询）
       timeoutTimerRef.current = setTimeout(() => {
