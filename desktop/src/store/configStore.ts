@@ -9,9 +9,15 @@ interface ConfigState {
   imageModel: string;
 
   // 对话配置
+  chatProvider: string;
   chatApiBaseUrl: string;
   chatApiKey: string;
   chatModel: string;
+  chatSyncedConfig: {
+    apiBaseUrl: string;
+    apiKey: string;
+    model: string;
+  } | null;
   
   prompt: string;
   count: number;
@@ -23,9 +29,11 @@ interface ConfigState {
   setImageApiBaseUrl: (url: string) => void;
   setImageApiKey: (key: string) => void;
   setImageModel: (model: string) => void;
+  setChatProvider: (provider: string) => void;
   setChatApiBaseUrl: (url: string) => void;
   setChatApiKey: (key: string) => void;
   setChatModel: (model: string) => void;
+  setChatSyncedConfig: (config: { apiBaseUrl: string; apiKey: string; model: string } | null) => void;
   setPrompt: (prompt: string) => void;
   setCount: (count: number) => void;
   setImageSize: (size: string) => void;
@@ -44,9 +52,11 @@ export const useConfigStore = create<ConfigState>()(
       imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
       imageApiKey: '',
       imageModel: 'gemini-3-pro-image-preview',
+      chatProvider: 'openai-chat',
       chatApiBaseUrl: 'https://api.openai.com/v1',
       chatApiKey: '',
       chatModel: 'gemini-3-flash-preview',
+      chatSyncedConfig: null,
       prompt: '',
       count: 1,
       imageSize: '2K',
@@ -57,9 +67,11 @@ export const useConfigStore = create<ConfigState>()(
       setImageApiBaseUrl: (imageApiBaseUrl) => set({ imageApiBaseUrl }),
       setImageApiKey: (imageApiKey) => set({ imageApiKey }),
       setImageModel: (imageModel) => set({ imageModel }),
+      setChatProvider: (chatProvider) => set({ chatProvider }),
       setChatApiBaseUrl: (chatApiBaseUrl) => set({ chatApiBaseUrl }),
       setChatApiKey: (chatApiKey) => set({ chatApiKey }),
       setChatModel: (chatModel) => set({ chatModel }),
+      setChatSyncedConfig: (chatSyncedConfig) => set({ chatSyncedConfig }),
       setPrompt: (prompt) => set({ prompt }),
       setCount: (count) => set({ count }),
       setImageSize: (imageSize) => set({ imageSize }),
@@ -79,8 +91,10 @@ export const useConfigStore = create<ConfigState>()(
       reset: () => set({
         imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
         imageModel: 'gemini-3-pro-image-preview',
+        chatProvider: 'openai-chat',
         chatApiBaseUrl: 'https://api.openai.com/v1',
         chatModel: 'gemini-3-flash-preview',
+        chatSyncedConfig: null,
         prompt: '',
         count: 1,
         imageSize: '2K',
@@ -91,7 +105,7 @@ export const useConfigStore = create<ConfigState>()(
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 3,
+      version: 5,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;
@@ -119,6 +133,17 @@ export const useConfigStore = create<ConfigState>()(
           if (shouldDefault) {
             next = { ...next, chatModel: 'gemini-3-flash-preview' };
           }
+        }
+        if (version < 4) {
+          next = { ...next, chatSyncedConfig: next.chatSyncedConfig ?? null };
+        }
+        if (version < 5) {
+          const base = String(next.chatApiBaseUrl ?? '').toLowerCase();
+          const model = String(next.chatModel ?? '').toLowerCase();
+          const inferred = base.includes('generativelanguage') || model.startsWith('gemini')
+            ? 'gemini-chat'
+            : 'openai-chat';
+          next = { ...next, chatProvider: next.chatProvider ?? inferred };
         }
         return next;
       },
