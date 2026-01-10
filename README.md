@@ -4,6 +4,8 @@
   <img src="assets/preview1.png" alt="Banana Pro Web 预览 1" width="800">
   <br>
   <img src="assets/preview2.png" alt="Banana Pro Web 预览 2" width="800">
+  <br>
+  <img src="assets/preview3.png" alt="Banana Pro Web 预览 3" width="800">
 </p>
 
 [![GitHub stars](https://img.shields.io/github/stars/ShellMonster/Nano_Banana_Pro_Web?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/stargazers)
@@ -354,7 +356,7 @@ services:
       - "8080:8080"
     environment:
       - SERVER_PORT=8080
-      - TEMPLATES_REMOTE_URL=https://raw.githubusercontent.com/ShellMonster/Nano_Banana_Pro_Web/main/backend/internal/templates/assets/templates.json
+      - TEMPLATES_REMOTE_URL=https://raw.githubusercontent.com/ShellMonster/Nano_Banana_Pro_Web/refs/heads/main/backend/internal/templates/assets/templates.json
     volumes:
       - ./backend/configs:/app/configs
       - ./backend/storage:/app/storage

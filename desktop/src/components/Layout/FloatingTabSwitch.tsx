@@ -128,10 +128,15 @@ export function FloatingTabSwitch() {
     // 切换到历史记录时，强制触发一次加载以获取最新数据
     if (tab === 'history') {
       console.log('[FloatingTabSwitch] 切换到历史记录，触发加载');
-      useHistoryStore.getState().loadHistory(true)
-        .catch(err => {
-          console.error('Failed to reload history on tab switch:', err);
-        });
+      const historyState = useHistoryStore.getState();
+      const now = Date.now();
+      const shouldReload = !historyState.lastLoadedAt || now - historyState.lastLoadedAt > 15000;
+      if (shouldReload && !historyState.loading) {
+        historyState.loadHistory(true, { silent: true })
+          .catch(err => {
+            console.error('Failed to reload history on tab switch:', err);
+          });
+      }
     }
   };
 

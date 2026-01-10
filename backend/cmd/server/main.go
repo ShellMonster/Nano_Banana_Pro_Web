@@ -106,6 +106,7 @@ func main() {
 			api.Success(c, gin.H{"status": "ok"})
 		})
 		v1.GET("/templates", api.ListTemplatesHandler)
+		v1.GET("/template-image", api.TemplateImageProxyHandler)
 		v1.GET("/providers", api.ListProvidersHandler)
 		v1.POST("/providers/config", api.UpdateProviderConfigHandler)
 		v1.POST("/prompts/optimize", api.OptimizePromptHandler)

@@ -133,6 +133,7 @@ export function ImageGrid({ onPreview }: ImageGridProps) {
               <div
                 className="grid content-start"
                 style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`, gap }}
+                onContextMenu={(event) => event.preventDefault()}
               >
                 {displayedImages.map((img) => (
                   <ImageCard

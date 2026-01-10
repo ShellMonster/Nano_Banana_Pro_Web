@@ -3,6 +3,7 @@ import { Header } from './Header';
 import { FloatingTabSwitch } from './FloatingTabSwitch';
 import GenerateArea from '../GenerateArea';
 import { useGenerateStore } from '../../store/generateStore';
+import { useHistoryStore } from '../../store/historyStore';
 import { ChevronLeft, ChevronRight, SlidersHorizontal, X, AlertTriangle, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from '../../store/toastStore';
@@ -48,6 +49,10 @@ export default function MainLayout() {
     tauriInitPromise.then(() => setIsTauriReady(true));
   }, []);
 
+  useEffect(() => {
+    import('../HistoryPanel');
+  }, []);
+
   // 2. 检查后端健康状态
   useEffect(() => {
     if (!isHydrated || !isTauriReady) return;
@@ -82,6 +87,23 @@ export default function MainLayout() {
       clearInterval(intervalTimer);
     };
   }, [isHydrated]);
+
+  const hasPrefetchedHistoryRef = useRef(false);
+  useEffect(() => {
+    if (!isHydrated || !isTauriReady) return;
+    if (hasPrefetchedHistoryRef.current) return;
+
+    const historyState = useHistoryStore.getState();
+    if (historyState.items.length > 0 || historyState.loading) {
+      hasPrefetchedHistoryRef.current = true;
+      return;
+    }
+
+    hasPrefetchedHistoryRef.current = true;
+    historyState.loadHistory(true, { silent: true }).catch(() => {
+      hasPrefetchedHistoryRef.current = false;
+    });
+  }, [isHydrated, isTauriReady]);
 
   const hasCurrentTaskImages = useMemo(() => {
     if (!taskId) return false;

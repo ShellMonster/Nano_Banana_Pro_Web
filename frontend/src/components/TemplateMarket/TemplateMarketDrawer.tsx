@@ -1,14 +1,18 @@
 import React, { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AutoSizer } from 'react-virtualized-auto-sizer';
-import { Grid, type CellComponentProps, type GridImperativeAPI } from 'react-window';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   AtSign,
   Banknote,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Download,
   Folder,
   Github,
   Landmark,
   Loader2,
+  Maximize2,
   MessageCircle,
   Printer,
   RefreshCw,
@@ -18,7 +22,9 @@ import {
   Sparkles,
   Utensils,
   Video,
-  X
+  X,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react';
 import { Input } from '../common/Input';
 import { Button } from '../common/Button';
@@ -26,7 +32,7 @@ import { Modal } from '../common/Modal';
 import { useConfigStore } from '../../store/configStore';
 import { useGenerateStore } from '../../store/generateStore';
 import { toast } from '../../store/toastStore';
-import { getTemplates } from '../../services/templateApi';
+import { getTemplateImageProxyUrl, getTemplates } from '../../services/templateApi';
 import { TemplateItem, TemplateListResponse, TemplateMeta, TemplateSource } from '../../types';
 import { cacheImageResponse, getCachedImageUrl } from '../../utils/imageCache';
 import { useShallow } from 'zustand/react/shallow';
@@ -39,28 +45,49 @@ import {
 } from '../../data/templateMarket';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
-const TEMPLATE_CARD_HEIGHT = 300;
-const TEMPLATE_GAP = 20;
+const hashString = async (value: string) => {
+  if (typeof crypto !== 'undefined' && crypto.subtle && typeof TextEncoder !== 'undefined') {
+    const data = new TextEncoder().encode(value);
+    const digest = await crypto.subtle.digest('SHA-1', data);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(16);
+};
+
+const mimeToExtension = (mime: string) => {
+  const lower = (mime || '').toLowerCase();
+  if (lower.includes('png')) return 'png';
+  if (lower.includes('webp')) return 'webp';
+  if (lower.includes('gif')) return 'gif';
+  return 'jpg';
+};
 const DEFAULT_TEMPLATE_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponent(
   `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#e2e8f0"/>
       <stop offset="100%" stop-color="#cbd5f5"/>
     </linearGradient>
   </defs>
-  <rect width="1200" height="900" rx="48" fill="url(#bg)"/>
-  <rect x="140" y="220" width="920" height="460" rx="40" fill="rgba(255,255,255,0.7)"/>
-  <text x="200" y="420" font-size="72" font-family="Arial, sans-serif" font-weight="700" fill="#475569">TEMPLATE</text>
-  <text x="200" y="500" font-size="32" font-family="Arial, sans-serif" fill="#64748b">NO IMAGE PROVIDED</text>
+  <rect width="1024" height="1024" rx="72" fill="url(#bg)"/>
+  <rect x="160" y="160" width="704" height="704" rx="56" fill="rgba(255,255,255,0.7)"/>
+  <text x="512" y="540" font-size="72" font-family="Arial, sans-serif" font-weight="700" fill="#475569" text-anchor="middle">无图展示</text>
 </svg>`
 )}`;
 
-const getTemplateColumnCount = (width: number) => {
-  if (width >= 1280) return 4;
-  if (width >= 768) return 3;
-  return 2;
+const resolveTemplateImageSrc = (source?: string) => {
+  const trimmed = source?.trim();
+  if (!trimmed) return DEFAULT_TEMPLATE_IMAGE;
+  if (/^https?:\/\//i.test(trimmed)) return getTemplateImageProxyUrl(trimmed);
+  return trimmed;
 };
 
 const fallbackMeta: TemplateMeta = {
@@ -231,29 +258,280 @@ const useCachedImage = (src: string) => {
 
 const TemplatePreviewModal = ({
   template,
+  templates,
+  onTemplateChange,
   onClose,
   onUse,
   applying
 }: {
   template: TemplateItem | null;
+  templates?: TemplateItem[];
+  onTemplateChange?: (template: TemplateItem) => void;
   onClose: () => void;
   onUse: (template: TemplateItem) => void;
   applying: boolean;
 }) => {
   const [previewStatus, setPreviewStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
-  const hasImage = Boolean(template?.image || template?.preview);
-  const imageSrc = template?.image || template?.preview || DEFAULT_TEMPLATE_IMAGE;
+  const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [isCopying, setIsCopying] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; adjusted: boolean } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const rawImageSrc = template?.image || template?.preview || '';
+  const hasImage = Boolean(rawImageSrc);
+  const imageSrc = resolveTemplateImageSrc(rawImageSrc);
   const resolvedImageSrc = useCachedImage(imageSrc);
   const errorText = hasImage ? '图片加载失败' : '暂无图片';
+  const items = templates ?? [];
+  const currentIndex = template ? items.findIndex((item) => item.id === template.id) : -1;
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex >= 0 && currentIndex < items.length - 1;
+  const isZoomed = scale > 1.01;
+
+  const handleReset = useCallback(() => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+    setIsDragging(false);
+  }, []);
+
+  const performZoom = useCallback((nextScale: number) => {
+    setScale(clamp(nextScale, 0.5, 5));
+  }, []);
+
+  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const delta = event.deltaY < 0 ? 0.2 : -0.2;
+    setScale((prev) => clamp(prev + delta, 0.5, 5));
+  };
+
+  const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    if (contextMenu) {
+      setContextMenu(null);
+      return;
+    }
+    if (!isZoomed) return;
+    setIsDragging(true);
+    setDragStart({ x: event.clientX - position.x, y: event.clientY - position.y });
+  };
+
+  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    setPosition({ x: event.clientX - dragStart.x, y: event.clientY - dragStart.y });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleOpenContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(false);
+    setContextMenu({ x: event.clientX, y: event.clientY, adjusted: false });
+  };
+
+  const goToPrev = useCallback(() => {
+    if (!hasPrev || !onTemplateChange) return;
+    onTemplateChange(items[currentIndex - 1]);
+    handleReset();
+  }, [hasPrev, onTemplateChange, items, currentIndex, handleReset]);
+
+  const goToNext = useCallback(() => {
+    if (!hasNext || !onTemplateChange) return;
+    onTemplateChange(items[currentIndex + 1]);
+    handleReset();
+  }, [hasNext, onTemplateChange, items, currentIndex, handleReset]);
+
+  const handleCopyImage = useCallback(async () => {
+    if (!rawImageSrc || isCopying) return;
+    setIsCopying(true);
+    try {
+      const copySrc = resolveTemplateImageSrc(rawImageSrc);
+      const response = await fetch(copySrc);
+      if (!response.ok) {
+        throw new Error('copy failed');
+      }
+      const blob = await response.blob();
+
+      const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+      if (isTauri) {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const { writeFile, mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs');
+          const dir = 'template_clipboard';
+          await mkdir(dir, { recursive: true, baseDir: BaseDirectory.AppData });
+          const hash = await hashString(rawImageSrc);
+          const ext = mimeToExtension(blob.type);
+          const relativePath = `${dir}/${hash}.${ext}`;
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          await writeFile(relativePath, bytes, { baseDir: BaseDirectory.AppData });
+          await invoke('copy_image_to_clipboard', { path: relativePath });
+          toast.success('图片已复制到剪贴板');
+          return;
+        } catch (err) {
+          console.warn('template copy (tauri) failed, fallback to web clipboard:', err);
+        }
+      }
+
+      const ClipboardItemCtor = (window as any).ClipboardItem as typeof ClipboardItem | undefined;
+      if (ClipboardItemCtor && navigator.clipboard?.write) {
+        await navigator.clipboard.write([new ClipboardItemCtor({ [blob.type || 'image/png']: blob })]);
+        toast.success('图片已复制到剪贴板');
+        return;
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(rawImageSrc);
+        toast.info('当前环境不支持复制图片，已复制图片链接');
+        return;
+      }
+      throw new Error('clipboard unavailable');
+    } catch (error) {
+      console.error('copy template image failed:', error);
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(rawImageSrc);
+          toast.success('已复制图片链接');
+          return;
+        } catch (fallbackError) {
+          console.error('copy template url failed:', fallbackError);
+        }
+      }
+      toast.error('复制失败');
+    } finally {
+      setIsCopying(false);
+    }
+  }, [rawImageSrc, isCopying]);
+
+  const copyText = useCallback(async (value: string) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    try {
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    } finally {
+      document.body.removeChild(textarea);
+    }
+  }, []);
+
+  const handleCopyImagePath = useCallback(async () => {
+    if (!rawImageSrc) {
+      toast.info('图片路径为空');
+      return;
+    }
+    const ok = await copyText(rawImageSrc);
+    if (ok) toast.success('图片路径已复制');
+    else toast.error('复制失败');
+  }, [copyText, rawImageSrc]);
+
+  const handleDownload = useCallback(async () => {
+    if (!rawImageSrc) {
+      toast.info('暂无可下载图片');
+      return;
+    }
+    try {
+      const downloadSrc = resolveTemplateImageSrc(rawImageSrc);
+      const response = await fetch(downloadSrc);
+      if (!response.ok) throw new Error('download failed');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const ext = mimeToExtension(blob.type);
+      const filename = `${template?.id || 'template'}.${ext}`;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success('下载已开始');
+    } catch (error) {
+      console.error('download template image failed:', error);
+      toast.error('下载失败');
+    }
+  }, [rawImageSrc, template?.id]);
 
   useEffect(() => {
     if (!template) return;
+    handleReset();
+    setContextMenu(null);
     if (!hasImage) {
       setPreviewStatus('loaded');
       return;
     }
     setPreviewStatus('loading');
-  }, [template?.id, hasImage, imageSrc]);
+  }, [template?.id, hasImage, imageSrc, handleReset]);
+
+  useEffect(() => {
+    if (!template) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowLeft') goToPrev();
+      if (event.key === 'ArrowRight') goToNext();
+      if (event.key === 'Escape') {
+        if (contextMenu) {
+          setContextMenu(null);
+          return;
+        }
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [template, goToPrev, goToNext, onClose, contextMenu]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const menuEl = contextMenuRef.current;
+      if (menuEl && menuEl.contains(event.target as Node)) return;
+      setContextMenu(null);
+    };
+
+    const handleScroll = () => setContextMenu(null);
+    const handleResize = () => setContextMenu(null);
+
+    window.addEventListener('mousedown', handlePointerDown, true);
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown, true);
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [contextMenu]);
+
+  useEffect(() => {
+    if (!contextMenu || contextMenu.adjusted) return;
+    const menuEl = contextMenuRef.current;
+    if (!menuEl) return;
+    const rect = menuEl.getBoundingClientRect();
+    const padding = 8;
+    let nextX = contextMenu.x;
+    let nextY = contextMenu.y;
+    if (nextX + rect.width + padding > window.innerWidth) {
+      nextX = window.innerWidth - rect.width - padding;
+    }
+    if (nextY + rect.height + padding > window.innerHeight) {
+      nextY = window.innerHeight - rect.height - padding;
+    }
+    nextX = Math.max(padding, nextX);
+    nextY = Math.max(padding, nextY);
+    setContextMenu({ x: nextX, y: nextY, adjusted: true });
+  }, [contextMenu]);
 
   if (!template) return null;
 
@@ -265,34 +543,197 @@ const TemplatePreviewModal = ({
       className="max-w-5xl"
     >
       <div className="grid md:grid-cols-[minmax(0,1fr)_320px] gap-6">
-        <div className="bg-slate-900/5 rounded-3xl p-4 flex items-center justify-center relative overflow-hidden">
-          {resolvedImageSrc && (
-            <img
-              src={resolvedImageSrc}
-              alt={template.title}
-              className={`max-h-[60vh] w-full object-contain rounded-2xl shadow-xl transition-opacity duration-300 ${
-                previewStatus === 'loaded' ? 'opacity-100' : 'opacity-0'
-              }`}
-              decoding="async"
-              onLoad={() => {
-                setPreviewStatus('loaded');
-                if (hasImage) {
-                  cacheImageResponse(imageSrc);
-                }
+        <div className="bg-slate-900/5 rounded-3xl p-4 relative overflow-hidden min-h-[360px]">
+          <div
+            ref={containerRef}
+            className={`relative w-full h-full rounded-2xl overflow-hidden bg-white/70 flex items-center justify-center ${
+              isZoomed ? 'cursor-grab active:cursor-grabbing' : ''
+            }`}
+            onWheel={handleWheel}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onContextMenu={handleOpenContextMenu}
+          >
+            {resolvedImageSrc && (
+              <img
+                src={resolvedImageSrc}
+                alt={template.title}
+                className={`max-h-[60vh] w-full object-contain transition-opacity duration-300 ${
+                  previewStatus === 'loaded' ? 'opacity-100' : 'opacity-0'
+                }`}
+                style={{
+                  transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+                  transition: isDragging ? 'none' : 'transform 0.12s cubic-bezier(0.2, 0, 0.2, 1)'
+                }}
+                decoding="async"
+                onLoad={() => {
+                  setPreviewStatus('loaded');
+                  if (hasImage) {
+                    cacheImageResponse(imageSrc);
+                  }
+                }}
+                onError={() => setPreviewStatus('error')}
+                draggable={false}
+              />
+            )}
+            {previewStatus !== 'loaded' && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-2xl">
+                {previewStatus === 'error' ? (
+                  <span className="text-xs text-slate-500">{errorText}</span>
+                ) : (
+                  <Loader2 className="w-5 h-5 text-slate-500 animate-spin" />
+                )}
+              </div>
+            )}
+          </div>
+
+          {hasPrev && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                goToPrev();
               }}
-              onError={() => setPreviewStatus('error')}
-            />
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
           )}
-          {previewStatus !== 'loaded' && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-2xl">
-              {previewStatus === 'error' ? (
-                <span className="text-xs text-slate-500">{errorText}</span>
+          {hasNext && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                goToNext();
+              }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          )}
+
+          <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                handleCopyImage();
+              }}
+              disabled={!hasImage || isCopying}
+              className="px-3 py-2 rounded-full bg-white/90 text-slate-600 text-xs font-semibold flex items-center gap-1.5 shadow-sm hover:bg-white disabled:opacity-60 disabled:cursor-not-allowed"
+              title={hasImage ? '复制图片' : '暂无可复制图片'}
+            >
+              {isCopying ? (
+                <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
               ) : (
-                <Loader2 className="w-5 h-5 text-slate-500 animate-spin" />
+                <Copy className="w-3.5 h-3.5" />
               )}
-            </div>
-          )}
+              复制图片
+            </button>
+          </div>
+
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 px-2 py-1.5 bg-white/90 border border-white/70 rounded-full shadow-sm">
+            <button
+              type="button"
+              onClick={() => performZoom(scale - 0.2)}
+              className="p-1.5 rounded-full text-slate-600 hover:bg-white"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="px-3 py-1 text-[11px] font-semibold text-slate-700"
+            >
+              {Math.round(scale * 100)}%
+            </button>
+            <button
+              type="button"
+              onClick={() => performZoom(scale + 0.2)}
+              className="p-1.5 rounded-full text-slate-600 hover:bg-white"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          </div>
+
         </div>
+        {contextMenu && typeof document !== 'undefined'
+          ? createPortal(
+              <div
+                ref={contextMenuRef}
+                className="fixed z-[1000] min-w-[180px] bg-white/95 backdrop-blur-xl border border-slate-200/70 rounded-2xl shadow-[0_18px_60px_-18px_rgba(0,0,0,0.35)] overflow-hidden"
+                style={{ left: contextMenu.x, top: contextMenu.y }}
+                role="menu"
+                aria-label="模板图片操作菜单"
+                onClick={(event) => event.stopPropagation()}
+                onMouseDown={(event) => event.stopPropagation()}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+              >
+                <button
+                  type="button"
+                  className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setContextMenu(null);
+                    handleCopyImage();
+                  }}
+                  role="menuitem"
+                  disabled={!hasImage}
+                >
+                  <Copy className="w-4 h-4 text-slate-600" />
+                  复制图片
+                </button>
+                <button
+                  type="button"
+                  className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setContextMenu(null);
+                    handleCopyImagePath();
+                  }}
+                  role="menuitem"
+                  disabled={!hasImage}
+                >
+                  <Copy className="w-4 h-4 text-slate-600" />
+                  复制图片路径
+                </button>
+                <div className="h-px bg-slate-200/60" />
+                <button
+                  type="button"
+                  className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setContextMenu(null);
+                    handleDownload();
+                  }}
+                  role="menuitem"
+                  disabled={!hasImage}
+                >
+                  <Download className="w-4 h-4 text-slate-600" />
+                  下载高清原图
+                </button>
+                <button
+                  type="button"
+                  className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setContextMenu(null);
+                    handleReset();
+                  }}
+                  role="menuitem"
+                >
+                  <Maximize2 className="w-4 h-4 text-slate-600" />
+                  重置缩放/位置
+                </button>
+              </div>,
+              document.body
+            )
+          : null}
         <div className="space-y-4">
           <div>
             <p className="text-xs uppercase text-slate-400 tracking-widest">模板信息</p>
@@ -370,7 +811,7 @@ const TemplateCard = React.memo(function TemplateCard({
   onApply: (item: TemplateItem) => void;
 }) {
   const hasPreview = Boolean(item.preview || item.image);
-  const previewSrc = item.preview || item.image || DEFAULT_TEMPLATE_IMAGE;
+  const previewSrc = resolveTemplateImageSrc(item.preview || item.image);
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>(hasPreview ? 'loading' : 'loaded');
   const resolvedSrc = useCachedImage(previewSrc);
 
@@ -393,7 +834,7 @@ const TemplateCard = React.memo(function TemplateCard({
         className={`relative group ${isReady ? '' : 'cursor-not-allowed'}`}
         disabled={!isReady}
       >
-        <div className="relative">
+        <div className="relative rounded-2xl overflow-hidden bg-slate-100/70">
           {resolvedSrc && (
             <img
               src={resolvedSrc}
@@ -413,15 +854,22 @@ const TemplateCard = React.memo(function TemplateCard({
             />
           )}
           {status === 'loaded' ? (
-            <div className="absolute inset-0 rounded-2xl bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold">
-              点击查看
+            <div className="absolute inset-0 rounded-2xl pointer-events-none">
+              <span className="absolute bottom-2 right-2 rounded-full bg-white/85 text-slate-700 text-[11px] font-semibold px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                点击查看
+              </span>
             </div>
           ) : (
-            <div className="absolute inset-0 rounded-2xl bg-white/70 flex items-center justify-center text-xs text-slate-500">
+            <div className="absolute inset-0 rounded-2xl flex items-center justify-center text-xs text-slate-500">
               {status === 'error' ? (
-                <span>{hasPreview ? '图片加载失败' : '图片地址为空'}</span>
+                <span className="px-2.5 py-1 rounded-full bg-white/85">
+                  {hasPreview ? '图片加载失败' : '图片地址为空'}
+                </span>
               ) : (
-                <Loader2 className="w-4 h-4 text-slate-500 animate-spin" />
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/85">
+                  <Loader2 className="w-4 h-4 text-slate-500 animate-spin" />
+                  加载中
+                </span>
               )}
             </div>
           )}
@@ -494,7 +942,7 @@ export function TemplateMarketDrawer({
   const previousOverflowRef = useRef<string | null>(null);
   const previousOverscrollRef = useRef<string | null>(null);
   const requestIdRef = useRef(0);
-  const gridRef = useRef<GridImperativeAPI | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
   const templateDataRef = useRef(templateData);
   const templateSourceRef = useRef(templateSource);
   const scrollTopRef = useRef(0);
@@ -644,7 +1092,7 @@ export function TemplateMarketDrawer({
 
   useLayoutEffect(() => {
     if (!isOpen || isDormant) return;
-    const container = gridRef.current?.element;
+    const container = listRef.current;
     if (!container) return;
     const top = scrollTopRef.current;
     if (top <= 0) return;
@@ -698,7 +1146,7 @@ export function TemplateMarketDrawer({
   };
 
   const closeDrawer = (nextTab: 'generate' | 'history') => {
-    scrollTopRef.current = gridRef.current?.element?.scrollTop ?? 0;
+    scrollTopRef.current = listRef.current?.scrollTop ?? 0;
     setIsOpen(false);
     setTab(nextTab);
     if (dormancyTimerRef.current) {
@@ -725,7 +1173,17 @@ export function TemplateMarketDrawer({
       clearRefFiles();
       const imageSrc = template.image || template.preview;
       if (imageSrc) {
-        const file = await createFileFromUrl(imageSrc, `${template.id}.png`);
+        const proxySrc = getTemplateImageProxyUrl(imageSrc);
+        let file: File;
+        try {
+          file = await createFileFromUrl(proxySrc, `${template.id}.png`);
+        } catch (error) {
+          if (proxySrc !== imageSrc) {
+            file = await createFileFromUrl(imageSrc, `${template.id}.png`);
+          } else {
+            throw error;
+          }
+        }
         addRefFiles([file]);
       }
 
@@ -737,8 +1195,6 @@ export function TemplateMarketDrawer({
         toast.info(template.requirements?.note || '还需要补充更多参考图');
       }
 
-      setTab('generate');
-      setIsOpen(false);
       setPreviewTemplate(null);
       toast.success('已替换 Prompt 与参考图');
     } catch (error) {
@@ -747,56 +1203,6 @@ export function TemplateMarketDrawer({
       setApplyingId(null);
     }
   };
-
-  type TemplateCellData = {
-    items: TemplateItem[];
-    columnCount: number;
-    itemWidth: number;
-    itemHeight: number;
-    gap: number;
-  };
-
-  const TemplateCell = useCallback(
-    ({
-      columnIndex,
-      rowIndex,
-      style,
-      ariaAttributes,
-      items,
-      columnCount,
-      itemWidth,
-      itemHeight,
-      gap
-    }: CellComponentProps<TemplateCellData>) => {
-      const index = rowIndex * columnCount + columnIndex;
-      const cellStyle: React.CSSProperties = {
-        ...style,
-        width: itemWidth + gap,
-        height: itemHeight + gap,
-        paddingRight: gap,
-        paddingBottom: gap,
-        boxSizing: 'border-box'
-      };
-      if (index >= items.length) {
-        return <div {...ariaAttributes} style={cellStyle} />;
-      }
-      const item = items[index];
-
-      return (
-        <div {...ariaAttributes} style={cellStyle}>
-          <div style={{ width: itemWidth, height: itemHeight }}>
-            <TemplateCard
-              item={item}
-              applyingId={applyingId}
-              onPreview={setPreviewTemplate}
-              onApply={applyTemplate}
-            />
-          </div>
-        </div>
-      );
-    },
-    [applyingId, applyTemplate]
-  );
 
   return (
     <>
@@ -865,7 +1271,7 @@ export function TemplateMarketDrawer({
           </div>
         )}
 
-        <div className="flex-1 min-h-0 flex flex-col px-6 pb-6">
+        <div ref={listRef} className="flex-1 min-h-0 flex flex-col px-6 pb-6 overflow-y-auto">
           <div className="pt-6 space-y-6">
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
@@ -968,9 +1374,12 @@ export function TemplateMarketDrawer({
             </div>
           </div>
 
-          <div className="mt-6 flex-1 min-h-0">
+          <div className="mt-6">
             {isDormant ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
+              <div
+                className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5"
+                onContextMenu={(event) => event.preventDefault()}
+              >
                 {Array.from({ length: 8 }).map((_, index) => (
                   <div
                     key={`skeleton-${index}`}
@@ -1001,62 +1410,21 @@ export function TemplateMarketDrawer({
                 )}
               </div>
             ) : (
-              <div className={`h-full ${isFiltering ? 'opacity-70' : 'opacity-100'}`}>
-                <AutoSizer
-                  className="h-full w-full"
-                  renderProp={({ width, height }) => {
-                    if (!width || !height) {
-                      const previewItems = filteredTemplates.slice(0, 24);
-                      return (
-                        <div className="h-full overflow-y-auto pr-1">
-                          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
-                            {previewItems.map((item) => (
-                              <TemplateCard
-                                key={item.id}
-                                item={item}
-                                applyingId={applyingId}
-                                onPreview={setPreviewTemplate}
-                                onApply={applyTemplate}
-                              />
-                            ))}
-                          </div>
-                          {filteredTemplates.length > previewItems.length && (
-                            <div className="text-xs text-slate-400 text-center mt-3">
-                              模板数量较多，等待布局完成后继续展示
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-                    const columnCount = getTemplateColumnCount(width);
-                    const gap = TEMPLATE_GAP;
-                    const itemWidth = Math.floor((width - gap * columnCount) / columnCount);
-                    const itemHeight = TEMPLATE_CARD_HEIGHT;
-                    const rowCount = Math.ceil(filteredTemplates.length / columnCount);
-
-                    const cellProps: TemplateCellData = {
-                      items: filteredTemplates,
-                      columnCount,
-                      itemWidth,
-                      itemHeight,
-                      gap
-                    };
-
-                    return (
-                      <Grid
-                        columnCount={columnCount}
-                        columnWidth={itemWidth + gap}
-                        rowCount={rowCount}
-                        rowHeight={itemHeight + gap}
-                        cellComponent={TemplateCell}
-                        cellProps={cellProps}
-                        gridRef={gridRef}
-                        overscanCount={2}
-                        style={{ height, width }}
-                      />
-                    );
-                  }}
-                />
+              <div className={`${isFiltering ? 'opacity-70' : 'opacity-100'}`}>
+                <div
+                  className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5 pr-1"
+                  onContextMenu={(event) => event.preventDefault()}
+                >
+                  {filteredTemplates.map((item) => (
+                    <TemplateCard
+                      key={item.id}
+                      item={item}
+                      applyingId={applyingId}
+                      onPreview={setPreviewTemplate}
+                      onApply={applyTemplate}
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -1065,6 +1433,8 @@ export function TemplateMarketDrawer({
 
       <TemplatePreviewModal
         template={previewTemplate}
+        templates={filteredTemplates}
+        onTemplateChange={setPreviewTemplate}
         onClose={() => setPreviewTemplate(null)}
         onUse={applyTemplate}
         applying={Boolean(applyingId)}

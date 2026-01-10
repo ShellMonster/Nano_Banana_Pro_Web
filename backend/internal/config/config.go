@@ -98,7 +98,7 @@ func InitConfig() {
 	viper.SetDefault("storage.local_dir", "storage")
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("prompts.optimize_system", DefaultOptimizeSystemPrompt)
-	viper.SetDefault("templates.remote_url", "https://raw.githubusercontent.com/ShellMonster/Nano_Banana_Pro_Web/main/backend/internal/templates/assets/templates.json")
+	viper.SetDefault("templates.remote_url", "https://raw.githubusercontent.com/ShellMonster/Nano_Banana_Pro_Web/refs/heads/main/backend/internal/templates/assets/templates.json")
 	viper.SetDefault("templates.fetch_timeout_seconds", 4)
 
 	// 支持环境变量

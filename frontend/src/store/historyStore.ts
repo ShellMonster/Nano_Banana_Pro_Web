@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { HistoryItem } from '../types';
 import { getHistory, searchHistory, deleteHistory, deleteBatchHistory, deleteImage, getHistoryDetail } from '../services/historyApi';
 import { mapBackendHistoryResponse, mapBackendTaskToFrontend } from '../utils/mapping';
@@ -12,8 +13,9 @@ interface HistoryState {
   page: number;
   total: number;
   searchKeyword: string;
+  lastLoadedAt: number | null;
 
-  loadHistory: (reset?: boolean) => Promise<void>;
+  loadHistory: (reset?: boolean, options?: { silent?: boolean }) => Promise<void>;
   loadMore: () => Promise<void>;
   setSearchKeyword: (keyword: string) => void;
   deleteItem: (id: string) => Promise<void>;
@@ -24,15 +26,18 @@ interface HistoryState {
 
 let latestHistoryRequestId = 0;
 
-export const useHistoryStore = create<HistoryState>((set, get) => ({
+export const useHistoryStore = create<HistoryState>()(
+  persist(
+    (set, get) => ({
   items: [],
   loading: false,
   hasMore: true,
   page: 1,
   total: 0,
   searchKeyword: '',
+  lastLoadedAt: null,
 
-  loadHistory: async (reset = false) => {
+  loadHistory: async (reset = false, options) => {
     // 请求序号：防止慢请求覆盖快请求（搜索/翻页/重置时常见）
     const requestId = ++latestHistoryRequestId;
 
@@ -114,6 +119,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
             total,
             page: currentPage,
             hasMore: finalItems.length < total,
+            lastLoadedAt: Date.now(),
             loading: false
         });
 
@@ -126,8 +132,10 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
         }
 
         console.error('Failed to load history:', error);
-        const errorMessage = error instanceof Error ? error.message : '加载历史记录失败';
-        toast.error(errorMessage);
+        if (!options?.silent) {
+          const errorMessage = error instanceof Error ? error.message : '加载历史记录失败';
+          toast.error(errorMessage);
+        }
         set({ loading: false });
     }
   },
@@ -142,7 +150,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
 
   setSearchKeyword: (searchKeyword) => {
       set({ searchKeyword });
-      get().loadHistory(true); // 搜索时重置并重新加载
+      get().loadHistory(true, { silent: true }); // 搜索时重置并重新加载
   },
 
   deleteItem: async (id) => {
@@ -212,7 +220,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
           toast.success('图片已删除');
 
           // 后台刷新列表以同步后端状态
-          await get().loadHistory(true);
+          await get().loadHistory(true, { silent: true });
       } catch (error) {
           console.error('Failed to delete image:', error);
           const errorMessage = error instanceof Error ? error.message : '删除图片失败';
@@ -232,7 +240,40 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       throw error;
     }
   }
-}));
+    }),
+    {
+      name: 'history-cache',
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      partialize: (state) => ({
+        items: state.items,
+        total: state.total,
+        page: state.page,
+        lastLoadedAt: state.lastLoadedAt
+      }),
+      merge: (persistedState, currentState) => {
+        const incoming = persistedState as Partial<HistoryState> | undefined;
+        if (!incoming || typeof incoming !== 'object') {
+          return currentState;
+        }
+        const items = Array.isArray(incoming.items) ? incoming.items : currentState.items;
+        const total = typeof incoming.total === 'number' ? incoming.total : currentState.total;
+        const page = typeof incoming.page === 'number' ? incoming.page : currentState.page;
+        const lastLoadedAt =
+          typeof incoming.lastLoadedAt === 'number' ? incoming.lastLoadedAt : currentState.lastLoadedAt;
+        return {
+          ...currentState,
+          items,
+          total,
+          page,
+          lastLoadedAt,
+          hasMore: items.length < total,
+          loading: false
+        };
+      }
+    }
+  )
+);
 
 // 同步函数：检查历史记录中是否有当前正在生成的任务，并同步状态
 function syncWithGenerateStore(historyItems: HistoryItem[]) {

@@ -362,9 +362,6 @@ func parsePayload(data []byte) (TemplatePayload, error) {
 		if normalized.ID == "" || normalized.Title == "" {
 			continue
 		}
-		if normalized.Image == "" && normalized.Preview == "" {
-			continue
-		}
 		items = append(items, normalized)
 	}
 

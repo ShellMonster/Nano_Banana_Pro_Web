@@ -3,7 +3,7 @@ import { ApiResponse } from '../types';
 
 // 根据 API 文档，后端地址默认为 http://localhost:8080
 // 在生产环境中，这通常是相对路径 /api/v1
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+export const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
 
 // 创建 axios 实例
 const api = axios.create({

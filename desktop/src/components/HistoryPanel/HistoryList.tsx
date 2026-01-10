@@ -245,7 +245,11 @@ export function HistoryList() {
               };
 
               return (
-                <div style={{ padding }} className="h-full">
+                <div
+                  style={{ padding }}
+                  className="h-full"
+                  onContextMenu={(event) => event.preventDefault()}
+                >
                   <Grid
                     columnCount={columnCount}
                     columnWidth={columnWidth + gap}
