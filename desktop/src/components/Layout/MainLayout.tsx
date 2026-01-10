@@ -10,6 +10,7 @@ import { VersionBadge } from '../common/VersionBadge';
 import { InternalDragLayer } from '../common/InternalDragLayer';
 import { getTaskStatus } from '../../services/generateApi';
 import { getUpdateSource } from '../../store/updateSourceStore';
+import { TemplateMarketDrawer } from '../TemplateMarket/TemplateMarketDrawer';
 
 // 使用懒加载减少初始包体积
 const ConfigPanel = lazy(() => import('../ConfigPanel'));
@@ -39,6 +40,7 @@ export default function MainLayout() {
   const [isTauriReady, setIsTauriReady] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isBackendHealthy, setIsBackendHealthy] = useState<boolean | null>(null);
+  const [isTemplateMarketOpen, setIsTemplateMarketOpen] = useState(false);
 
   // 1. 确保状态恢复
   useEffect(() => {
@@ -354,10 +356,11 @@ export default function MainLayout() {
         )}
 
         {/* 桌面端：右侧悬浮 Tab 切换 */}
-        <FloatingTabSwitch />
+        {!isTemplateMarketOpen && <FloatingTabSwitch />}
 
         {/* 右侧主内容区域 */}
         <section className="flex-1 bg-white md:bg-white/70 backdrop-blur-xl rounded-2xl md:rounded-3xl shadow-sm border border-white/40 overflow-hidden relative">
+          <TemplateMarketDrawer onOpenChange={setIsTemplateMarketOpen} />
           <div className={`absolute inset-0 transition-opacity duration-500 ${currentTab === 'generate' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
              <GenerateArea />
           </div>

@@ -89,3 +89,44 @@ export interface ExtendedFile extends File {
   // 本地文件路径 (Tauri 环境)
   __path?: string;
 }
+
+// 模板市场数据
+export interface TemplateRequirement {
+  minRefs?: number;
+  note?: string;
+}
+
+export interface TemplateItem {
+  id: string;
+  title: string;
+  channels: string[];
+  materials: string[];
+  industries: string[];
+  ratio: string;
+  preview: string;
+  image: string;
+  prompt?: string;
+  tips?: string;
+  source?: TemplateSource;
+  tags?: string[];
+  requirements?: TemplateRequirement;
+}
+
+export interface TemplateSource {
+  name: string;
+  label?: string;
+  icon?: string;
+  url?: string;
+}
+
+export interface TemplateMeta {
+  channels: string[];
+  materials: string[];
+  industries: string[];
+  ratios: string[];
+}
+
+export interface TemplateListResponse {
+  meta: TemplateMeta;
+  items: TemplateItem[];
+}

@@ -30,6 +30,16 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
         };
     }, []);
 
+    useEffect(() => {
+        if (confirmTimerRef.current) {
+            clearTimeout(confirmTimerRef.current);
+            confirmTimerRef.current = null;
+        }
+        setShowConfirm(false);
+        setIsDeleting(false);
+        hasNotifiedCopyRef.current = false;
+    }, [image.id]);
+
     // 监听复制事件，当用户右键复制图片时显示提示
     useEffect(() => {
         const img = imgRef.current;
@@ -159,7 +169,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
     return (
         <div
             className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md cursor-pointer group relative flex flex-col"
-            style={{ contentVisibility: 'auto' }}
+            style={{ contentVisibility: 'auto', containIntrinsicSize: '240px 320px' }}
             onClick={handleClick}
             onPointerDown={handlePointerDown}
         >
@@ -250,6 +260,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
                     alt={image.prompt}
                     className="w-full h-full object-cover"
                     loading="lazy"
+                    decoding="async"
                     draggable={false}
                 />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />

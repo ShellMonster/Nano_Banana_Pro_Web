@@ -6,10 +6,19 @@ import { BatchActions } from './BatchActions';
 import { ImagePreview } from './ImagePreview';
 import { GeneratedImage } from '../../types';
 import { useGenerateStore } from '../../store/generateStore';
+import { useShallow } from 'zustand/react/shallow';
 
 export default function GenerateArea() {
   const [previewImage, setPreviewImage] = useState<GeneratedImage | null>(null);
-  const { error, dismissError, status, images, isSubmitting } = useGenerateStore();
+  const { error, dismissError, status, images, isSubmitting } = useGenerateStore(
+    useShallow((s) => ({
+      error: s.error,
+      dismissError: s.dismissError,
+      status: s.status,
+      images: s.images,
+      isSubmitting: s.isSubmitting
+    }))
+  );
 
   const handleCloseError = () => {
       dismissError();

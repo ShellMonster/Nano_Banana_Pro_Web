@@ -132,6 +132,7 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
                 hover:shadow-md cursor-pointer group relative
                 ${statusInfo.bgColor} ${statusInfo.borderColor}
             `}
+            style={{ contentVisibility: 'auto', containIntrinsicSize: '240px 240px' }}
             onClick={handleClick}
         >
             {/* 删除按钮 - 纯 CSS hover */}

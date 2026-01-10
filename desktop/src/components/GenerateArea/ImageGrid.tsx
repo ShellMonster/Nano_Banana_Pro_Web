@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { AutoSizer } from 'react-virtualized-auto-sizer';
 import { ImageCard } from './ImageCard';
 import { useGenerateStore } from '../../store/generateStore';
+import { useShallow } from 'zustand/react/shallow';
 import { GeneratedImage } from '../../types';
 
 interface ImageGridProps {
@@ -9,11 +11,38 @@ interface ImageGridProps {
 
 // 最大显示图片数量限制
 const MAX_IMAGES = 100;
+const GRID_PADDING = 16;
+
+const getColumnCount = (containerWidth: number, viewportWidth: number | undefined, gap: number) => {
+  const basis = viewportWidth ?? containerWidth;
+  let count = 2;
+  if (basis >= 1280) {
+    count = 5;
+  } else if (basis >= 1024) {
+    count = 4;
+  } else if (basis >= 768) {
+    count = 3;
+  }
+
+  const minCardWidth = 170;
+  while (count > 2) {
+    const requiredWidth = count * minCardWidth + (count - 1) * gap;
+    if (containerWidth >= requiredWidth) break;
+    count -= 1;
+  }
+  return count;
+};
+
+const getGapSize = (width: number) => (width >= 640 ? 16 : 12);
 
 export function ImageGrid({ onPreview }: ImageGridProps) {
-  const images = useGenerateStore((s) => s.images);
-  const selectedIds = useGenerateStore((s) => s.selectedIds);
-  const toggleSelect = useGenerateStore((s) => s.toggleSelect);
+  const { images, selectedIds, toggleSelect } = useGenerateStore(
+    useShallow((s) => ({
+      images: s.images,
+      selectedIds: s.selectedIds,
+      toggleSelect: s.toggleSelect
+    }))
+  );
 
   const isPendingImage = useCallback((img: GeneratedImage) => {
     return img.status !== 'failed' && (img.status === 'pending' || !img.url);
@@ -85,27 +114,50 @@ export function ImageGrid({ onPreview }: ImageGridProps) {
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 p-4 content-start">
-        {displayedImages.map((img) => (
-          <ImageCard
-            key={img.id}
-            image={img}
-            selected={selectedIds.has(img.id)}
-            onSelect={toggleSelect}
-            onClick={handlePreview}
-            elapsed={
-              isPendingImage(img)
-                ? (() => {
-                    const startMs = Date.parse(img.createdAt || '');
-                    const safeStart = Number.isFinite(startMs) ? startMs : now;
-                    const seconds = Math.max(0, (now - safeStart) / 1000);
-                    return seconds.toFixed(1);
-                  })()
-                : undefined
-            }
-          />
-        ))}
-      </div>
+      <AutoSizer
+        className="h-full w-full"
+        renderProp={({ width, height }) => {
+          if (!width || !height) return null;
+          const innerWidth = Math.max(0, width - GRID_PADDING * 2);
+          if (innerWidth <= 0) return null;
+
+          const viewportWidth =
+            typeof window !== 'undefined'
+              ? window.innerWidth || document.documentElement.clientWidth
+              : innerWidth;
+          const gap = getGapSize(innerWidth);
+          const columnCount = getColumnCount(innerWidth, viewportWidth, gap);
+
+          return (
+            <div style={{ padding: GRID_PADDING }} className="h-full">
+              <div
+                className="grid content-start"
+                style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`, gap }}
+              >
+                {displayedImages.map((img) => (
+                  <ImageCard
+                    key={img.id}
+                    image={img}
+                    selected={selectedIds.has(img.id)}
+                    onSelect={toggleSelect}
+                    onClick={handlePreview}
+                    elapsed={
+                      isPendingImage(img)
+                        ? (() => {
+                            const startMs = Date.parse(img.createdAt || '');
+                            const safeStart = Number.isFinite(startMs) ? startMs : now;
+                            const seconds = Math.max(0, (now - safeStart) / 1000);
+                            return seconds.toFixed(1);
+                          })()
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        }}
+      />
 
       {/* 超过限制时的提示 */}
       {hasOverflow && (

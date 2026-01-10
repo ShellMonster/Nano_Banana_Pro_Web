@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"image-gen-service/internal/model"
 	"image-gen-service/internal/provider"
 	"image-gen-service/internal/storage"
+	"image-gen-service/internal/templates"
 	"image-gen-service/internal/worker"
 
 	"github.com/gin-gonic/gin"
@@ -50,7 +52,7 @@ func main() {
 	var ossConfig map[string]string
 	if config.GlobalConfig.Storage.OSS.Enabled {
 		ossConfig = map[string]string{
-			"endpoint":         config.GlobalConfig.Storage.OSS.Endpoint,
+			"endpoint":        config.GlobalConfig.Storage.OSS.Endpoint,
 			"accessKeyID":     config.GlobalConfig.Storage.OSS.AccessKeyID,
 			"accessKeySecret": config.GlobalConfig.Storage.OSS.AccessKeySecret,
 			"bucketName":      config.GlobalConfig.Storage.OSS.BucketName,
@@ -58,6 +60,13 @@ func main() {
 		}
 	}
 	storage.InitStorage(config.GlobalConfig.Storage.LocalDir, ossConfig)
+
+	// 3.5 初始化模板市场
+	templates.InitStore(templates.Options{
+		RemoteURL: config.GlobalConfig.Templates.RemoteURL,
+		CachePath: filepath.Join(workDir, "templates_cache.json"),
+		Timeout:   time.Duration(config.GlobalConfig.Templates.FetchTimeoutSeconds) * time.Second,
+	})
 
 	// 4. 初始化 Worker 池 (2C2G 服务器，推荐 6 个 worker)
 	worker.InitPool(6, 100)
@@ -73,13 +82,13 @@ func main() {
 	r.Use(func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		log.Printf("[CORS] Request from Origin: %s, Method: %s, Path: %s", origin, c.Request.Method, c.Request.URL.Path)
-		
+
 		if origin != "" {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		} else {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		}
-		
+
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, *")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
@@ -96,6 +105,7 @@ func main() {
 		v1.GET("/health", func(c *gin.Context) {
 			api.Success(c, gin.H{"status": "ok"})
 		})
+		v1.GET("/templates", api.ListTemplatesHandler)
 		v1.GET("/providers", api.ListProvidersHandler)
 		v1.POST("/providers/config", api.UpdateProviderConfigHandler)
 		v1.POST("/prompts/optimize", api.OptimizePromptHandler)

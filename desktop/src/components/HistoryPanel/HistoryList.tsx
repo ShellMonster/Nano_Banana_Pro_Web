@@ -1,5 +1,8 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useMemo } from 'react';
+import { AutoSizer } from 'react-virtualized-auto-sizer';
+import { Grid, type CellComponentProps } from 'react-window';
 import { useHistoryStore } from '../../store/historyStore';
+import { useShallow } from 'zustand/react/shallow';
 import { GeneratedImage, GenerationTask } from '../../types';
 import { getImageUrl } from '../../services/api';
 import { ImagePreview } from '../GenerateArea/ImagePreview';
@@ -15,6 +18,32 @@ export interface FlattenedImage extends GeneratedImage {
 
 // 用于渲染的项目类型
 export type RenderItem = FlattenedImage | GenerationTask;
+
+const isImageItem = (item: RenderItem): item is FlattenedImage => 'url' in item;
+
+const getColumnCount = (containerWidth: number, viewportWidth: number | undefined, gap: number) => {
+  const basis = viewportWidth ?? containerWidth;
+  let count = 2;
+  if (basis >= 1280) {
+    count = 5;
+  } else if (basis >= 1024) {
+    count = 4;
+  } else if (basis >= 768) {
+    count = 3;
+  }
+
+  const minCardWidth = 170;
+  while (count > 2) {
+    const requiredWidth = count * minCardWidth + (count - 1) * gap;
+    if (containerWidth >= requiredWidth) break;
+    count -= 1;
+  }
+  return count;
+};
+
+const getGapSize = (width: number) => (width >= 640 ? 16 : 12);
+
+const getRowExtraHeight = (width: number) => (width >= 640 ? 96 : 88);
 
 // 判断是否为空图片任务（生成中、排队中或失败的任务）
 const isEmptyTask = (task: GenerationTask): boolean => {
@@ -42,12 +71,15 @@ const isEmptyTask = (task: GenerationTask): boolean => {
 };
 
 export function HistoryList() {
-  const items = useHistoryStore(s => s.items);
-  const loading = useHistoryStore(s => s.loading);
-  const hasMore = useHistoryStore(s => s.hasMore);
-  const loadMore = useHistoryStore(s => s.loadMore);
+  const { items, loading, hasMore, loadMore } = useHistoryStore(
+    useShallow((s) => ({
+      items: s.items,
+      loading: s.loading,
+      hasMore: s.hasMore,
+      loadMore: s.loadMore
+    }))
+  );
   const [selectedImage, setSelectedImage] = React.useState<FlattenedImage | null>(null);
-  const observerTargetRef = useRef<HTMLDivElement>(null);
 
   // 辅助函数：根据像素计算分辨率标签
   const getResolutionLabel = useCallback((w: number, h: number) => {
@@ -80,7 +112,7 @@ export function HistoryList() {
   }, []);
 
   // 1. 数据处理：合并所有渲染项到单一列表
-  const renderItems = React.useMemo(() => {
+  const renderItems = useMemo(() => {
       if (!Array.isArray(items)) return [];
 
       const allItems: RenderItem[] = [];
@@ -112,36 +144,59 @@ export function HistoryList() {
       return allItems;
   }, [items, getResolutionLabel, getRatioLabel]);
 
-  // 2. 预筛选所有图片，用于详情页切换，避免在渲染函数中实时 filter
-  const allImageItems = React.useMemo(() => {
+  // 预筛选所有图片，用于详情页切换
+  const allImageItems = useMemo(() => {
       return renderItems.filter(isImageItem);
   }, [renderItems]);
 
-  // 判断项是否为图片
-  function isImageItem(item: RenderItem): item is FlattenedImage {
-      return 'url' in item;
+  type CellData = {
+    items: RenderItem[];
+    columnCount: number;
+    itemWidth: number;
+    itemHeight: number;
+    gap: number;
   };
 
-  // 无限滚动加载更多
-  useEffect(() => {
-    const observerTarget = observerTargetRef.current;
-    if (!observerTarget) return;
+  const Cell = useCallback(
+    ({
+      columnIndex,
+      rowIndex,
+      style,
+      ariaAttributes,
+      items,
+      columnCount,
+      itemWidth,
+      itemHeight,
+      gap
+    }: CellComponentProps<CellData>) => {
+      const index = rowIndex * columnCount + columnIndex;
+      const cellStyle: React.CSSProperties = {
+        ...style,
+        width: itemWidth + gap,
+        height: itemHeight + gap,
+        paddingRight: gap,
+        paddingBottom: gap,
+        boxSizing: 'border-box'
+      };
+      if (index >= items.length) {
+        return <div {...ariaAttributes} style={cellStyle} />;
+      }
+      const item = items[index];
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading) {
-          loadMore();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    observer.observe(observerTarget);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [hasMore, loading, loadMore]);
+      return (
+        <div {...ariaAttributes} style={cellStyle}>
+          <div style={{ width: itemWidth, height: itemHeight }}>
+            {isImageItem(item) ? (
+              <ImageCard image={item} onClick={handleImageClick} />
+            ) : (
+              <FailedTaskCard task={item} onClick={handleEmptyTaskClick} />
+            )}
+          </div>
+        </div>
+      );
+    },
+    [handleImageClick, handleEmptyTaskClick]
+  );
 
   if (loading && items.length === 0) {
     return (
@@ -161,41 +216,55 @@ export function HistoryList() {
 
   return (
     <>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-            {renderItems.map((item, index) => {
-                if (isImageItem(item)) {
-                    return (
-                        <ImageCard
-                            key={`image-${item.id}`}
-                            image={item}
-                            onClick={handleImageClick}
-                        />
-                    );
-                } else {
-                    return (
-                        <FailedTaskCard
-                            key={`task-${item.id}`}
-                            task={item}
-                            onClick={handleEmptyTaskClick}
-                        />
-                    );
-                }
-            })}
-        </div>
+        <div className="h-full min-h-0">
+          <AutoSizer
+            className="h-full w-full"
+            renderProp={({ width, height }) => {
+              if (!width || !height) return null;
+              const padding = 16;
+              const innerWidth = Math.max(0, width - padding * 2);
+              const innerHeight = Math.max(0, height - padding * 2);
+              if (innerWidth <= 0 || innerHeight <= 0) return null;
 
-        {/* 加载更多触发器 */}
-        <div ref={observerTargetRef} className="py-4">
-            {loading && renderItems.length > 0 && (
-                <div className="flex justify-center items-center gap-2 text-sm text-gray-500">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                    <span>加载中...</span>
+              const viewportWidth =
+                typeof window !== 'undefined'
+                  ? window.innerWidth || document.documentElement.clientWidth
+                  : innerWidth;
+              const gap = getGapSize(innerWidth);
+              const columnCount = getColumnCount(innerWidth, viewportWidth, gap);
+              const columnWidth = Math.floor((innerWidth - gap * columnCount) / columnCount);
+              const itemHeight = columnWidth + getRowExtraHeight(innerWidth);
+              const rowCount = Math.ceil(renderItems.length / columnCount);
+
+              const cellProps: CellData = {
+                items: renderItems,
+                columnCount,
+                itemWidth: columnWidth,
+                itemHeight,
+                gap
+              };
+
+              return (
+                <div style={{ padding }} className="h-full">
+                  <Grid
+                    columnCount={columnCount}
+                    columnWidth={columnWidth + gap}
+                    rowCount={rowCount}
+                    rowHeight={itemHeight + gap}
+                    cellComponent={Cell}
+                    cellProps={cellProps}
+                    overscanCount={2}
+                    style={{ height: innerHeight, width: innerWidth }}
+                    onCellsRendered={(_, allCells) => {
+                      if (hasMore && !loading && allCells.rowStopIndex >= rowCount - 1) {
+                        loadMore();
+                      }
+                    }}
+                  />
                 </div>
-            )}
-            {!hasMore && renderItems.length > 0 && (
-                <div className="text-center text-sm text-gray-400">
-                    已加载全部历史记录
-                </div>
-            )}
+              );
+            }}
+          />
         </div>
 
         {/* 详情弹窗（显示完整图片） */}

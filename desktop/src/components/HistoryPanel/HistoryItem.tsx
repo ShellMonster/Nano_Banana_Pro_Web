@@ -22,6 +22,7 @@ export function HistoryItem({ item, onDelete }: HistoryItemProps) {
                 alt={item.prompt} 
                 className="w-full h-full object-cover"
                 loading="lazy"
+                decoding="async"
             />
         ) : (
             <div className="w-full h-full flex items-center justify-center text-xs text-gray-400 bg-gray-50">

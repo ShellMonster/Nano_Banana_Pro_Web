@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import { SearchBar } from './SearchBar';
 import { HistoryList } from './HistoryList';
 import { useHistoryStore } from '../../store/historyStore';
-import { toast } from '../../store/toastStore';
 
 interface HistoryPanelProps {
     isActive: boolean;
@@ -10,7 +9,6 @@ interface HistoryPanelProps {
 
 export default function HistoryPanel({ isActive }: HistoryPanelProps) {
   const loadHistory = useHistoryStore((s) => s.loadHistory);
-  const items = useHistoryStore((s) => s.items);
 
   // 使用 ref 存储上一次的 isActive 值，检测变化
   const prevIsActiveRef = useRef<boolean>();
@@ -18,12 +16,13 @@ export default function HistoryPanel({ isActive }: HistoryPanelProps) {
   const isLoadingRef = useRef(false);
 
   useEffect(() => {
+    const itemsLength = useHistoryStore.getState().items.length;
     console.log('[HistoryPanel] useEffect 触发:', {
       isActive,
       prevIsActive: prevIsActiveRef.current,
       isLoading: isLoadingRef.current,
       hasLoaded: hasLoadedRef.current,
-      itemsLength: items.length
+      itemsLength
     });
 
     // 只在激活状态下加载
@@ -49,8 +48,8 @@ export default function HistoryPanel({ isActive }: HistoryPanelProps) {
     }
 
     // 如果已经有数据，标记为已加载并跳过
-    if (items.length > 0) {
-      console.log('[HistoryPanel] 已有数据，标记为已加载:', items.length);
+    if (itemsLength > 0) {
+      console.log('[HistoryPanel] 已有数据，标记为已加载:', itemsLength);
       hasLoadedRef.current = true;
       return;
     }
@@ -74,7 +73,7 @@ export default function HistoryPanel({ isActive }: HistoryPanelProps) {
       .finally(() => {
         isLoadingRef.current = false;
       });
-  }, [isActive]); // 只依赖 isActive，不依赖 items.length
+  }, [isActive, loadHistory]); // 只依赖 isActive，不依赖 items.length
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
@@ -82,7 +81,7 @@ export default function HistoryPanel({ isActive }: HistoryPanelProps) {
         <SearchBar />
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 scroll-smooth">
+      <div className="flex-1 min-h-0">
         <HistoryList />
       </div>
     </div>

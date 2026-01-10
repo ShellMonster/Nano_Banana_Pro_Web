@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__sequential-thinking__sequentialthinking",
+      "WebSearch",
+      "mcp__fetch__fetch",
+      "Bash(ls:*)",
+      "Bash(python3:*)"
+    ]
+  }
+}

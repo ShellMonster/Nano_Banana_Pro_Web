@@ -317,7 +317,12 @@ export const ImagePreview = React.memo(function ImagePreview({
                     onMouseLeave={() => setIsDragging(false)}
                 >
                     <div className="absolute inset-0 z-0 pointer-events-none select-none">
-                        <img src={image.url} alt="" className="w-full h-full object-cover opacity-30 blur-3xl scale-110" />
+                        <img
+                            src={image.url}
+                            alt=""
+                            className="w-full h-full object-cover opacity-30 blur-3xl scale-110"
+                            decoding="async"
+                        />
                         <div className="absolute inset-0 bg-white/10" />
                     </div>
 
@@ -342,7 +347,14 @@ export const ImagePreview = React.memo(function ImagePreview({
                             transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)'
                         }}
                     >
-                        <img ref={imageRef} src={image.url} alt={image.prompt} className="max-w-full max-h-full object-contain shadow-2xl rounded-lg" draggable={false} />
+                        <img
+                            ref={imageRef}
+                            src={image.url}
+                            alt={image.prompt}
+                            className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
+                            decoding="async"
+                            draggable={false}
+                        />
                     </div>
                 </div>
 

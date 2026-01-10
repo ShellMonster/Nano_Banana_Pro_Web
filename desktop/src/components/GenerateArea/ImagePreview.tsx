@@ -598,6 +598,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                             src={image.thumbnailUrl || image.url} 
                             alt="" 
                             className="w-full h-full object-cover opacity-30 blur-3xl scale-110 transition-opacity duration-700" 
+                            decoding="async"
                         />
                         <div className="absolute inset-0 bg-white/10" />
                     </div>
@@ -660,6 +661,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                                 className={`max-w-full max-h-full object-contain absolute ${
                                   fullImageError ? 'opacity-100 scale-100' : 'blur-lg scale-95 opacity-50'
                                 }`} 
+                                decoding="async"
                                 draggable={false} 
                             />
                         )}
@@ -672,6 +674,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                             onLoad={() => setFullImageLoaded(true)}
                             onError={() => setFullImageError(true)}
                             className={`max-w-full max-h-full object-contain shadow-2xl rounded-lg transition-all duration-500 ${fullImageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+                            decoding="async"
                             draggable={false} 
                         />
 

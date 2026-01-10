@@ -36,6 +36,8 @@ frontend/yarn-error.log*
 *.dmg
 temp/
 tmp/
+templates_cache.json
+templates_cache.json.meta
 开发进度.md
 完整技术方案_精简融合版.md
 Tauri 桌面端软件开发方案.md
@@ -59,3 +61,7 @@ backend/desktop/src-tauri/bin/
 !desktop/src-tauri/icons/*.png
 desktop/node_modules/
 desktop/dist/
+
+# Templates and local configs
+templates.json
+templates_nano_banana_pro.json

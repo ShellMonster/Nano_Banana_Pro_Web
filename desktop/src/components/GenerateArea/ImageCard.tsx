@@ -233,6 +233,7 @@ export const ImageCard = React.memo(function ImageCard({
         "group relative bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm transition-all duration-300 cursor-pointer flex flex-col",
         selected ? "ring-2 ring-blue-500 shadow-lg shadow-blue-100/50 scale-[0.98]" : "hover:shadow-md hover:-translate-y-0.5"
       )}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '240px 320px' }}
       onClick={handleClick}
       onPointerDown={handlePointerDown}
     >
@@ -351,6 +352,7 @@ export const ImageCard = React.memo(function ImageCard({
               alt={image.prompt || '图片'}
               className="w-full h-full object-cover"
               loading="lazy"
+              decoding="async"
               draggable={false}
             />
             

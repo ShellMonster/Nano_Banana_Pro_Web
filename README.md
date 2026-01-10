@@ -13,13 +13,13 @@
 ![Tauri](https://img.shields.io/badge/Tauri-2.0-FFC131.svg?style=flat-square)
 ![Go](https://img.shields.io/badge/Go-1.21-00ADD8.svg?style=flat-square)
 
-**大香蕉 AI** 是一款专为创意工作者打造的高性能图片生成平台。它完美融合了 Google Gemini 的强大 AI 能力与桌面端的原生性能，支持高分辨率（最高 4K）的文生图与图生图功能。
+**大香蕉 AI** 是一款专为创意工作者打造的高性能图片生成平台。它融合 Gemini 与 OpenAI 标准接口能力，支持高分辨率（最高 4K）的文生图与图生图，并提供桌面端与 Web 端两种形态。
 
-> 💡 **v1.3.0 更新亮点**：
-> - **✨ 提示词智能优化**：接入 OpenAI 标准接口，一键将简单想法转化为高质量提示词。
-> - **📜 提示词历史管理**：支持提示词的撤销/重做（Undo/Redo），创作灵感不再丢失。
-> - **🛠️ 界面交互重构**：优化设置面板高度与弹窗密度，侧边栏状态智能持久化。
-> - **🚀 稳定性提升**：修复了提示词优化接口的自动填充逻辑与后端系统提示词语法问题。
+> 💡 **近期更新亮点**：
+> - **✨ OpenAI 标准接口对接**：提示词优化 + 生图两条链路可切换 Gemini / OpenAI 兼容接口。
+> - **🧵 模板市场**：下拉打开整版模板市场，支持筛选、预览、来源与技巧提示，一键复用。
+> - **🚀 大规模列表性能优化**：历史记录与模板市场改为虚拟列表/虚拟网格，图片加载更顺滑。
+> - **🖼️ 无图模板支持**：模板缺少图片时自动显示默认图，仍可复用 Prompt。
 
 > 💡 **推荐使用**：为了获得最佳的生成体验与极高的性价比，推荐搭配 [云雾API](https://yunwu.ai/register?aff=i4hh) 使用。
 >
@@ -35,10 +35,12 @@
 
 - **🚀 极致性能**：采用 **Tauri 2.0** 架构，配合 **Go 语言** 编写的高并发 Sidecar 后端，资源占用极低。
 - **🖼️ 4K 超清创作**：深度优化 Gemini 3.0 模型，支持多种画幅的 4K 超清图像生成。
+- **🔌 标准接口兼容**：支持 Gemini(/v1beta) 与 OpenAI(/v1) 标准格式对接，Base URL 与模型可配置。
 - **⚡ 自定义协议 (asset://)**：在桌面端注册原生资源协议，绕过 HTTP 协议栈，本地图片加载速度提升 300%。
 - **💾 智能历史管理**：内置本地数据库与持久化缓存，支持任务状态自动恢复与大批量历史记录秒开。
 - **📸 精准图生图**：支持多参考图输入，提供细腻的风格与构图控制。
 - **📦 自动化交付**：集成 GitHub Actions，实现 macOS (Intel/M1) 与 Windows 平台的自动化打包发布。
+- **🧩 模板市场**：启动时优先拉取远程模板 JSON，失败自动回退内置模板，并支持模板来源与技巧提示。
 
 ---
 
@@ -46,7 +48,7 @@
 
 ### 1. 智能文生图 (Text-to-Image)
 - **精准语义理解**：深度集成 Google Gemini 3.0 模型，能够精准捕捉提示词中的细节、风格与氛围。
-- **提示词智能优化**：内置 AI 优化引擎，可将简单的词汇一键扩充为符合 Stable Diffusion/Gemini 逻辑的专业提示词。
+- **提示词智能优化**：内置 AI 优化引擎，可通过 Gemini / OpenAI 标准接口模型优化提示词。
 - **提示词编辑历史**：支持无限次的撤销与重做，方便在不同创意想法间快速切换。
 - **批量并发生成**：支持一次性设置生成多达 100 张图片，后台自动排队处理。
 - **实时进度追踪**：提供清晰的进度条与状态显示，生成过程中的每一张图片都有对应的占位卡片，完成后自动刷新。
@@ -62,6 +64,7 @@
 - **多样化画幅选择**：预设 1:1, 16:9, 9:16, 4:3, 2:3 等多种主流比例。
 - **画质自定义**：支持从 1K 到 4K 的超清分辨率配置。
 - **智能尺寸适配**：系统会自动根据模型特性，将图片尺寸对齐到最佳像素点（8的倍数），确保生成效果最优化。
+- **对接方式切换**：设置中可选 `Gemini(/v1beta)` 或 `OpenAI(/v1)`，并分别配置 Base URL / API Key / 模型 ID。
 
 ### 4. 极致的交互与管理
 - **大图沉浸式预览**：支持全屏查看图片，提供自由缩放与拖拽功能。
@@ -76,7 +79,72 @@
 - **智能搜索**：支持通过关键字快速找回历史任务。
 - **稳定连接保障**：自动切换 WebSocket 与 HTTP 轮询模式，确保在复杂网络环境下生成任务不中断。
 
+### 6. 模板市场 (Template Market)
+- **下拉打开**：顶部“拉绳”交互，向下拉出整版模板市场。
+- **多维筛选**：支持搜索、渠道/物料/行业/画幅比例筛选。
+- **一键复用**：模板预览后可直接应用（会替换当前 Prompt 与参考图）。
+- **手动刷新**：右侧刷新按钮可手动拉取最新模板。
+- **来源与技巧**：模板可携带 `tips` 使用提示与 `source` 来源信息（可点击跳转外部浏览器）。
+- **远程同步**：启动时优先拉取 GitHub Raw 模板 JSON，失败自动回退内置模板并使用本地缓存。
+
 ---
+
+## 🧩 模板贡献指南
+
+模板数据统一维护在：
+
+- `backend/internal/templates/assets/templates.json`
+
+### 基本字段（单条模板）
+```json
+{
+  "id": "tpl-001",
+  "title": "猫表情包模板",
+  "channels": ["社群发圈", "娱乐"],
+  "materials": ["海报"],
+  "industries": ["生活服务"],
+  "ratio": "1:1",
+  "preview": "https://.../thumb.jpg",
+  "image": "https://.../full.jpg",
+  "prompt": "可选：模板提示词...",
+  "prompt_params": "可选：提示词使用说明（保留字段）",
+  "tips": "可选：模板使用提示/技巧",
+  "source": {
+    "name": "@贡献者",
+    "label": "GitHub",
+    "icon": "github",
+    "url": "https://example.com/templates/tpl-001"
+  },
+  "requirements": { "minRefs": 2, "note": "还需要一张猫照片作为参考" },
+  "tags": ["猫", "表情", "搞笑"]
+}
+```
+
+### source.icon 预置关键字
+- `github` GitHub
+- `xhs` 小红书
+- `wechat` 微信/公众号
+- `shop` 电商素材
+- `video` 短视频
+- `print` 线下印刷
+- `gov` 政务媒体
+- `meme` 表情包
+- `finance` 金融
+- `food` 美食
+- `local` 本地/生活服务
+
+> 也可以直接传图片 URL，前端会当作 icon 显示。
+>
+> `preview` / `image` 允许为空：前端会显示默认占位图，仍支持复用 Prompt。
+>
+> `prompt_params` 当前不参与渲染，仅作为说明保留字段。
+
+### 提交方式
+1. Fork 仓库并修改 `backend/internal/templates/assets/templates.json`
+2. 提交 PR
+3. 合并后客户端启动会从 GitHub Raw 拉取最新模板
+
+> 请确保素材来源合法且链接稳定，避免失效。
 
 ## 🏗️ 技术架构
 
@@ -148,8 +216,8 @@ graph TD
 - **Go**: 1.21+
 - **Node.js**: 18+ (建议使用 20)
 - **Rust**: 1.75+ (Tauri 构建必备)
-- **Google Gemini API Key** (用于图片生成)
-- **OpenAI API Key** (用于提示词优化，可选)
+- **Google Gemini API Key** (用于 Gemini 对接方式)
+- **OpenAI API Key** (用于 OpenAI 对接方式，可选)
 
 ### 2. 后端开发
 ```bash
@@ -171,7 +239,14 @@ npm install
 npm run tauri dev
 ```
 
-### 4. 自动化构建 (GitHub Actions)
+### 4. Web 前端开发
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 5. 自动化构建 (GitHub Actions)
 只需推送带有版本号的标签（如 `v1.3.0`），即可触发自动化构建：
 ```bash
 git tag v1.3.0
@@ -180,7 +255,7 @@ git push origin v1.3.0
 
 > **注意**：v1.3.0 之后支持通过推送 Tag 自动生成 Release 并上传多平台二进制文件。
 
-### 5. 自动更新 (Updater)
+### 6. 自动更新 (Updater)
 项目已集成 Tauri 官方 Updater 插件，发布新版本后用户启动应用会收到更新提示，可一键下载安装。
 
 1) 生成 Updater 签名密钥（仅需一次，务必妥善保存私钥）
@@ -222,9 +297,82 @@ cat ~/.tauri/banana-updater.key
 
 | 配置项 | 描述 |
 | :--- | :--- |
-| `Gemini API Key` | 决定了 AI 生成的配额，请在应用设置或配置文件中填入。 |
+| `AI对接方式` | `Gemini(/v1beta)` 或 `OpenAI(/v1)`；不同模式使用不同的 Base URL 与模型。 |
+| `API Base / API Key` | 兼容标准 OpenAI 格式接口，可替换成任意兼容平台。 |
+| `生图模型 / 对话模型` | 生图模型用于生成图片，对话模型用于提示词优化。 |
 | `Storage Dir` | 应用默认将图片保存在系统的 `AppData` (Win) 或 `Application Support` (Mac) 目录下。 |
+| `Templates Remote URL` | 远程模板 JSON 地址（默认 GitHub Raw），启动时会拉取并缓存。 |
 | `asset://` | 自定义资源协议，用于安全、快速地访问本地生成的图片。 |
+
+> **提示**：OpenAI 类型接口通常要求生图模型（model_id）必填；Gemini 类型需使用 `/v1beta` 路径。
+>
+> **注意**：OpenAI 对接方式当前仅支持 1K 图片生成（具体取决于所用兼容接口）。
+
+---
+
+## 🐳 Docker 部署（Web 版）
+
+桌面版不适合 Docker 运行，以下仅用于 **后端 + Web 前端** 的部署。
+
+### 1) 后端（Go）
+示例 `backend/Dockerfile`：
+```dockerfile
+FROM golang:1.21-alpine AS build
+WORKDIR /app
+COPY . .
+RUN go build -o server cmd/server/main.go
+
+FROM alpine:3.19
+WORKDIR /app
+COPY --from=build /app/server /app/server
+EXPOSE 8080
+CMD ["./server"]
+```
+
+### 2) 前端（Vite 静态）
+示例 `frontend/Dockerfile`（Nginx 托管静态资源）：
+```dockerfile
+FROM node:20-alpine AS build
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+WORKDIR /app
+COPY . .
+RUN npm install && npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
+```
+
+### 3) docker-compose 示例
+```yaml
+version: "3.8"
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - TEMPLATES_REMOTE_URL=https://raw.githubusercontent.com/ShellMonster/Nano_Banana_Pro_Web/main/backend/internal/templates/assets/templates.json
+    volumes:
+      - ./backend/configs:/app/configs
+      - ./backend/storage:/app/storage
+      - ./backend/data.db:/app/data.db
+  frontend:
+    ports:
+      - "80:80"
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://backend:8080/api/v1
+    depends_on:
+      - backend
+```
+
+> 说明：
+> - 后端配置优先读取 `backend/configs/config.yaml`，也可通过环境变量覆盖（如 `SERVER_PORT`、`TEMPLATES_REMOTE_URL`）。
+> - Web 前端通过 `VITE_API_URL` 注入 API 基地址（构建时生效），也可使用反向代理统一转发。
 
 ---
 
