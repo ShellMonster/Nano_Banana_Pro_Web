@@ -42,6 +42,7 @@ export const templateChannels = [
 export const templateMaterials = [
   '全部',
   '海报',
+  'PPT',
   '公众号首图',
   '文章长图',
   '小红书配图',

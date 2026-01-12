@@ -1,7 +1,7 @@
 {
   "name": "nano-banana-pro-frontend",
   "private": true,
-  "version": "2.0.2",
+  "version": "2.0.3",
   "license": "MIT",
   "description": "大香蕉图片生成工具 - 批量图片生成应用前端",
   "type": "module",
