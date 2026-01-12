@@ -819,9 +819,9 @@ const TemplateCard = React.memo(function TemplateCard({
     setStatus(hasPreview ? 'loading' : 'loaded');
   }, [item.id, hasPreview]);
 
-  const isReady = status === 'loaded';
+  const canPreview = status !== 'loading';
   const isApplying = applyingId === item.id;
-  const disableActions = Boolean(applyingId) || !isReady;
+  const disableActions = Boolean(applyingId) || status === 'loading';
 
   return (
     <div
@@ -831,8 +831,8 @@ const TemplateCard = React.memo(function TemplateCard({
       <button
         type="button"
         onClick={() => onPreview(item)}
-        className={`relative group ${isReady ? '' : 'cursor-not-allowed'}`}
-        disabled={!isReady}
+        className={`relative group ${canPreview ? '' : 'cursor-not-allowed'}`}
+        disabled={!canPreview}
       >
         <div className="relative rounded-2xl overflow-hidden bg-slate-100/70">
           {resolvedSrc && (
@@ -891,13 +891,7 @@ const TemplateCard = React.memo(function TemplateCard({
         disabled={disableActions}
         className="w-full"
       >
-        {isApplying
-          ? '应用中...'
-          : !isReady
-            ? status === 'error'
-              ? '图片加载失败'
-              : '加载中...'
-            : '复用模板'}
+        {isApplying ? '应用中...' : disableActions ? '加载中...' : '复用模板'}
       </Button>
     </div>
   );
