@@ -738,6 +738,11 @@ const TemplatePreviewModal = ({
           <div>
             <p className="text-xs uppercase text-slate-400 tracking-widest">模板信息</p>
             <h3 className="text-xl font-black text-slate-900 mt-2">{template.title}</h3>
+            {previewStatus === 'error' && (
+              <div className="mt-3 bg-rose-50/80 border border-rose-100 rounded-2xl px-3 py-2 text-xs text-rose-700">
+                图片加载失败，可继续查看模板信息
+              </div>
+            )}
             <div className="flex flex-wrap gap-2 mt-3">
               <span className="px-2.5 py-1 rounded-full text-xs bg-slate-100 text-slate-600">{template.ratio}</span>
               {template.materials?.map((item) => (
