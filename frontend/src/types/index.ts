@@ -88,6 +88,16 @@ export interface ExtendedFile extends File {
   __originalSize?: number;
 }
 
+// 参考图持久化信息
+export interface PersistedRefImage {
+  id: string;
+  name: string;
+  path: string;
+  origin: 'external' | 'appdata';
+  mimeType?: string;
+  size?: number;
+}
+
 // 模板市场数据
 export interface TemplateRequirement {
   minRefs?: number;
