@@ -18,6 +18,7 @@ import (
 
 const maxTemplateBytes = 5 * 1024 * 1024
 const diffSampleLimit = 5
+const defaultRefreshInterval = 24 * time.Hour
 
 //go:embed assets/templates.json
 var embeddedTemplates []byte
@@ -107,6 +108,12 @@ type Store struct {
 	payload   TemplatePayload
 	source    string
 	updatedAt time.Time
+	remoteURL string
+	cachePath string
+	timeout   time.Duration
+	cacheMeta cacheMeta
+	refreshMu sync.Mutex
+	refreshOnce sync.Once
 }
 
 var store = &Store{}
@@ -121,6 +128,10 @@ func InitStore(options Options) {
 	if options.Timeout == 0 {
 		options.Timeout = 4 * time.Second
 	}
+
+	store.remoteURL = strings.TrimSpace(options.RemoteURL)
+	store.cachePath = strings.TrimSpace(options.CachePath)
+	store.timeout = options.Timeout
 
 	var meta cacheMeta
 
@@ -162,6 +173,7 @@ func InitStore(options Options) {
 		}
 		if cachedMeta, err := loadCacheMeta(options.CachePath); err == nil {
 			meta = cachedMeta
+			store.cacheMeta = cachedMeta
 		}
 	}
 
@@ -202,6 +214,7 @@ func InitStore(options Options) {
 							log.Printf("[Templates] write cache meta failed: %v", err)
 						}
 					}
+					store.cacheMeta = nextMeta
 				}
 			}
 		}
@@ -233,12 +246,91 @@ func InitStore(options Options) {
 	if embeddedValid && remoteValid {
 		logPayloadDiff("embedded", embeddedPayload, "remote", remotePayload)
 	}
+
+	if store.remoteURL != "" {
+		store.refreshOnce.Do(func() {
+			go startAutoRefresh(defaultRefreshInterval)
+		})
+	}
 }
 
 func GetTemplates() TemplatePayload {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
 	return store.payload
+}
+
+func RefreshRemote(ctx context.Context) string {
+	store.refreshMu.Lock()
+	defer store.refreshMu.Unlock()
+
+	remoteURL := strings.TrimSpace(store.remoteURL)
+	if remoteURL == "" {
+		return "disabled"
+	}
+
+	timeout := store.timeout
+	if timeout == 0 {
+		timeout = 4 * time.Second
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	meta := store.cacheMeta
+	if store.cachePath != "" {
+		if cachedMeta, err := loadCacheMeta(store.cachePath); err == nil {
+			meta = cachedMeta
+		}
+	}
+
+	remoteData, nextMeta, notModified, err := fetchRemote(ctx, remoteURL, meta)
+	if err != nil {
+		log.Printf("[Templates] refresh remote fetch failed: %v", err)
+		return "fetch_failed"
+	}
+	if notModified {
+		store.cacheMeta = meta
+		return "not_modified"
+	}
+
+	remotePayload, err := parsePayload(remoteData)
+	if err != nil {
+		log.Printf("[Templates] refresh remote parse failed: %v", err)
+		return "parse_failed"
+	}
+	if !isPayloadValid(remotePayload) {
+		log.Printf("[Templates] refresh remote payload invalid: items=%d", len(remotePayload.Items))
+		return "invalid"
+	}
+
+	store.set(remotePayload, "remote")
+	store.cacheMeta = nextMeta
+	if store.cachePath != "" {
+		if err := writeCache(store.cachePath, remoteData); err != nil {
+			log.Printf("[Templates] refresh write cache failed: %v", err)
+		}
+		if err := writeCacheMeta(store.cachePath, nextMeta); err != nil {
+			log.Printf("[Templates] refresh write cache meta failed: %v", err)
+		}
+	}
+	return "updated"
+}
+
+func startAutoRefresh(interval time.Duration) {
+	if interval <= 0 {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for range ticker.C {
+		status := RefreshRemote(context.Background())
+		if status != "disabled" {
+			log.Printf("[Templates] scheduled refresh: %s", status)
+		}
+	}
 }
 
 func FilterItems(items []TemplateItem, query, channel, material, industry, ratio string) []TemplateItem {

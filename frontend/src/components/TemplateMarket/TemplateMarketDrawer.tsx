@@ -1024,7 +1024,7 @@ export function TemplateMarketDrawer({
     setIsLoading(true);
     setLoadError(null);
     try {
-      const res = await getTemplates();
+      const res = await getTemplates({ refresh: fromUser });
       if (requestId !== requestIdRef.current) return;
       if (!res || !Array.isArray(res.items)) {
         throw new Error('模板数据异常');

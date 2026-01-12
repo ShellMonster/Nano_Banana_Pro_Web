@@ -420,3 +420,9 @@ services:
 ## 📈 Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=ShellMonster/Nano_Banana_Pro_Web&type=Date)](https://star-history.com/#ShellMonster/Nano_Banana_Pro_Web&Date)
+
+---
+
+## 🙏 特别鸣谢
+
+本项目中的许多优质模板复用了来自 [awesome-nanobananapro-prompts](https://github.com/xianyu110/awesome-nanobananapro-prompts) 仓库的精选提示词，感谢原作者的无私分享！

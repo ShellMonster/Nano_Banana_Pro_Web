@@ -1,8 +1,9 @@
 import api, { BASE_URL } from './api';
 import { TemplateListResponse } from '../types';
 
-export const getTemplates = async (): Promise<TemplateListResponse> => {
-  return api.get<any>('/templates') as unknown as Promise<TemplateListResponse>;
+export const getTemplates = async (options?: { refresh?: boolean }): Promise<TemplateListResponse> => {
+  const params = options?.refresh ? { refresh: 1 } : undefined;
+  return api.get<any>('/templates', { params }) as unknown as Promise<TemplateListResponse>;
 };
 
 export const getTemplateImageProxyUrl = (source: string): string => {
