@@ -87,6 +87,7 @@
 - **一键复用**：模板预览后可直接应用（会替换当前 Prompt 与参考图）。
 - **手动刷新**：右侧刷新按钮可手动拉取最新模板。
 - **来源与技巧**：模板可携带 `tips` 使用提示与 `source` 来源信息（可点击跳转外部浏览器）。
+- **参考图要求**：模板可携带 `requirements.note` / `requirements.minRefs`，用于提示需要补充的参考图数量与说明。
 - **远程同步**：启动时优先拉取 GitHub Raw 模板 JSON，失败自动回退内置模板并使用本地缓存。
 
 ---
@@ -96,6 +97,21 @@
 模板数据统一维护在：
 
 - `backend/internal/templates/assets/templates.json`
+
+### 顶层结构
+```json
+{
+  "meta": {
+    "version": "2024.12.01",
+    "updated_at": "2024-12-01T12:00:00Z",
+    "channels": ["社群发圈", "小红书"],
+    "materials": ["海报", "封面"],
+    "industries": ["教育培训", "生活服务"],
+    "ratios": ["1:1", "3:4", "16:9"]
+  },
+  "items": []
+}
+```
 
 ### 基本字段（单条模板）
 ```json
@@ -121,6 +137,14 @@
   "tags": ["猫", "表情", "搞笑"]
 }
 ```
+
+### 字段补充说明
+- `requirements.note`：当需要补充参考图时的提示文案，会在卡片与预览中提示。
+- `requirements.minRefs`：要求的最少参考图数量。
+- `tips`：模板使用技巧/注意事项（预览页展示）。
+- `prompt_params`：提示词使用说明（保留字段，不参与渲染）。
+- `tags`：用于检索与聚合展示。
+- `meta.version / meta.updated_at`：用于模板版本标记与缓存比对。
 
 ### source.icon 预置关键字
 - `github` GitHub
