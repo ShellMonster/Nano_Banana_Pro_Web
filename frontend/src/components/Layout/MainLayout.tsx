@@ -11,6 +11,7 @@ import { TemplateMarketDrawer } from '../TemplateMarket/TemplateMarketDrawer';
 
 export default function MainLayout() {
   const currentTab = useGenerateStore((s) => s.currentTab);
+  const setTab = useGenerateStore((s) => s.setTab);
   const isSidebarOpen = useGenerateStore((s) => s.isSidebarOpen);
   const setSidebarOpen = useGenerateStore((s) => s.setSidebarOpen);
   const taskId = useGenerateStore((s) => s.taskId);
@@ -19,6 +20,13 @@ export default function MainLayout() {
   const [isHydrated, setIsHydrated] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isTemplateMarketOpen, setIsTemplateMarketOpen] = useState(false);
+  const safeTab = currentTab === 'history' ? 'history' : 'generate';
+
+  useEffect(() => {
+    if (currentTab !== 'generate' && currentTab !== 'history') {
+      setTab('generate');
+    }
+  }, [currentTab, setTab]);
 
   // 确保状态恢复
   useEffect(() => setIsHydrated(true), []);
@@ -98,11 +106,11 @@ export default function MainLayout() {
         {/* 右侧主内容区域 */}
         <section className="flex-1 bg-white md:bg-white/70 backdrop-blur-xl rounded-2xl md:rounded-3xl shadow-sm border border-white/40 overflow-hidden relative">
           <TemplateMarketDrawer onOpenChange={setIsTemplateMarketOpen} />
-          <div className={`absolute inset-0 transition-opacity duration-500 ${currentTab === 'generate' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+          <div className={`absolute inset-0 transition-opacity duration-500 ${safeTab === 'generate' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
              <GenerateArea />
           </div>
-          <div className={`absolute inset-0 transition-opacity duration-500 ${currentTab === 'history' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-             <HistoryPanel isActive={currentTab === 'history'} />
+          <div className={`absolute inset-0 transition-opacity duration-500 ${safeTab === 'history' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+             <HistoryPanel isActive={safeTab === 'history'} />
           </div>
         </section>
       </main>

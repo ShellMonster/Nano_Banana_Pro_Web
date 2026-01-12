@@ -949,11 +949,10 @@ export function TemplateMarketDrawer({
   const templateDataRef = useRef(templateData);
   const templateSourceRef = useRef(templateSource);
   const scrollTopRef = useRef(0);
-  const dormancyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousTabRef = useRef<'generate' | 'history'>('generate');
   const deferredSearch = useDeferredValue(search);
 
-  const ropeLength = 36 + pull + (isOpen ? 12 : 0);
+  const ropeLength = 44 + pull + (isOpen ? 12 : 0);
   const pullThreshold = 42;
   const maxPull = 120;
 
@@ -1139,25 +1138,23 @@ export function TemplateMarketDrawer({
   };
 
   const handleOpen = () => {
-    if (dormancyTimerRef.current) {
-      clearTimeout(dormancyTimerRef.current);
-      dormancyTimerRef.current = null;
-    }
     previousTabRef.current = currentTab;
     setIsDormant(false);
     setIsOpen(true);
   };
 
-  const closeDrawer = (nextTab: 'generate' | 'history') => {
+  const closeDrawer = (
+    nextTab: 'generate' | 'history',
+    options?: { deferClose?: boolean }
+  ) => {
     scrollTopRef.current = listRef.current?.scrollTop ?? 0;
-    setIsOpen(false);
     setTab(nextTab);
-    if (dormancyTimerRef.current) {
-      clearTimeout(dormancyTimerRef.current);
+    const doClose = () => setIsOpen(false);
+    if (options?.deferClose) {
+      requestAnimationFrame(doClose);
+    } else {
+      doClose();
     }
-    dormancyTimerRef.current = setTimeout(() => {
-      setIsDormant(true);
-    }, 260);
   };
 
   const handleCloseToPrevious = () => {
@@ -1165,8 +1162,18 @@ export function TemplateMarketDrawer({
   };
 
   const handleCloseToGenerate = () => {
-    closeDrawer('generate');
+    closeDrawer('generate', { deferClose: true });
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => {
+      if (!isOpen) return;
+      closeDrawer('generate', { deferClose: true });
+    };
+    window.addEventListener('template-market:close', handler);
+    return () => window.removeEventListener('template-market:close', handler);
+  }, [isOpen, closeDrawer]);
 
   const applyTemplate = async (template: TemplateItem) => {
     if (applyingId) return;

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { AutoSizer } from 'react-virtualized-auto-sizer';
 import { ImageCard } from './ImageCard';
 import { useGenerateStore } from '../../store/generateStore';
@@ -34,6 +34,7 @@ const getColumnCount = (containerWidth: number, viewportWidth: number | undefine
 };
 
 const getGapSize = (width: number) => (width >= 640 ? 16 : 12);
+const getRowExtraHeight = (width: number) => (width >= 640 ? 96 : 88);
 
 export function ImageGrid({ onPreview }: ImageGridProps) {
   const { images, selectedIds, toggleSelect } = useGenerateStore(
@@ -43,47 +44,6 @@ export function ImageGrid({ onPreview }: ImageGridProps) {
       toggleSelect: s.toggleSelect
     }))
   );
-
-  const isPendingImage = useCallback((img: GeneratedImage) => {
-    return img.status !== 'failed' && (img.status === 'pending' || !img.url);
-  }, []);
-
-  // 统一的计时 tick：用于驱动“生成中”卡片的独立计时（按各自 createdAt 计算）
-  const [now, setNow] = useState(() => Date.now());
-  const rafRef = useRef<number | null>(null);
-  const lastUpdateRef = useRef<number>(0);
-
-  // 使用 requestAnimationFrame（+节流）驱动计时更新；避免新任务开始时重置旧任务的计时
-  useEffect(() => {
-    const hasPendingImages = images.some(isPendingImage);
-    if (!hasPendingImages) {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-      return;
-    }
-
-    const updateTimer = () => {
-      const t = Date.now();
-      // 计时显示精度到 0.1s，节流到 ~10fps，减少不必要的重渲染
-      if (t - lastUpdateRef.current >= 100) {
-        lastUpdateRef.current = t;
-        setNow(t);
-      }
-
-      rafRef.current = requestAnimationFrame(updateTimer);
-    };
-
-    rafRef.current = requestAnimationFrame(updateTimer);
-
-    return () => {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-    };
-  }, [images, isPendingImage]);
 
   // 限制最大显示数量，防止 DOM 爆炸
   const displayedImages = useMemo(() => {
@@ -116,8 +76,8 @@ export function ImageGrid({ onPreview }: ImageGridProps) {
     <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
       <AutoSizer
         className="h-full w-full"
-        renderProp={({ width, height }) => {
-          if (!width || !height) return null;
+        renderProp={({ width }) => {
+          if (!width) return null;
           const innerWidth = Math.max(0, width - GRID_PADDING * 2);
           if (innerWidth <= 0) return null;
 
@@ -127,12 +87,20 @@ export function ImageGrid({ onPreview }: ImageGridProps) {
               : innerWidth;
           const gap = getGapSize(innerWidth);
           const columnCount = getColumnCount(innerWidth, viewportWidth, gap);
+          const columnWidth = Math.floor((innerWidth - gap * columnCount) / columnCount);
+          if (columnWidth <= 0) return null;
+          const itemHeight = columnWidth + getRowExtraHeight(innerWidth);
 
           return (
             <div style={{ padding: GRID_PADDING }} className="h-full">
               <div
                 className="grid content-start"
-                style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`, gap }}
+                style={{
+                  gridTemplateColumns: `repeat(${columnCount}, ${columnWidth}px)`,
+                  gridAutoRows: `${itemHeight}px`,
+                  gap,
+                  paddingRight: gap
+                }}
                 onContextMenu={(event) => event.preventDefault()}
               >
                 {displayedImages.map((img) => (
@@ -142,16 +110,6 @@ export function ImageGrid({ onPreview }: ImageGridProps) {
                     selected={selectedIds.has(img.id)}
                     onSelect={toggleSelect}
                     onClick={handlePreview}
-                    elapsed={
-                      isPendingImage(img)
-                        ? (() => {
-                            const startMs = Date.parse(img.createdAt || '');
-                            const safeStart = Number.isFinite(startMs) ? startMs : now;
-                            const seconds = Math.max(0, (now - safeStart) / 1000);
-                            return seconds.toFixed(1);
-                          })()
-                        : undefined
-                    }
                   />
                 ))}
               </div>

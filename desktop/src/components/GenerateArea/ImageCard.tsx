@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, AlertCircle, Loader2, Trash2, XCircle } from 'lucide-react';
 import { GeneratedImage } from '../../types';
 import { cn } from '../common/Button';
@@ -13,20 +13,22 @@ interface ImageCardProps {
   selected: boolean;
   onSelect: (id: string) => void;
   onClick: (image: GeneratedImage) => void;
-  elapsed?: string; // 从父组件传入
 }
 
 export const ImageCard = React.memo(function ImageCard({
   image,
   selected,
   onSelect,
-  onClick,
-  elapsed = '0.0'
+  onClick
 }: ImageCardProps) {
   const isFailed = image.status === 'failed';
   const isPending = !isFailed && (image.status === 'pending' || !image.url);
   const isSuccess = image.status === 'success' && Boolean(image.url);
   const reserveSpaceForSelect = isPending || isSuccess;
+
+  const [elapsed, setElapsed] = useState('0.0');
+  const rafRef = useRef<number | null>(null);
+  const lastUpdateRef = useRef(0);
 
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [showConfirm, setShowConfirm] = React.useState(false);
@@ -40,8 +42,44 @@ export const ImageCard = React.memo(function ImageCard({
         clearTimeout(confirmTimerRef.current);
         confirmTimerRef.current = null;
       }
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (!isPending) {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      return;
+    }
+
+    const startMsRaw = Date.parse(image.createdAt || '');
+    const startMs = Number.isFinite(startMsRaw) ? startMsRaw : Date.now();
+    lastUpdateRef.current = 0;
+
+    const tick = () => {
+      const now = Date.now();
+      if (now - lastUpdateRef.current >= 100) {
+        lastUpdateRef.current = now;
+        setElapsed(((now - startMs) / 1000).toFixed(1));
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [isPending, image.createdAt, image.id]);
 
   const handleCancelConfirm = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -230,7 +268,7 @@ export const ImageCard = React.memo(function ImageCard({
   return (
     <div
       className={cn(
-        "group relative bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm transition-all duration-300 cursor-pointer flex flex-col",
+        "group relative bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm transition-all duration-300 cursor-pointer flex flex-col h-full",
         selected ? "ring-2 ring-blue-500 shadow-lg shadow-blue-100/50 scale-[0.98]" : "hover:shadow-md hover:-translate-y-0.5"
       )}
       style={{ contentVisibility: 'auto', containIntrinsicSize: '240px 320px' }}

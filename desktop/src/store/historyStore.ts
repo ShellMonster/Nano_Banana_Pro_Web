@@ -323,12 +323,6 @@ function syncWithGenerateStore(historyItems: HistoryItem[]) {
   const currentTaskInHistory = historyMap.get(currentTaskId);
 
   if (!currentTaskInHistory) {
-    // 历史记录中没有找到这个任务
-    // 如果本地状态是 processing，说明任务可能已过期或被删除，清理本地状态
-    if (currentStatus === 'processing') {
-      console.log('Task not found in history, clearing local state');
-      generateStore.clearTaskState();
-    }
     return;
   }
 

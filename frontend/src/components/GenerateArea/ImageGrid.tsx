@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { AutoSizer } from 'react-virtualized-auto-sizer';
 import { ImageCard } from './ImageCard';
 import { useGenerateStore } from '../../store/generateStore';
@@ -34,6 +34,7 @@ const getColumnCount = (containerWidth: number, viewportWidth: number | undefine
 };
 
 const getGapSize = (width: number) => (width >= 640 ? 16 : 12);
+const getRowExtraHeight = (width: number) => (width >= 640 ? 96 : 88);
 
 export function ImageGrid({ onPreview }: ImageGridProps) {
   const { images, selectedIds, toggleSelect } = useGenerateStore(
@@ -43,48 +44,6 @@ export function ImageGrid({ onPreview }: ImageGridProps) {
       toggleSelect: s.toggleSelect
     }))
   );
-  const startTime = useGenerateStore(s => s.startTime);
-  const status = useGenerateStore(s => s.status);
-
-  // 统一的计时状态 - 所有卡片共享一个计时器
-  const [elapsedTime, setElapsedTime] = useState('0.0');
-  const rafRef = useRef<number | null>(null);
-
-  // 使用 requestAnimationFrame 优化计时更新
-  useEffect(() => {
-    // 只在处理中且有开始时间时启动计时
-    if (status !== 'processing' || !startTime) {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-      return;
-    }
-
-    const updateTimer = () => {
-      const seconds = ((Date.now() - startTime) / 1000).toFixed(1);
-      setElapsedTime(seconds);
-
-      // 只要有正在处理的图片，继续更新
-      // 检查当前显示的图片中是否还有 pending 状态的
-      const hasPendingImages = images.some(img => img.status === 'pending');
-      if (hasPendingImages || status === 'processing') {
-        rafRef.current = requestAnimationFrame(updateTimer);
-      } else {
-        rafRef.current = null;
-      }
-    };
-
-    rafRef.current = requestAnimationFrame(updateTimer);
-
-    return () => {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-    };
-  }, [status, startTime, images]);
-
   // 限制最大显示数量，防止 DOM 爆炸
   const displayedImages = useMemo(() => {
     return images.slice(0, MAX_IMAGES);
@@ -116,8 +75,8 @@ export function ImageGrid({ onPreview }: ImageGridProps) {
     <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
       <AutoSizer
         className="h-full w-full"
-        renderProp={({ width, height }) => {
-          if (!width || !height) return null;
+        renderProp={({ width }) => {
+          if (!width) return null;
           const innerWidth = Math.max(0, width - GRID_PADDING * 2);
           if (innerWidth <= 0) return null;
 
@@ -127,12 +86,20 @@ export function ImageGrid({ onPreview }: ImageGridProps) {
               : innerWidth;
           const gap = getGapSize(innerWidth);
           const columnCount = getColumnCount(innerWidth, viewportWidth, gap);
+          const columnWidth = Math.floor((innerWidth - gap * columnCount) / columnCount);
+          if (columnWidth <= 0) return null;
+          const itemHeight = columnWidth + getRowExtraHeight(innerWidth);
 
           return (
             <div style={{ padding: GRID_PADDING }} className="h-full">
               <div
                 className="grid content-start"
-                style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`, gap }}
+                style={{
+                  gridTemplateColumns: `repeat(${columnCount}, ${columnWidth}px)`,
+                  gridAutoRows: `${itemHeight}px`,
+                  gap,
+                  paddingRight: gap
+                }}
                 onContextMenu={(event) => event.preventDefault()}
               >
                 {displayedImages.map((img) => (
@@ -142,7 +109,6 @@ export function ImageGrid({ onPreview }: ImageGridProps) {
                     selected={selectedIds.has(img.id)}
                     onSelect={toggleSelect}
                     onClick={handlePreview}
-                    elapsed={elapsedTime}
                   />
                 ))}
               </div>

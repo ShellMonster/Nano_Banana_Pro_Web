@@ -202,6 +202,9 @@ export function useGenerate() {
     try {
       // 竞态条件修复：启动新任务前清理旧的更新源标记
       clearUpdateSource();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('template-market:close', { detail: { reason: 'generate' } }));
+      }
 
       let response;
 

@@ -207,6 +207,9 @@ export function useGenerate() {
     if (useGenerateStore.getState().currentTab !== 'generate') {
       useGenerateStore.getState().setTab('generate');
     }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('template-market:close', { detail: { reason: 'generate' } }));
+    }
 
     setSubmitting(true);
     setIsInternalSubmitting(true);

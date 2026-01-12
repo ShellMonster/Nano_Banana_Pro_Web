@@ -119,7 +119,7 @@ export default function GenerateArea() {
 
       {/* 图片网格 */}
       <div className={`flex-1 min-h-0 relative ${isEmpty ? 'hidden' : ''}`}>
-        <ImageGrid onPreview={setPreviewImage} />
+        <ImageGrid key={isEmpty ? 'empty' : 'grid'} onPreview={setPreviewImage} />
       </div>
 
       <BatchActions />

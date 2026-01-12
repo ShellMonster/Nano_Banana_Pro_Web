@@ -346,6 +346,9 @@ export const useGenerateStore = create<GenerateState>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.selectedIds = state.selectedIds || new Set();
+          if (state.currentTab !== 'generate' && state.currentTab !== 'history') {
+            state.currentTab = 'generate';
+          }
         }
       }
     }

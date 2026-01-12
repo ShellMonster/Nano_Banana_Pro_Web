@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, AlertCircle, Loader2, XCircle } from 'lucide-react';
 import { GeneratedImage } from '../../types';
 import { cn } from '../common/Button';
@@ -8,19 +8,61 @@ interface ImageCardProps {
   selected: boolean;
   onSelect: (id: string) => void;
   onClick: (image: GeneratedImage) => void;
-  elapsed?: string; // 从父组件传入
 }
 
 export const ImageCard = React.memo(function ImageCard({
   image,
   selected,
   onSelect,
-  onClick,
-  elapsed = '0.0'
+  onClick
 }: ImageCardProps) {
   const isPending = image.status === 'pending' || !image.url;
   const isSuccess = !isPending && image.status !== 'failed';
   const imgRef = useRef<HTMLImageElement>(null);
+  const [elapsed, setElapsed] = useState('0.0');
+  const rafRef = useRef<number | null>(null);
+  const lastUpdateRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isPending) {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      return;
+    }
+
+    const startMsRaw = Date.parse(image.createdAt || '');
+    const startMs = Number.isFinite(startMsRaw) ? startMsRaw : Date.now();
+    lastUpdateRef.current = 0;
+
+    const tick = () => {
+      const now = Date.now();
+      if (now - lastUpdateRef.current >= 100) {
+        lastUpdateRef.current = now;
+        setElapsed(((now - startMs) / 1000).toFixed(1));
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [isPending, image.createdAt, image.id]);
 
   // 使用 useMemo 优化规格信息解析
   const specs = useMemo(() => {
@@ -110,7 +152,7 @@ export const ImageCard = React.memo(function ImageCard({
   return (
     <div
       className={cn(
-        "group relative bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm transition-all duration-300 cursor-pointer flex flex-col",
+        "group relative bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm transition-all duration-300 cursor-pointer flex flex-col h-full",
         selected ? "ring-2 ring-blue-500 shadow-lg shadow-blue-100/50 scale-[0.98]" : "hover:shadow-md hover:-translate-y-0.5"
       )}
       style={{ contentVisibility: 'auto', containIntrinsicSize: '240px 320px' }}

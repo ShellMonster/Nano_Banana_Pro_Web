@@ -94,7 +94,7 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
                 return {
                     icon: <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />,
                     title: '生成中',
-                    description: `正在生成第 ${task.completedCount + 1} 张图片`,
+                    description: `生成中：第${task.completedCount + 1}张图片`,
                     bgColor: 'bg-blue-50',
                     borderColor: 'border-blue-200'
                 };
@@ -130,7 +130,7 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
             className={`
                 break-inside-avoid rounded-xl overflow-hidden border shadow-sm
                 hover:shadow-md cursor-pointer group relative
-                ${statusInfo.bgColor} ${statusInfo.borderColor}
+                h-full flex flex-col ${statusInfo.bgColor} ${statusInfo.borderColor}
             `}
             style={{ contentVisibility: 'auto', containIntrinsicSize: '240px 240px' }}
             onClick={handleClick}
@@ -207,7 +207,7 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
             )}
 
             {/* 内容区域 */}
-            <div className="p-6 flex flex-col items-center justify-center min-h-[200px]">
+            <div className="p-5 sm:p-6 flex flex-col items-center justify-center flex-1 min-h-0">
                 {/* 状态图标 */}
                 <div className="mb-4">
                     {statusInfo.icon}
@@ -220,7 +220,14 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
 
                 {/* 状态描述 */}
                 {statusInfo.description && (
-                    <p className="text-sm text-gray-600 text-center mb-4">
+                    <p
+                        className={`text-center mb-3 ${
+                            task.status === 'processing'
+                                ? 'text-xs text-gray-600 whitespace-nowrap truncate'
+                                : 'text-sm text-gray-600 line-clamp-3'
+                        }`}
+                        title={statusInfo.description}
+                    >
                         {statusInfo.description}
                     </p>
                 )}
@@ -229,7 +236,7 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
                 <div className="w-full border-t border-gray-300/50 my-3" />
 
                 {/* 任务信息 */}
-                <div className="w-full">
+                <div className="w-full min-h-0">
                     <p className="text-xs text-gray-800 line-clamp-2 font-medium leading-relaxed mb-3" title={task.prompt}>
                         {task.prompt || '无提示词'}
                     </p>
