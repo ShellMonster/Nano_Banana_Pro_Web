@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AlertCircle, X, Sparkles, ImagePlus, Wand2, Loader2 } from 'lucide-react';
 import { ProgressBar } from './ProgressBar';
 import { ImageGrid } from './ImageGrid';
@@ -10,6 +10,7 @@ import { useShallow } from 'zustand/react/shallow';
 
 export default function GenerateArea() {
   const [previewImage, setPreviewImage] = useState<GeneratedImage | null>(null);
+  const [isErrorExpanded, setIsErrorExpanded] = useState(false);
   const { error, dismissError, status, images, isSubmitting } = useGenerateStore(
     useShallow((s) => ({
       error: s.error,
@@ -24,7 +25,13 @@ export default function GenerateArea() {
       dismissError();
   };
 
+  useEffect(() => {
+    setIsErrorExpanded(false);
+  }, [error]);
+
   const isEmpty = images.length === 0 && status !== 'processing' && status !== 'failed' && !isSubmitting;
+
+  const showErrorToggle = Boolean(error && (error.length > 160 || error.includes('\n')));
 
   return (
     <div className="flex flex-col h-full bg-white relative">
@@ -32,9 +39,25 @@ export default function GenerateArea() {
       {error && status === 'failed' && (
         <div className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-start gap-3 animate-in slide-in-from-top-2">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-medium text-red-800">生成任务失败</h3>
-                <p className="text-sm text-red-700 mt-1">{error}</p>
+                <p
+                  className={[
+                    'text-sm text-red-700 mt-1 break-words',
+                    isErrorExpanded ? 'max-h-24 overflow-auto pr-2 whitespace-pre-wrap' : 'line-clamp-2'
+                  ].join(' ')}
+                >
+                  {error}
+                </p>
+                {showErrorToggle && (
+                  <button
+                    type="button"
+                    onClick={() => setIsErrorExpanded((prev) => !prev)}
+                    className="mt-1 text-xs font-medium text-red-600 hover:text-red-700"
+                  >
+                    {isErrorExpanded ? '收起详情' : '展开详情'}
+                  </button>
+                )}
             </div>
             <button
                 onClick={handleCloseError}
