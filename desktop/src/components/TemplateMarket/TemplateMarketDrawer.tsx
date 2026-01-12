@@ -78,8 +78,7 @@ const DEFAULT_TEMPLATE_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponent(
     </linearGradient>
   </defs>
   <rect width="1024" height="1024" rx="72" fill="url(#bg)"/>
-  <rect x="160" y="160" width="704" height="704" rx="56" fill="rgba(255,255,255,0.7)"/>
-  <text x="512" y="540" font-size="72" font-family="Arial, sans-serif" font-weight="700" fill="#475569" text-anchor="middle">无图展示</text>
+  <text x="512" y="540" font-size="72" font-family="Arial, sans-serif" font-weight="700" fill="#1e3a8a" text-anchor="middle">无图展示</text>
 </svg>`
 )}`;
 
@@ -271,8 +270,11 @@ const TemplatePreviewModal = ({
   onUse: (template: TemplateItem) => void;
   applying: boolean;
 }) => {
+  const rawImageSrc = template?.image || template?.preview || '';
+  const hasImage = Boolean(rawImageSrc);
+  const defaultScale = hasImage ? 1 : 0.5;
   const [previewStatus, setPreviewStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(defaultScale);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -280,8 +282,6 @@ const TemplatePreviewModal = ({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; adjusted: boolean } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
-  const rawImageSrc = template?.image || template?.preview || '';
-  const hasImage = Boolean(rawImageSrc);
   const imageSrc = resolveTemplateImageSrc(rawImageSrc);
   const resolvedImageSrc = useCachedImage(imageSrc);
   const errorText = hasImage ? '图片加载失败' : '暂无图片';
@@ -292,10 +292,10 @@ const TemplatePreviewModal = ({
   const isZoomed = scale > 1.01;
 
   const handleReset = useCallback(() => {
-    setScale(1);
+    setScale(defaultScale);
     setPosition({ x: 0, y: 0 });
     setIsDragging(false);
-  }, []);
+  }, [defaultScale]);
 
   const performZoom = useCallback((nextScale: number) => {
     setScale(clamp(nextScale, 0.5, 5));
@@ -738,11 +738,6 @@ const TemplatePreviewModal = ({
           <div>
             <p className="text-xs uppercase text-slate-400 tracking-widest">模板信息</p>
             <h3 className="text-xl font-black text-slate-900 mt-2">{template.title}</h3>
-            {previewStatus === 'error' && (
-              <div className="mt-3 bg-rose-50/80 border border-rose-100 rounded-2xl px-3 py-2 text-xs text-rose-700">
-                图片加载失败，可继续查看模板信息
-              </div>
-            )}
             <div className="flex flex-wrap gap-2 mt-3">
               <span className="px-2.5 py-1 rounded-full text-xs bg-slate-100 text-slate-600">{template.ratio}</span>
               {template.materials?.map((item) => (
@@ -774,20 +769,29 @@ const TemplatePreviewModal = ({
               </div>
             </div>
           )}
-          {template.tips && (
-            <div className="bg-blue-50/80 border border-blue-100 rounded-2xl p-3 text-xs text-blue-700">
-              {template.tips}
-            </div>
-          )}
-          {template.requirements && (
-            <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-3 text-xs text-amber-700">
-              {template.requirements.note}
-            </div>
-          )}
-          {template.prompt && (
-            <div className="bg-white/70 border border-white/60 rounded-2xl p-3">
-              <p className="text-xs text-slate-400 mb-2">模板 Prompt</p>
-              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{template.prompt}</p>
+          {(previewStatus === 'error' || template.tips || template.requirements || template.prompt) && (
+            <div className="bg-white/70 border border-white/60 rounded-2xl p-4 space-y-3">
+              {previewStatus === 'error' && (
+                <div className="text-xs text-rose-600 font-semibold">图片加载失败，可继续查看模板信息</div>
+              )}
+              {template.tips && (
+                <div className="pt-3 border-t border-slate-200/70 first:pt-0 first:border-0">
+                  <p className="text-xs uppercase text-slate-400 tracking-widest">使用提示</p>
+                  <p className="text-sm text-slate-700 mt-1">{template.tips}</p>
+                </div>
+              )}
+              {template.requirements && (
+                <div className="pt-3 border-t border-slate-200/70 first:pt-0 first:border-0">
+                  <p className="text-xs uppercase text-slate-400 tracking-widest">参考图要求</p>
+                  <p className="text-sm text-slate-700 mt-1">{template.requirements.note}</p>
+                </div>
+              )}
+              {template.prompt && (
+                <div className="pt-3 border-t border-slate-200/70 first:pt-0 first:border-0">
+                  <p className="text-xs uppercase text-slate-400 tracking-widest">模板 Prompt</p>
+                  <p className="text-sm text-slate-700 mt-1 leading-relaxed whitespace-pre-wrap">{template.prompt}</p>
+                </div>
+              )}
             </div>
           )}
           <Button
