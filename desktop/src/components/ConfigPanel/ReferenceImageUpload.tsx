@@ -142,8 +142,17 @@ export function ReferenceImageUpload() {
       for (const entry of entries) {
         const name = entry.name || 'ref-image.jpg';
         let resolvedPath = entry.path || '';
+        let origin = entry.origin;
 
-        if (entry.origin === 'appdata') {
+        if (origin === 'external' && resolvedPath && !isAbsolutePath(resolvedPath)) {
+          if (resolvedPath.startsWith(REF_IMAGE_DIR + '/')
+            || resolvedPath.startsWith('storage/')
+            || resolvedPath.includes('/storage/')) {
+            origin = 'appdata';
+          }
+        }
+
+        if (origin === 'appdata') {
           const relativePath = isAbsolutePath(resolvedPath)
             ? getAppDataRelativePath(resolvedPath, appDataDir)
             : resolvedPath;
@@ -151,12 +160,12 @@ export function ReferenceImageUpload() {
           const ok = await exists(relativePath, { baseDir: BaseDirectory.AppData });
           if (!ok) continue;
           resolvedPath = `${appDataDir}/${relativePath}`;
-          nextEntries.push({ ...entry, path: relativePath });
+          nextEntries.push({ ...entry, origin: 'appdata', path: relativePath });
         } else {
-          if (!resolvedPath) continue;
+          if (!resolvedPath || !isAbsolutePath(resolvedPath)) continue;
           const ok = await exists(resolvedPath);
           if (!ok) continue;
-          nextEntries.push(entry);
+          nextEntries.push({ ...entry, origin: 'external' });
         }
 
         const file = new File([], name, { type: entry.mimeType || 'image/jpeg' }) as ExtendedFile;
@@ -281,9 +290,17 @@ export function ReferenceImageUpload() {
         let origin: PersistedRefImage['origin'] = 'external';
 
         if (path) {
-          if (path.startsWith(appDataPrefix)) {
+          if (isAbsolutePath(path)) {
+            if (path.startsWith(appDataPrefix)) {
+              origin = 'appdata';
+              path = path.slice(appDataBase.length + 1);
+            } else {
+              origin = 'external';
+            }
+          } else if (path.startsWith(REF_IMAGE_DIR + '/')
+            || path.startsWith('storage/')
+            || path.includes('/storage/')) {
             origin = 'appdata';
-            path = path.slice(appDataBase.length + 1);
           } else {
             origin = 'external';
           }
@@ -331,6 +348,13 @@ export function ReferenceImageUpload() {
         if (entry.origin !== 'appdata') continue;
         if (nextIds.has(entry.id)) continue;
         if (!entry.path) continue;
+        const normalizedPath = normalizePath(entry.path);
+        const managedCopy =
+          normalizedPath.startsWith(`${REF_IMAGE_DIR}/`) ||
+          normalizedPath.includes(`/${REF_IMAGE_DIR}/`);
+        if (!managedCopy) {
+          continue;
+        }
         try {
           if (isAbsolutePath(entry.path)) {
             await remove(entry.path);
