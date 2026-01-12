@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { PersistedRefImage } from '../types';
 
 interface ConfigState {
   // 生图配置
@@ -24,6 +25,7 @@ interface ConfigState {
   imageSize: string;
   aspectRatio: string;
   refFiles: File[];
+  refImageEntries: PersistedRefImage[];
 
   setImageProvider: (provider: string) => void;
   setImageApiBaseUrl: (url: string) => void;
@@ -38,9 +40,11 @@ interface ConfigState {
   setCount: (count: number) => void;
   setImageSize: (size: string) => void;
   setAspectRatio: (ratio: string) => void;
+  setRefFiles: (files: File[]) => void;
   addRefFiles: (files: File[]) => void;
   removeRefFile: (index: number) => void;
   clearRefFiles: () => void;
+  setRefImageEntries: (entries: PersistedRefImage[]) => void;
 
   reset: () => void;
 }
@@ -62,6 +66,7 @@ export const useConfigStore = create<ConfigState>()(
       imageSize: '2K',
       aspectRatio: '1:1',
       refFiles: [],
+      refImageEntries: [],
 
       setImageProvider: (imageProvider) => set({ imageProvider }),
       setImageApiBaseUrl: (imageApiBaseUrl) => set({ imageApiBaseUrl }),
@@ -76,6 +81,8 @@ export const useConfigStore = create<ConfigState>()(
       setCount: (count) => set({ count }),
       setImageSize: (imageSize) => set({ imageSize }),
       setAspectRatio: (aspectRatio) => set({ aspectRatio }),
+      setRefFiles: (refFiles) => set({ refFiles }),
+      setRefImageEntries: (refImageEntries) => set({ refImageEntries }),
 
       addRefFiles: (files) => set((state) => ({
           // 限制最多 10 张
@@ -100,12 +107,13 @@ export const useConfigStore = create<ConfigState>()(
         imageSize: '2K',
         aspectRatio: '1:1',
         refFiles: [],
+        refImageEntries: [],
       })
     }),
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 5,
+      version: 6,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;
@@ -144,6 +152,9 @@ export const useConfigStore = create<ConfigState>()(
             ? 'gemini-chat'
             : 'openai-chat';
           next = { ...next, chatProvider: next.chatProvider ?? inferred };
+        }
+        if (version < 6) {
+          next = { ...next, refImageEntries: next.refImageEntries ?? [] };
         }
         return next;
       },

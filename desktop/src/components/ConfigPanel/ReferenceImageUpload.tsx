@@ -4,19 +4,46 @@ import { useConfigStore } from '../../store/configStore';
 import { useInternalDragStore, type InternalDragPayload } from '../../store/internalDragStore';
 import { cn } from '../common/Button';
 import { toast } from '../../store/toastStore';
-import { ExtendedFile } from '../../types';
+import { ExtendedFile, PersistedRefImage } from '../../types';
 import { calculateMd5, compressImage, fetchFileWithMd5 } from '../../utils/image';
 import { getImageUrl } from '../../services/api';
+
+const REF_IMAGE_DIR = 'ref_images';
+
+const normalizePath = (value: string) => value.replace(/\\/g, '/').replace(/\/+/g, '/');
+const isWindowsAbsolutePath = (value: string) => /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith('\\\\');
+const isPosixAbsolutePath = (value: string) => value.startsWith('/');
+const isAbsolutePath = (value: string) => isPosixAbsolutePath(value) || isWindowsAbsolutePath(value);
+
+const mimeToExtension = (mime: string) => {
+  const lower = (mime || '').toLowerCase();
+  if (lower.includes('png')) return 'png';
+  if (lower.includes('webp')) return 'webp';
+  if (lower.includes('gif')) return 'gif';
+  return 'jpg';
+};
+
+const getFileExtension = (file: File) => {
+  const name = String(file.name || '');
+  const parts = name.split('.');
+  const ext = parts.length > 1 ? parts[parts.length - 1] : '';
+  if (ext && ext.length <= 5) return ext.toLowerCase();
+  return mimeToExtension(file.type);
+};
 
 export function ReferenceImageUpload() {
   const refFiles = useConfigStore((s) => s.refFiles);
   const addRefFiles = useConfigStore((s) => s.addRefFiles);
   const removeRefFile = useConfigStore((s) => s.removeRefFile);
+  const setRefFiles = useConfigStore((s) => s.setRefFiles);
+  const refImageEntries = useConfigStore((s) => s.refImageEntries);
+  const setRefImageEntries = useConfigStore((s) => s.setRefImageEntries);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const [isExpanded, setIsExpanded] = useState(true);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [restoreTick, setRestoreTick] = useState(0);
   const objectUrlsRef = useRef<Map<string, string>>(new Map());
   const fileMd5SetRef = useRef<Set<string>>(new Set());
   const fileMd5MapRef = useRef<Map<string, string>>(new Map());
@@ -28,6 +55,12 @@ export function ReferenceImageUpload() {
   const dropPayload = useInternalDragStore((s) => s.droppedPayload);
   const dropCounter = useInternalDragStore((s) => s.dropCounter);
   const clearDrop = useInternalDragStore((s) => s.clearDrop);
+  const appDataDirRef = useRef<string | null>(null);
+  const persistedEntriesRef = useRef<PersistedRefImage[]>(refImageEntries);
+  const isPersistingRef = useRef(false);
+  const pendingPersistRef = useRef(false);
+  const restoreDoneRef = useRef(false);
+  const restoreInFlightRef = useRef(false);
 
   // 计算文件 MD5（使用工具函数）
   const calculateMd5Callback = useCallback(calculateMd5, []);
@@ -42,6 +75,111 @@ export function ReferenceImageUpload() {
       objectUrlsRef.current.clear();
     };
   }, []);
+
+  useEffect(() => {
+    persistedEntriesRef.current = refImageEntries;
+  }, [refImageEntries]);
+
+  const getAppDataDir = useCallback(async () => {
+    if (!window.__TAURI_INTERNALS__) return null;
+    if (appDataDirRef.current) return appDataDirRef.current;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const dir = await invoke<string>('get_app_data_dir');
+      const normalized = dir ? normalizePath(dir).replace(/\/+$/, '') : '';
+      appDataDirRef.current = normalized || null;
+      return appDataDirRef.current;
+    } catch (error) {
+      console.warn('Failed to resolve app data dir:', error);
+      appDataDirRef.current = null;
+      return null;
+    }
+  }, []);
+
+  const getAppDataRelativePath = useCallback((path: string, appDataDir: string) => {
+    const normalizedPath = normalizePath(path);
+    const normalizedBase = normalizePath(appDataDir).replace(/\/+$/, '');
+    const prefix = `${normalizedBase}/${REF_IMAGE_DIR}/`;
+    if (normalizedPath.startsWith(prefix)) {
+      return normalizedPath.slice(normalizedBase.length + 1);
+    }
+    return null;
+  }, []);
+
+  const restorePersistedRefFiles = useCallback(async () => {
+    if (!window.__TAURI_INTERNALS__) {
+      restoreDoneRef.current = true;
+      setRestoreTick((tick) => tick + 1);
+      return;
+    }
+    if (restoreDoneRef.current || restoreInFlightRef.current) return;
+    restoreInFlightRef.current = true;
+
+    const existingFiles = useConfigStore.getState().refFiles;
+    if (existingFiles.length > 0) {
+      restoreDoneRef.current = true;
+      restoreInFlightRef.current = false;
+      setRestoreTick((tick) => tick + 1);
+      return;
+    }
+
+    const entries = useConfigStore.getState().refImageEntries;
+    if (!entries || entries.length === 0) {
+      restoreDoneRef.current = true;
+      restoreInFlightRef.current = false;
+      setRestoreTick((tick) => tick + 1);
+      return;
+    }
+
+    try {
+      const { exists, BaseDirectory } = await import('@tauri-apps/plugin-fs');
+      const appDataDir = await getAppDataDir();
+      if (!appDataDir) return;
+
+      const restoredFiles: File[] = [];
+      const nextEntries: PersistedRefImage[] = [];
+
+      for (const entry of entries) {
+        const name = entry.name || 'ref-image.jpg';
+        let resolvedPath = entry.path || '';
+
+        if (entry.origin === 'appdata') {
+          const relativePath = isAbsolutePath(resolvedPath)
+            ? getAppDataRelativePath(resolvedPath, appDataDir)
+            : resolvedPath;
+          if (!relativePath) continue;
+          const ok = await exists(relativePath, { baseDir: BaseDirectory.AppData });
+          if (!ok) continue;
+          resolvedPath = `${appDataDir}/${relativePath}`;
+          nextEntries.push({ ...entry, path: relativePath });
+        } else {
+          if (!resolvedPath) continue;
+          const ok = await exists(resolvedPath);
+          if (!ok) continue;
+          nextEntries.push(entry);
+        }
+
+        const file = new File([], name, { type: entry.mimeType || 'image/jpeg' }) as ExtendedFile;
+        file.__path = resolvedPath;
+        file.__md5 = entry.id;
+        restoredFiles.push(file);
+      }
+
+      if (restoredFiles.length > 0) {
+        setRefFiles(restoredFiles);
+      }
+      if (nextEntries.length !== entries.length) {
+        setRefImageEntries(nextEntries);
+        persistedEntriesRef.current = nextEntries;
+      }
+    } catch (error) {
+      console.warn('Failed to restore persisted ref images:', error);
+    } finally {
+      restoreDoneRef.current = true;
+      restoreInFlightRef.current = false;
+      setRestoreTick((tick) => tick + 1);
+    }
+  }, [getAppDataDir, getAppDataRelativePath, setRefFiles, setRefImageEntries]);
 
   // 同步 MD5 集合：监听 refFiles 变化，只计算新增文件的 MD5
   useEffect(() => {
@@ -81,6 +219,20 @@ export function ReferenceImageUpload() {
     syncMd5Set();
   }, [refFiles, calculateMd5Callback]);
 
+  useEffect(() => {
+    const persistApi = (useConfigStore as any).persist;
+    if (!persistApi?.hasHydrated || persistApi.hasHydrated()) {
+      void restorePersistedRefFiles();
+      return;
+    }
+    const unsubscribe = persistApi.onFinishHydration?.(() => {
+      void restorePersistedRefFiles();
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [restorePersistedRefFiles]);
+
   // 当 refFiles 变化时，清理不再需要的 ObjectURL
   useEffect(() => {
     // 使用 MD5 或文件属性作为唯一标识
@@ -101,6 +253,109 @@ export function ReferenceImageUpload() {
       }
     });
   }, [refFiles]);
+
+  const syncPersistedRefFiles = useCallback(async () => {
+    if (!window.__TAURI_INTERNALS__) return;
+    if (!restoreDoneRef.current) return;
+    if (isPersistingRef.current) {
+      pendingPersistRef.current = true;
+      return;
+    }
+
+    isPersistingRef.current = true;
+    try {
+      const { writeFile, exists, mkdir, remove, BaseDirectory } = await import('@tauri-apps/plugin-fs');
+      const appDataDir = await getAppDataDir();
+      if (!appDataDir) return;
+
+      await mkdir(REF_IMAGE_DIR, { recursive: true, baseDir: BaseDirectory.AppData });
+
+      const nextEntries: PersistedRefImage[] = [];
+      const appDataBase = normalizePath(appDataDir).replace(/\/+$/, '');
+      const appDataPrefix = `${appDataBase}/${REF_IMAGE_DIR}/`;
+
+      for (const file of refFiles) {
+        const extFile = file as ExtendedFile;
+        let id = extFile.__md5;
+        let path = extFile.__path ? normalizePath(extFile.__path) : '';
+        let origin: PersistedRefImage['origin'] = 'external';
+
+        if (path) {
+          if (path.startsWith(appDataPrefix)) {
+            origin = 'appdata';
+            path = path.slice(appDataBase.length + 1);
+          } else {
+            origin = 'external';
+          }
+          if (!id) {
+            id = `path-${path}`;
+            extFile.__md5 = id;
+          }
+        } else {
+          const fallbackId = `mem-${Date.now()}-${Math.round(Math.random() * 10000)}`;
+          if (!id || id.startsWith('path-')) {
+            try {
+              id = await calculateMd5Callback(file);
+            } catch {
+              id = fallbackId;
+            }
+            extFile.__md5 = id;
+          }
+
+          const ext = getFileExtension(file);
+          const relativePath = `${REF_IMAGE_DIR}/${id}.${ext}`;
+          const existsInAppData = await exists(relativePath, { baseDir: BaseDirectory.AppData });
+          if (!existsInAppData && file.size > 0) {
+            const bytes = new Uint8Array(await file.arrayBuffer());
+            await writeFile(relativePath, bytes, { baseDir: BaseDirectory.AppData });
+          }
+          extFile.__path = `${appDataBase}/${relativePath}`;
+          origin = 'appdata';
+          path = relativePath;
+        }
+
+        if (!id || !path) continue;
+        nextEntries.push({
+          id,
+          name: file.name || 'ref-image.jpg',
+          path,
+          origin,
+          mimeType: file.type || 'image/jpeg',
+          size: file.size || 0
+        });
+      }
+
+      const prevEntries = persistedEntriesRef.current || [];
+      const nextIds = new Set(nextEntries.map((entry) => entry.id));
+      for (const entry of prevEntries) {
+        if (entry.origin !== 'appdata') continue;
+        if (nextIds.has(entry.id)) continue;
+        if (!entry.path) continue;
+        try {
+          if (isAbsolutePath(entry.path)) {
+            await remove(entry.path);
+          } else {
+            await remove(entry.path, { baseDir: BaseDirectory.AppData });
+          }
+        } catch (error) {
+          console.warn('Failed to remove persisted ref image:', error);
+        }
+      }
+
+      persistedEntriesRef.current = nextEntries;
+      setRefImageEntries(nextEntries);
+    } finally {
+      isPersistingRef.current = false;
+      if (pendingPersistRef.current) {
+        pendingPersistRef.current = false;
+        void syncPersistedRefFiles();
+      }
+    }
+  }, [calculateMd5Callback, getAppDataDir, refFiles, setRefImageEntries]);
+
+  useEffect(() => {
+    void syncPersistedRefFiles();
+  }, [refFiles, restoreTick, syncPersistedRefFiles]);
 
   useEffect(() => {
     setDropTarget(dropRef.current);
