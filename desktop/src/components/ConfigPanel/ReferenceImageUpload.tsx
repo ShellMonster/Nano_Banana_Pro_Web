@@ -5,6 +5,7 @@ import { useInternalDragStore, type InternalDragPayload } from '../../store/inte
 import { cn } from '../common/Button';
 import { toast } from '../../store/toastStore';
 import { ExtendedFile, PersistedRefImage } from '../../types';
+import SparkMD5 from 'spark-md5';
 import { calculateMd5, compressImage, fetchFileWithMd5 } from '../../utils/image';
 import { getImageUrl } from '../../services/api';
 
@@ -14,6 +15,7 @@ const normalizePath = (value: string) => value.replace(/\\/g, '/').replace(/\/+/
 const isWindowsAbsolutePath = (value: string) => /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith('\\\\');
 const isPosixAbsolutePath = (value: string) => value.startsWith('/');
 const isAbsolutePath = (value: string) => isPosixAbsolutePath(value) || isWindowsAbsolutePath(value);
+const buildPathMd5 = (value: string) => `path-${value}`;
 
 const mimeToExtension = (mime: string) => {
   const lower = (mime || '').toLowerCase();
@@ -29,6 +31,71 @@ const getFileExtension = (file: File) => {
   const ext = parts.length > 1 ? parts[parts.length - 1] : '';
   if (ext && ext.length <= 5) return ext.toLowerCase();
   return mimeToExtension(file.type);
+};
+
+const getPathExtension = (value: string) => {
+  const normalized = String(value || '');
+  const parts = normalized.split('?')[0].split('#')[0].split('.');
+  const ext = parts.length > 1 ? parts[parts.length - 1] : '';
+  if (ext && ext.length <= 5) return ext.toLowerCase();
+  return '';
+};
+
+const hashString = (value: string) => SparkMD5.hash(value);
+
+const isUrlLike = (value: string) =>
+  /^https?:|^asset:|^blob:|^data:|^tauri:|^ipc:|^file:/i.test(value);
+
+const normalizePathFromUri = (raw: string): string => {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return '';
+
+  const stripHostPrefix = (value: string) => {
+    const next = value.replace(/^localhost\//, '');
+    return next.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(next) ? next : `/${next}`;
+  };
+
+  if (trimmed.startsWith('file://')) {
+    const withoutScheme = trimmed.replace(/^file:\/\//, '');
+    return decodeURIComponent(stripHostPrefix(withoutScheme));
+  }
+  if (trimmed.startsWith('asset://')) {
+    const withoutScheme = trimmed.replace(/^asset:\/\//, '');
+    return decodeURIComponent(stripHostPrefix(withoutScheme));
+  }
+  if (trimmed.startsWith('tauri://')) {
+    const withoutScheme = trimmed.replace(/^tauri:\/\//, '');
+    return decodeURIComponent(stripHostPrefix(withoutScheme));
+  }
+  if (trimmed.startsWith('http://asset.localhost') || trimmed.startsWith('https://asset.localhost')) {
+    try {
+      const parsed = new URL(trimmed);
+      return decodeURIComponent(parsed.pathname || '');
+    } catch {
+      return '';
+    }
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const path = decodeURIComponent(parsed.pathname || '');
+    if (path.includes('/storage/')) {
+      return path.replace(/^\/+/, '');
+    }
+  } catch {
+    // ignore
+  }
+
+  return '';
+};
+
+const normalizeLocalPathInput = (value: string) => {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return '';
+  const fromUri = normalizePathFromUri(trimmed);
+  if (fromUri) return normalizePath(fromUri);
+  if (isUrlLike(trimmed)) return '';
+  return normalizePath(trimmed);
 };
 
 export function ReferenceImageUpload() {
@@ -61,6 +128,8 @@ export function ReferenceImageUpload() {
   const pendingPersistRef = useRef(false);
   const restoreDoneRef = useRef(false);
   const restoreInFlightRef = useRef(false);
+  const dialogOpenRef = useRef<null | ((options: Record<string, unknown>) => Promise<string | string[] | null>)>(null);
+  const dialogLoadingRef = useRef<Promise<void> | null>(null);
 
   // 计算文件 MD5（使用工具函数）
   const calculateMd5Callback = useCallback(calculateMd5, []);
@@ -75,6 +144,26 @@ export function ReferenceImageUpload() {
       objectUrlsRef.current.clear();
     };
   }, []);
+
+  const preloadDialog = useCallback(async () => {
+    if (!window.__TAURI_INTERNALS__) return;
+    if (dialogOpenRef.current || dialogLoadingRef.current) return;
+    dialogLoadingRef.current = import('@tauri-apps/plugin-dialog')
+      .then(({ open }) => {
+        dialogOpenRef.current = open;
+      })
+      .catch((err) => {
+        console.warn('Failed to preload dialog:', err);
+      })
+      .finally(() => {
+        dialogLoadingRef.current = null;
+      });
+    await dialogLoadingRef.current;
+  }, []);
+
+  useEffect(() => {
+    void preloadDialog();
+  }, [preloadDialog]);
 
   useEffect(() => {
     persistedEntriesRef.current = refImageEntries;
@@ -102,6 +191,24 @@ export function ReferenceImageUpload() {
     const prefix = `${normalizedBase}/${REF_IMAGE_DIR}/`;
     if (normalizedPath.startsWith(prefix)) {
       return normalizedPath.slice(normalizedBase.length + 1);
+    }
+    return null;
+  }, []);
+
+  const persistExternalRefImage = useCallback(async (sourcePath: string, destName: string) => {
+    if (!window.__TAURI_INTERNALS__) return null;
+    const trimmed = sourcePath.trim();
+    if (!trimmed) return null;
+    const normalized = normalizeLocalPathInput(trimmed);
+    if (!normalized || isUrlLike(normalized)) return null;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const relativePath = await invoke<string>('persist_ref_image', { path: normalized, dest_name: destName });
+      if (typeof relativePath === 'string' && relativePath.trim()) {
+        return relativePath.trim();
+      }
+    } catch (error) {
+      console.warn('Failed to persist external ref image:', error);
     }
     return null;
   }, []);
@@ -141,7 +248,7 @@ export function ReferenceImageUpload() {
 
       for (const entry of entries) {
         const name = entry.name || 'ref-image.jpg';
-        let resolvedPath = entry.path || '';
+        let resolvedPath = normalizeLocalPathInput(entry.path || '');
         let origin = entry.origin;
 
         if (origin === 'external' && resolvedPath && !isAbsolutePath(resolvedPath)) {
@@ -162,10 +269,8 @@ export function ReferenceImageUpload() {
           resolvedPath = `${appDataDir}/${relativePath}`;
           nextEntries.push({ ...entry, origin: 'appdata', path: relativePath });
         } else {
-          if (!resolvedPath || !isAbsolutePath(resolvedPath)) continue;
-          const ok = await exists(resolvedPath);
-          if (!ok) continue;
-          nextEntries.push({ ...entry, origin: 'external' });
+          // 启动恢复时不读取外部路径，避免触发系统权限弹窗
+          continue;
         }
 
         const file = new File([], name, { type: entry.mimeType || 'image/jpeg' }) as ExtendedFile;
@@ -282,12 +387,41 @@ export function ReferenceImageUpload() {
       const nextEntries: PersistedRefImage[] = [];
       const appDataBase = normalizePath(appDataDir).replace(/\/+$/, '');
       const appDataPrefix = `${appDataBase}/${REF_IMAGE_DIR}/`;
+      const updatePathMd5 = (file: ExtendedFile, nextPath: string) => {
+        const nextId = buildPathMd5(nextPath);
+        const prevId = file.__md5;
+        if (prevId === nextId) return;
+        if (prevId && prevId.startsWith('path-')) {
+          fileMd5SetRef.current.delete(prevId);
+          fileMd5MapRef.current.delete(prevId);
+        }
+        if (!prevId || prevId.startsWith('path-')) {
+          file.__md5 = nextId;
+          fileMd5SetRef.current.add(nextId);
+          fileMd5MapRef.current.set(nextId, nextId);
+        }
+      };
 
       for (const file of refFiles) {
         const extFile = file as ExtendedFile;
         let id = extFile.__md5;
         let path = extFile.__path ? normalizePath(extFile.__path) : '';
+        const normalizedPath = normalizeLocalPathInput(path);
+        if (normalizedPath && normalizedPath !== path) {
+          path = normalizedPath;
+          extFile.__path = normalizedPath;
+          updatePathMd5(extFile, normalizedPath);
+        } else if (!normalizedPath && path && isUrlLike(path)) {
+          path = '';
+        }
         let origin: PersistedRefImage['origin'] = 'external';
+        const derivePersistId = (candidate: string | undefined, srcPath: string) => {
+          if (candidate && !candidate.startsWith('path-') && !candidate.includes('/') && !candidate.includes('\\')) {
+            return candidate;
+          }
+          const basis = srcPath || candidate || `${Date.now()}-${Math.random()}`;
+          return hashString(basis);
+        };
 
         if (path) {
           if (isAbsolutePath(path)) {
@@ -305,8 +439,19 @@ export function ReferenceImageUpload() {
             origin = 'external';
           }
           if (!id) {
-            id = `path-${path}`;
+            id = buildPathMd5(path);
             extFile.__md5 = id;
+          }
+
+          const persistId = derivePersistId(id, path);
+          if (origin === 'external' && path && !isUrlLike(path)) {
+            const ext = getPathExtension(path) || getFileExtension(file) || 'jpg';
+            const persistedPath = await persistExternalRefImage(path, `${persistId}.${ext}`);
+            if (persistedPath) {
+              origin = 'appdata';
+              path = persistedPath;
+              extFile.__path = `${appDataBase}/${persistedPath}`;
+            }
           }
         } else {
           const fallbackId = `mem-${Date.now()}-${Math.round(Math.random() * 10000)}`;
@@ -552,7 +697,7 @@ export function ReferenceImageUpload() {
 
         const path = String(payload.filePath || payload.thumbnailPath || payload.path || '').trim();
         if (path) {
-          const md5Key = `path-${path}`;
+          const md5Key = buildPathMd5(path);
           if (fileMd5SetRef.current.has(md5Key)) {
             toast.info('图片已存在');
             return;
@@ -742,7 +887,7 @@ export function ReferenceImageUpload() {
       const imagePath = (path || '').trim();
       if (!imagePath) return; // 剪贴板里没有图片：静默忽略
 
-      const md5Key = `path-${imagePath}`;
+      const md5Key = buildPathMd5(imagePath);
       if (fileMd5SetRef.current.has(md5Key)) {
         toast.info('图片已存在');
         return;
@@ -857,49 +1002,6 @@ export function ReferenceImageUpload() {
     }
   }, []);
 
-  const normalizePathFromUri = useCallback((raw: string): string => {
-    const trimmed = (raw || '').trim();
-    if (!trimmed) return '';
-
-    const stripHostPrefix = (value: string) => {
-      let next = value.replace(/^localhost\//, '');
-      return next.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(next) ? next : `/${next}`;
-    };
-
-    if (trimmed.startsWith('file://')) {
-      const withoutScheme = trimmed.replace(/^file:\/\//, '');
-      return decodeURIComponent(stripHostPrefix(withoutScheme));
-    }
-    if (trimmed.startsWith('asset://')) {
-      const withoutScheme = trimmed.replace(/^asset:\/\//, '');
-      return decodeURIComponent(stripHostPrefix(withoutScheme));
-    }
-    if (trimmed.startsWith('tauri://')) {
-      const withoutScheme = trimmed.replace(/^tauri:\/\//, '');
-      return decodeURIComponent(stripHostPrefix(withoutScheme));
-    }
-    if (trimmed.startsWith('http://asset.localhost') || trimmed.startsWith('https://asset.localhost')) {
-      try {
-        const parsed = new URL(trimmed);
-        return decodeURIComponent(parsed.pathname || '');
-      } catch {
-        return '';
-      }
-    }
-
-    try {
-      const parsed = new URL(trimmed);
-      const path = decodeURIComponent(parsed.pathname || '');
-      if (path.includes('/storage/')) {
-        return path.replace(/^\/+/, '');
-      }
-    } catch {
-      // ignore
-    }
-
-    return '';
-  }, []);
-
   // 处理拖拽释放
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
@@ -961,7 +1063,7 @@ export function ReferenceImageUpload() {
           }
 
           if (imagePath && !imagePath.includes('://')) {
-            const md5Key = `path-${imagePath}`;
+            const md5Key = buildPathMd5(imagePath);
             if (fileMd5SetRef.current.has(md5Key)) {
               toast.info('图片已存在');
               return;
@@ -1179,10 +1281,15 @@ export function ReferenceImageUpload() {
     // 如果在 Tauri 环境下，优先使用原生对话框，速度更快且体验更好
     if (window.__TAURI_INTERNALS__) {
       try {
-        const { open } = await import('@tauri-apps/plugin-dialog');
-        const { readFile } = await import('@tauri-apps/plugin-fs');
+        if (!dialogOpenRef.current) {
+          await preloadDialog();
+        }
+        const openDialog = dialogOpenRef.current;
+        if (!openDialog) {
+          throw new Error('dialog not ready');
+        }
         
-        const selected = await open({
+        const selected = await openDialog({
           multiple: true,
           filters: [{
             name: 'Images',
@@ -1204,7 +1311,7 @@ export function ReferenceImageUpload() {
                const file = new File([], name, { type: 'image/jpeg' }) as ExtendedFile;
                file.__path = path;
                // 使用路径作为唯一的 MD5 标识，避免重复读取计算
-               file.__md5 = `path-${path}`;
+               file.__md5 = buildPathMd5(path);
                newFiles.push(file);
              } catch (err) {
                console.error(`Failed to process file at ${path}:`, err);
