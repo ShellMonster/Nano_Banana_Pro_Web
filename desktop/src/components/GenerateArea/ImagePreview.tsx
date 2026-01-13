@@ -32,10 +32,12 @@ export const ImagePreview = React.memo(function ImagePreview({
     const [isCopyingImage, setIsCopyingImage] = useState(false);
     const [fullImageLoaded, setFullImageLoaded] = useState(false);
     const [fullImageError, setFullImageError] = useState(false);
+    const [isWheelZooming, setIsWheelZooming] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; adjusted: boolean } | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const deleteConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const copySuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const wheelZoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const imageRef = useRef<HTMLImageElement>(null);
     const hasNotifiedCopyRef = useRef(false); // 标记是否已提示过复制
     const contextMenuRef = useRef<HTMLDivElement>(null);
@@ -49,8 +51,6 @@ export const ImagePreview = React.memo(function ImagePreview({
     const handleReset = useCallback(() => {
         setScale(1);
         setPosition({ x: 0, y: 0 });
-        setFullImageLoaded(false);
-        setFullImageError(false);
     }, []);
 
     // 处理图片切换
@@ -128,6 +128,10 @@ export const ImagePreview = React.memo(function ImagePreview({
             if (copySuccessTimerRef.current) {
                 clearTimeout(copySuccessTimerRef.current);
                 copySuccessTimerRef.current = null;
+            }
+            if (wheelZoomTimerRef.current) {
+                clearTimeout(wheelZoomTimerRef.current);
+                wheelZoomTimerRef.current = null;
             }
         };
     }, []);
@@ -387,6 +391,13 @@ export const ImagePreview = React.memo(function ImagePreview({
         if (newScale !== scale) {
             const rect = containerRef.current!.getBoundingClientRect();
             performZoom(newScale, e.clientX - rect.left, e.clientY - rect.top);
+            setIsWheelZooming(true);
+            if (wheelZoomTimerRef.current) {
+                clearTimeout(wheelZoomTimerRef.current);
+            }
+            wheelZoomTimerRef.current = setTimeout(() => {
+                setIsWheelZooming(false);
+            }, 120);
         }
     };
 
@@ -647,7 +658,8 @@ export const ImagePreview = React.memo(function ImagePreview({
                         className="relative z-10 w-full h-full flex items-center justify-center select-none p-5 md:p-7"
                         style={{
                             transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-                            transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)'
+                            transition: isDragging || isWheelZooming ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)',
+                            willChange: isDragging || isWheelZooming ? 'transform' : undefined
                         }}
                         onContextMenu={handleOpenContextMenu}
                     >

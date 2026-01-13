@@ -29,9 +29,11 @@ export const ImagePreview = React.memo(function ImagePreview({
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [copySuccess, setCopySuccess] = useState(false);
+    const [isWheelZooming, setIsWheelZooming] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const deleteConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const copySuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const wheelZoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const imageRef = useRef<HTMLImageElement>(null);
     const hasNotifiedCopyRef = useRef(false); // 标记是否已提示过复制
 
@@ -111,6 +113,10 @@ export const ImagePreview = React.memo(function ImagePreview({
             if (copySuccessTimerRef.current) {
                 clearTimeout(copySuccessTimerRef.current);
                 copySuccessTimerRef.current = null;
+            }
+            if (wheelZoomTimerRef.current) {
+                clearTimeout(wheelZoomTimerRef.current);
+                wheelZoomTimerRef.current = null;
             }
         };
     }, []);
@@ -238,6 +244,13 @@ export const ImagePreview = React.memo(function ImagePreview({
         if (newScale !== scale) {
             const rect = containerRef.current!.getBoundingClientRect();
             performZoom(newScale, e.clientX - rect.left, e.clientY - rect.top);
+            setIsWheelZooming(true);
+            if (wheelZoomTimerRef.current) {
+                clearTimeout(wheelZoomTimerRef.current);
+            }
+            wheelZoomTimerRef.current = setTimeout(() => {
+                setIsWheelZooming(false);
+            }, 120);
         }
     };
 
@@ -344,7 +357,8 @@ export const ImagePreview = React.memo(function ImagePreview({
                         className="relative z-10 w-full h-full flex items-center justify-center select-none"
                         style={{
                             transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-                            transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)'
+                            transition: isDragging || isWheelZooming ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)',
+                            willChange: isDragging || isWheelZooming ? 'transform' : undefined
                         }}
                     >
                         <img

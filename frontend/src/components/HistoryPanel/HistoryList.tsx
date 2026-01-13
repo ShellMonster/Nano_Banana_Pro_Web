@@ -1,6 +1,6 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo } from 'react';
 import { AutoSizer } from 'react-virtualized-auto-sizer';
-import { Grid, type CellComponentProps } from 'react-window';
+import { Grid, type CellComponentProps, type GridImperativeAPI } from 'react-window';
 import { useHistoryStore } from '../../store/historyStore';
 import { useShallow } from 'zustand/react/shallow';
 import { GeneratedImage, GenerationTask } from '../../types';
@@ -80,6 +80,10 @@ export function HistoryList() {
     }))
   );
   const [selectedImage, setSelectedImage] = React.useState<FlattenedImage | null>(null);
+  const gridRef = React.useRef<GridImperativeAPI | null>(null);
+  const scrollTopRef = React.useRef(0);
+  const gridMetricsRef = React.useRef({ innerHeight: 0, rowHeight: 0, rowCount: 0 });
+  const prevItemsLengthRef = React.useRef(0);
 
   // 辅助函数：根据像素计算分辨率标签
   const getResolutionLabel = useCallback((w: number, h: number) => {
@@ -109,6 +113,10 @@ export function HistoryList() {
   // 处理空任务点击
   const handleEmptyTaskClick = useCallback(() => {
     console.log('Empty task clicked');
+  }, []);
+
+  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    scrollTopRef.current = event.currentTarget.scrollTop;
   }, []);
 
   // 1. 数据处理：合并所有渲染项到单一列表
@@ -146,6 +154,21 @@ export function HistoryList() {
 
   // 判断项是否为图片
   const allImageItems = useMemo(() => renderItems.filter(isImageItem), [renderItems]);
+
+  useLayoutEffect(() => {
+    const prevLength = prevItemsLengthRef.current;
+    prevItemsLengthRef.current = renderItems.length;
+    if (renderItems.length >= prevLength) return;
+    const grid = gridRef.current?.element;
+    if (!grid) return;
+    const { innerHeight, rowHeight, rowCount } = gridMetricsRef.current;
+    if (!innerHeight || !rowHeight || !rowCount) return;
+    const maxScrollTop = Math.max(0, rowCount * rowHeight - innerHeight);
+    scrollTopRef.current = Math.min(scrollTopRef.current, maxScrollTop);
+    requestAnimationFrame(() => {
+      grid.scrollTo({ left: 0, top: scrollTopRef.current });
+    });
+  }, [renderItems.length]);
 
   type CellData = {
     items: RenderItem[];
@@ -233,6 +256,11 @@ export function HistoryList() {
               const columnWidth = Math.floor((innerWidth - gap * columnCount) / columnCount);
               const itemHeight = columnWidth + getRowExtraHeight(innerWidth);
               const rowCount = Math.ceil(renderItems.length / columnCount);
+              gridMetricsRef.current = {
+                innerHeight,
+                rowHeight: itemHeight + gap,
+                rowCount
+              };
 
               const cellProps: CellData = {
                 items: renderItems,
@@ -249,6 +277,7 @@ export function HistoryList() {
                   onContextMenu={(event) => event.preventDefault()}
                 >
                   <Grid
+                    gridRef={gridRef}
                     columnCount={columnCount}
                     columnWidth={columnWidth + gap}
                     rowCount={rowCount}
@@ -257,6 +286,7 @@ export function HistoryList() {
                     cellProps={cellProps}
                     overscanCount={2}
                     style={{ height: innerHeight, width: innerWidth }}
+                    onScroll={handleScroll}
                     onCellsRendered={(_, allCells) => {
                       if (hasMore && !loading && allCells.rowStopIndex >= rowCount - 1) {
                         loadMore();

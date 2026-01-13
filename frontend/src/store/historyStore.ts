@@ -219,8 +219,8 @@ export const useHistoryStore = create<HistoryState>()(
 
           toast.success('图片已删除');
 
-          // 后台刷新列表以同步后端状态
-          await get().loadHistory(true, { silent: true });
+          // 后台轻量同步（不重置分页，避免滚动跳顶）
+          get().loadHistory(false, { silent: true });
       } catch (error) {
           console.error('Failed to delete image:', error);
           const errorMessage = error instanceof Error ? error.message : '删除图片失败';

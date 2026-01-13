@@ -12,6 +12,7 @@ import {
   Github,
   Landmark,
   Loader2,
+  AlertTriangle,
   Maximize2,
   MessageCircle,
   Printer,
@@ -301,11 +302,21 @@ const TemplatePreviewModal = ({
     setScale(clamp(nextScale, 0.5, 5));
   }, []);
 
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+  const handleWheel = useCallback((event: WheelEvent) => {
     event.preventDefault();
+    event.stopPropagation();
     const delta = event.deltaY < 0 ? 0.2 : -0.2;
     setScale((prev) => clamp(prev + delta, 0.5, 5));
-  };
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleWheel, template?.id]);
 
   const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -437,6 +448,39 @@ const TemplatePreviewModal = ({
     else toast.error('复制失败');
   }, [copyText, rawImageSrc]);
 
+  const handleCopyPrompt = useCallback(async () => {
+    const prompt = template?.prompt?.trim();
+    if (!prompt) {
+      toast.info('暂无可复制内容');
+      return;
+    }
+    const ok = await copyText(prompt);
+    if (ok) toast.success('模板 Prompt 已复制');
+    else toast.error('复制失败');
+  }, [copyText, template?.prompt]);
+
+  const handleCopyTips = useCallback(async () => {
+    const tips = template?.tips?.trim();
+    if (!tips) {
+      toast.info('暂无可复制内容');
+      return;
+    }
+    const ok = await copyText(tips);
+    if (ok) toast.success('使用提示已复制');
+    else toast.error('复制失败');
+  }, [copyText, template?.tips]);
+
+  const handleCopyRequirements = useCallback(async () => {
+    const note = template?.requirements?.note?.trim();
+    if (!note) {
+      toast.info('暂无可复制内容');
+      return;
+    }
+    const ok = await copyText(note);
+    if (ok) toast.success('参考图要求已复制');
+    else toast.error('复制失败');
+  }, [copyText, template?.requirements?.note]);
+
   const handleDownload = useCallback(async () => {
     if (!rawImageSrc) {
       toast.info('暂无可下载图片');
@@ -540,16 +584,17 @@ const TemplatePreviewModal = ({
       isOpen={Boolean(template)}
       onClose={onClose}
       title="模板预览"
-      className="max-w-5xl"
+      className="max-w-5xl h-[82vh]"
+      contentScrollable={false}
+      contentClassName="h-full min-h-0"
     >
-      <div className="grid md:grid-cols-[minmax(0,1fr)_320px] gap-6">
-        <div className="bg-slate-900/5 rounded-3xl p-4 relative overflow-hidden min-h-[360px]">
+      <div className="grid md:grid-cols-[minmax(0,1fr)_320px] gap-6 h-full min-h-0">
+        <div className="bg-slate-900/5 rounded-3xl p-4 relative overflow-hidden min-h-[240px] md:h-full md:min-h-0">
           <div
             ref={containerRef}
-            className={`relative w-full h-full rounded-2xl overflow-hidden bg-white/70 flex items-center justify-center ${
+            className={`relative w-full h-full min-h-0 rounded-2xl overflow-hidden bg-white/70 flex items-center justify-center overscroll-contain ${
               isZoomed ? 'cursor-grab active:cursor-grabbing' : ''
             }`}
-            onWheel={handleWheel}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -560,7 +605,7 @@ const TemplatePreviewModal = ({
               <img
                 src={resolvedImageSrc}
                 alt={template.title}
-                className={`max-h-[60vh] w-full object-contain transition-opacity duration-300 ${
+                className={`w-full h-full max-h-full object-contain transition-opacity duration-300 ${
                   previewStatus === 'loaded' ? 'opacity-100' : 'opacity-0'
                 }`}
                 style={{
@@ -734,8 +779,8 @@ const TemplatePreviewModal = ({
               document.body
             )
           : null}
-        <div className="space-y-4">
-          <div>
+        <div className="flex flex-col gap-4 md:h-full md:min-h-0">
+          <div className="flex-shrink-0">
             <p className="text-xs uppercase text-slate-400 tracking-widest">模板信息</p>
             <h3 className="text-xl font-black text-slate-900 mt-2">{template.title}</h3>
             <div className="flex flex-wrap gap-2 mt-3">
@@ -747,53 +792,100 @@ const TemplatePreviewModal = ({
               ))}
             </div>
           </div>
-          {template.source?.name && (
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <span className="text-xs uppercase text-slate-400 tracking-widest">来源</span>
-              <div className="flex items-center gap-2 bg-white/70 border border-white/60 rounded-full px-3 py-1">
-                {renderSourceIcon(template.source)}
-                {template.source.url ? (
-                  <button
-                    type="button"
-                    onClick={() => openExternalUrl(template.source?.url ?? '')}
-                    className="text-blue-600 hover:underline"
-                  >
-                    {formatSourceName(template.source.name)}
-                  </button>
-                ) : (
-                  <span className="text-slate-700">{formatSourceName(template.source.name)}</span>
-                )}
-                {template.source.label && (
-                  <span className="text-slate-400">{template.source.label}</span>
-                )}
-              </div>
+          <div className="md:flex-1 md:min-h-0 overflow-y-auto overscroll-contain scrollbar-none pr-1">
+            <div className="space-y-4">
+              {template.source?.name && (
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <span className="text-xs uppercase text-slate-400 tracking-widest">来源</span>
+                  <div className="flex items-center gap-2 bg-white/70 border border-white/60 rounded-full px-3 py-1">
+                    {renderSourceIcon(template.source)}
+                    {template.source.url ? (
+                      <button
+                        type="button"
+                        onClick={() => openExternalUrl(template.source?.url ?? '')}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {formatSourceName(template.source.name)}
+                      </button>
+                    ) : (
+                      <span className="text-slate-700">{formatSourceName(template.source.name)}</span>
+                    )}
+                    {template.source.label && (
+                      <span className="text-slate-400">{template.source.label}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              {(previewStatus === 'error' || template.tips || template.requirements || template.prompt) && (
+                <div className="space-y-3">
+                  {previewStatus === 'error' && (
+                    <div className="rounded-2xl border border-rose-200/70 bg-rose-50/70 px-4 py-3 flex items-start gap-2 text-xs font-semibold text-rose-700">
+                      <AlertTriangle className="w-4 h-4 mt-0.5" />
+                      <span>图片加载失败，可继续查看模板信息</span>
+                    </div>
+                  )}
+                  {template.tips && (
+                    <div className="rounded-2xl border border-blue-200/70 bg-blue-50/70 p-4">
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-blue-700 tracking-widest">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          使用提示
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCopyTips}
+                          className="text-blue-600 hover:text-blue-700 font-semibold"
+                        >
+                          复制
+                        </button>
+                      </div>
+                      <p className="text-sm text-slate-700 mt-2 leading-relaxed">{template.tips}</p>
+                    </div>
+                  )}
+                  {template.requirements && (
+                    <div className="rounded-2xl border border-amber-200/70 bg-amber-50/70 p-4">
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-amber-700 tracking-widest">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          参考图要求
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCopyRequirements}
+                          className="text-blue-600 hover:text-blue-700 font-semibold"
+                        >
+                          复制
+                        </button>
+                      </div>
+                      <p className="text-sm text-slate-700 mt-2 leading-relaxed">{template.requirements.note}</p>
+                    </div>
+                  )}
+                  {template.prompt && (
+                    <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-4">
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 tracking-widest">
+                        <div className="flex items-center gap-2">
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          模板 Prompt
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCopyPrompt}
+                          className="text-blue-600 hover:text-blue-700 font-semibold"
+                        >
+                          复制
+                        </button>
+                      </div>
+                      <div className="mt-2 rounded-xl border border-slate-200/60 bg-slate-50/70 p-3">
+                        <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap font-mono">
+                          {template.prompt}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-          {(previewStatus === 'error' || template.tips || template.requirements || template.prompt) && (
-            <div className="bg-white/70 border border-white/60 rounded-2xl p-4 space-y-3">
-              {previewStatus === 'error' && (
-                <div className="text-xs text-rose-600 font-semibold">图片加载失败，可继续查看模板信息</div>
-              )}
-              {template.tips && (
-                <div className="pt-3 border-t border-slate-200/70 first:pt-0 first:border-0">
-                  <p className="text-xs uppercase text-slate-400 tracking-widest">使用提示</p>
-                  <p className="text-sm text-slate-700 mt-1">{template.tips}</p>
-                </div>
-              )}
-              {template.requirements && (
-                <div className="pt-3 border-t border-slate-200/70 first:pt-0 first:border-0">
-                  <p className="text-xs uppercase text-slate-400 tracking-widest">参考图要求</p>
-                  <p className="text-sm text-slate-700 mt-1">{template.requirements.note}</p>
-                </div>
-              )}
-              {template.prompt && (
-                <div className="pt-3 border-t border-slate-200/70 first:pt-0 first:border-0">
-                  <p className="text-xs uppercase text-slate-400 tracking-widest">模板 Prompt</p>
-                  <p className="text-sm text-slate-700 mt-1 leading-relaxed whitespace-pre-wrap">{template.prompt}</p>
-                </div>
-              )}
-            </div>
-          )}
+          </div>
           <Button
             size="lg"
             onClick={() => onUse(template)}

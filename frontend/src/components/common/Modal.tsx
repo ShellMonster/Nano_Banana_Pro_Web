@@ -11,6 +11,8 @@ interface ModalProps {
   className?: string;
   hideHeader?: boolean;
   density?: 'default' | 'compact';
+  contentScrollable?: boolean;
+  contentClassName?: string;
 }
 
 export function Modal({
@@ -21,7 +23,9 @@ export function Modal({
   headerActions,
   className = '',
   hideHeader = false,
-  density = 'default'
+  density = 'default',
+  contentScrollable = true,
+  contentClassName = ''
 }: ModalProps) {
   // 当弹窗打开时，禁止背景滚动
   useEffect(() => {
@@ -92,10 +96,12 @@ export function Modal({
         {/* 内容区域 - 确保可滚动且不被遮挡 */}
         <div
           className={[
-            'flex-1 overflow-y-auto scrollbar-none',
+            'flex-1',
+            contentScrollable ? 'overflow-y-auto scrollbar-none' : 'overflow-hidden overscroll-none',
             hideHeader
               ? ''
-              : (density === 'compact' ? 'px-8 py-5 pb-8' : 'px-10 py-8 pb-12')
+              : (density === 'compact' ? 'px-8 py-5 pb-8' : 'px-10 py-8 pb-12'),
+            contentClassName
           ].join(' ')}
         >
           {children}
