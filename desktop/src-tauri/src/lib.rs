@@ -412,6 +412,68 @@ fn read_image_from_clipboard(app: tauri::AppHandle) -> Result<Option<String>, St
     Ok(Some(out_path.to_string_lossy().to_string()))
 }
 
+// 将任意本地图片复制到 AppData/ref_images（用于持久化参考图）
+#[tauri::command]
+fn persist_ref_image(app: tauri::AppHandle, path: String, dest_name: String) -> Result<String, String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("path is empty".to_string());
+    }
+    let dest = dest_name.trim();
+    if dest.is_empty() {
+        return Err("dest_name is empty".to_string());
+    }
+    if dest.contains('/') || dest.contains('\\') {
+        return Err("dest_name invalid".to_string());
+    }
+
+    let normalized = if let Some(p) = trimmed.strip_prefix("file://localhost") {
+        p.to_string()
+    } else if let Some(p) = trimmed.strip_prefix("file://") {
+        p.to_string()
+    } else {
+        trimmed.to_string()
+    };
+
+    let input_path = PathBuf::from(normalized);
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if input_path.is_absolute() {
+        candidates.push(input_path);
+    } else {
+        if let Ok(app_data) = app.path().app_data_dir() {
+            candidates.push(app_data.join(&input_path));
+        }
+        if let Ok(current_dir) = std::env::current_dir() {
+            candidates.push(current_dir.join(&input_path));
+        }
+        if let Ok(resource_dir) = app.path().resource_dir() {
+            candidates.push(resource_dir.join(&input_path));
+        }
+        candidates.push(input_path);
+    }
+
+    let file_path = candidates
+        .iter()
+        .find(|p| p.exists())
+        .cloned()
+        .unwrap_or_else(|| candidates.first().cloned().unwrap());
+
+    let base = app
+        .path()
+        .app_data_dir()
+        .unwrap_or_else(|_| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let dir = base.join("ref_images");
+    fs::create_dir_all(&dir).map_err(|e| format!("create ref_images failed: {}", e))?;
+
+    let dest_path = dir.join(dest);
+    if !dest_path.exists() {
+        fs::copy(&file_path, &dest_path)
+            .map_err(|e| format!("copy file failed: {} ({})", e, file_path.display()))?;
+    }
+
+    Ok(format!("ref_images/{}", dest))
+}
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -528,7 +590,8 @@ pub fn run() {
             write_frontend_logs,
             copy_image_to_clipboard,
             copy_text_to_clipboard,
-            read_image_from_clipboard
+            read_image_from_clipboard,
+            persist_ref_image
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
