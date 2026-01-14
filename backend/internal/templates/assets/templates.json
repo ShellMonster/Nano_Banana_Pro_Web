@@ -1,7 +1,7 @@
 {
   "meta": {
-    "version": "2026-01-12",
-    "updated_at": "2026-01-12T10:54:14.944828",
+    "version": "2026-01-14",
+    "updated_at": "2026-01-14T14:27:36.120251",
     "channels": [
       "全部",
       "电商",
@@ -14,17 +14,24 @@
       "教育培训",
       "广告营销",
       "产品设计",
-      "影视制作"
+      "影视制作",
+      "线下印刷",
+      "线下电商"
     ],
     "materials": [
       "全部",
       "海报",
+      "公众号首图",
+      "公众号次图",
+      "文章长图",
       "教育课件",
       "产品展示",
       "小红书封面",
+      "小红书配图",
       "全屏海报",
       "电商竖版海报",
       "商品主图",
+      "详情页",
       "广告图",
       "表情包",
       "电影海报",
@@ -44,6 +51,7 @@
       "金融保险",
       "商品零售",
       "企业行政",
+      "政务媒体",
       "美容美妆",
       "食品生鲜",
       "服饰箱包",
@@ -26093,6 +26101,77 @@
         "label": "GitHub",
         "url": "https://x.com/lexx_aura/status/1994090956916969536"
       }
+    },
+    {
+      "id": "nbp-0936",
+      "title": "Nano Banana·十格漫画教育长图",
+      "channels": [
+        "微信/公众号",
+        "教育培训",
+        "社群发圈"
+      ],
+      "materials": [
+        "教育课件",
+        "学习卡片",
+        "漫画插图"
+      ],
+      "industries": [
+        "教育培训"
+      ],
+      "ratio": "9:16",
+      "preview": "https://mmbiz.qpic.cn/sz_mmbiz_png/bZ4uXXlXWJntE2GV6jz8lfLvI4585xXAocGBV19HNqw3fiawFXDB2SUFPBFOjIy4ZewwZKNut16RMb3v09WBiaicg/0?from=appmsg&wxfrom=12&wx_fmt=png&tp=wxpic&usePicPrefetch=1",
+      "image": "https://mmbiz.qpic.cn/sz_mmbiz_png/bZ4uXXlXWJntE2GV6jz8lfLvI4585xXAocGBV19HNqw3fiawFXDB2SUFPBFOjIy4ZewwZKNut16RMb3v09WBiaicg/0?from=appmsg&wxfrom=12&wx_fmt=png&tp=wxpic&usePicPrefetch=1",
+      "prompt": "制作一个竖版长图。详细解释（这里写你要的教程）。像一个老师一样给玩家详细讲解。分为10格漫画形式。",
+      "prompt_params": "将括号内的内容替换为你想要讲解的具体主题或知识点，可以调整漫画风格、角色形象和讲解详细程度",
+      "tips": "适合制作教育类图文教程，通过十格漫画形式生动讲解知识点，适用于知识科普、技能教学等场景",
+      "source": {
+        "name": "冯小冯",
+        "label": "微信公众号",
+        "url": "https://mp.weixin.qq.com/s/fcgNVJ6sWTNWHITxba4FOg"
+      },
+      "tags": [
+        "教育",
+        "教程",
+        "漫画",
+        "知识科普",
+        "图文教程"
+      ]
+    },
+    {
+      "id": "nbp-0937",
+      "title": "Nano Banana·儿童识字海报生成",
+      "channels": [
+        "教育培训",
+        "微信/公众号",
+        "社群发圈"
+      ],
+      "materials": [
+        "教育课件",
+        "学习卡片",
+        "海报"
+      ],
+      "industries": [
+        "教育培训",
+        "母婴育儿"
+      ],
+      "ratio": "3:4",
+      "preview": "https://mmbiz.qpic.cn/sz_mmbiz_png/xfubYXpwygAcThOhKiakj6p5QJ0jjQKXuWPicoTTmg8HkTBD5NRGiaUC5svicOyu1vusow7addRicPlzzXuAeGksviaQ/0?wxfrom=12&wx_fmt=png&tp=wxpic&watermark=1",
+      "image": "https://mmbiz.qpic.cn/sz_mmbiz_png/xfubYXpwygAcThOhKiakj6p5QJ0jjQKXuWPicoTTmg8HkTBD5NRGiaUC5svicOyu1vusow7addRicPlzzXuAeGksviaQ/0?wxfrom=12&wx_fmt=png&tp=wxpic&watermark=1",
+      "prompt": "制作一张儿童识字海报。场景设置为SCENE_TIME，在画面中融入{物品1}、{物品2}、{物品3}等物品进行识字教学。每个物品旁边标注对应的汉字，采用卡通插画风格，色彩鲜艳明亮，适合儿童学习。",
+      "prompt_params": "将SCENE_TIME替换为具体场景（如：恐龙公园、海底世界、森林学校），{}中填写要学习的物品名称，可调整风格、色彩和识字数量",
+      "tips": "适合制作儿童识字教材、幼教素材、识字卡片等。可根据主题定制场景和物品，帮助儿童在趣味环境中学习汉字",
+      "source": {
+        "name": "三个茅庐",
+        "label": "微信公众号",
+        "url": "https://mp.weixin.qq.com/s/wTUR8ZojoorNWzhuD1vFtw"
+      },
+      "tags": [
+        "儿童教育",
+        "识字",
+        "海报",
+        "幼教",
+        "识字卡片"
+      ]
     }
   ]
 }
