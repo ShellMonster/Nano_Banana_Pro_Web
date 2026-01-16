@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2, MessageSquare, Redo2, Sparkles, Undo2 } from 'lucide-react';
+import { FileJson, Loader2, MessageSquare, Redo2, Sparkles, Undo2 } from 'lucide-react';
 import { useConfigStore } from '../../store/configStore';
 import { usePromptHistoryStore } from '../../store/promptHistoryStore';
 import { optimizePrompt } from '../../services/promptApi';
@@ -13,6 +13,7 @@ export function PromptInput() {
   const isSubmitting = useGenerateStore((s) => s.isSubmitting);
   const isGenerating = status === 'processing' || isSubmitting;
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizingMode, setOptimizingMode] = useState<'normal' | 'json' | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipRecordRef = useRef(false);
   const initializedRef = useRef(false);
@@ -65,7 +66,20 @@ export function PromptInput() {
     setPrompt(next);
   };
 
-  const handleOptimize = async () => {
+  const formatJsonPrompt = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return value;
+    const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const candidate = fenceMatch ? fenceMatch[1].trim() : trimmed;
+    try {
+      const parsed = JSON.parse(candidate);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return value;
+    }
+  };
+
+  const runOptimize = async (mode: 'normal' | 'json') => {
     const raw = prompt.trim();
     if (!raw) {
       toast.error('请输入提示词');
@@ -93,12 +107,21 @@ export function PromptInput() {
     }
     record(prompt);
     setIsOptimizing(true);
+    setOptimizingMode(mode);
     try {
-      const res = await optimizePrompt({ provider: chatProvider, model: chatModelValue, prompt: raw });
-      const nextPrompt = String(res?.prompt || '').trim();
+      const res = await optimizePrompt({
+        provider: chatProvider,
+        model: chatModelValue,
+        prompt: raw,
+        response_format: mode === 'json' ? 'json' : undefined,
+      });
+      let nextPrompt = String(res?.prompt || '').trim();
       if (!nextPrompt) {
         toast.error('优化失败，未返回内容');
         return;
+      }
+      if (mode === 'json') {
+        nextPrompt = formatJsonPrompt(nextPrompt);
       }
       record(nextPrompt);
       skipRecordRef.current = true;
@@ -134,6 +157,7 @@ export function PromptInput() {
       toast.error(message);
     } finally {
       setIsOptimizing(false);
+      setOptimizingMode(null);
     }
   };
 
@@ -147,7 +171,7 @@ export function PromptInput() {
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={handleOptimize}
+            onClick={() => runOptimize('normal')}
             disabled={isGenerating || isOptimizing}
             title="优化提示词"
             className={`p-1.5 rounded-lg transition-all ${
@@ -156,10 +180,27 @@ export function PromptInput() {
                 : 'bg-slate-100 text-slate-700 hover:bg-white'
             }`}
           >
-            {isOptimizing ? (
+            {isOptimizing && optimizingMode === 'normal' ? (
               <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
             ) : (
               <Sparkles className="w-4 h-4 text-blue-600" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => runOptimize('json')}
+            disabled={isGenerating || isOptimizing}
+            title="JSON提示词"
+            className={`p-1.5 rounded-lg transition-all ${
+              isGenerating || isOptimizing
+                ? 'opacity-50 cursor-not-allowed bg-slate-100'
+                : 'bg-slate-100 text-slate-700 hover:bg-white'
+            }`}
+          >
+            {isOptimizing && optimizingMode === 'json' ? (
+              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+            ) : (
+              <FileJson className="w-4 h-4 text-blue-600" />
             )}
           </button>
           {!isGenerating && (

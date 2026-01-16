@@ -16,11 +16,16 @@ export default function MainLayout() {
   const setSidebarOpen = useGenerateStore((s) => s.setSidebarOpen);
   const taskId = useGenerateStore((s) => s.taskId);
   const status = useGenerateStore((s) => s.status);
+  const images = useGenerateStore((s) => s.images);
+  const totalCount = useGenerateStore((s) => s.totalCount);
+  const completedCount = useGenerateStore((s) => s.completedCount);
+  const errorMessage = useGenerateStore((s) => s.error);
 
   const [isHydrated, setIsHydrated] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isTemplateMarketOpen, setIsTemplateMarketOpen] = useState(false);
   const safeTab = currentTab === 'history' ? 'history' : 'generate';
+  const lastTaskIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (currentTab !== 'generate' && currentTab !== 'history') {
@@ -28,8 +33,33 @@ export default function MainLayout() {
     }
   }, [currentTab, setTab]);
 
+  useEffect(() => {
+    if (taskId) {
+      lastTaskIdRef.current = taskId;
+    }
+  }, [taskId]);
+
   // 确保状态恢复
   useEffect(() => setIsHydrated(true), []);
+
+  // 轻量同步：生成区状态变化时写回历史列表，避免两边状态不一致
+  useEffect(() => {
+    if (!isHydrated) return;
+    const syncTaskId = taskId || (status !== 'idle' ? lastTaskIdRef.current : null);
+    if (!syncTaskId) return;
+
+    const taskImages = images.filter((img) => img.taskId === syncTaskId);
+    const historyStatus = status === 'idle' ? undefined : status;
+    useHistoryStore.getState().upsertTask({
+      id: syncTaskId,
+      status: historyStatus,
+      totalCount,
+      completedCount,
+      errorMessage: status === 'failed' ? (errorMessage || '') : '',
+      images: taskImages,
+      updatedAt: new Date().toISOString()
+    });
+  }, [isHydrated, taskId, status, totalCount, completedCount, images, errorMessage]);
 
   // 刷新后如果仍有进行中的任务，后台拉一次历史触发 syncWithGenerateStore 做纠偏/恢复
   // 避免“必须切到历史页才恢复”的业务闭环缺口

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { HistoryItem } from '../types';
+import { GeneratedImage, HistoryItem } from '../types';
 import { getHistory, searchHistory, deleteHistory, deleteBatchHistory, deleteImage, getHistoryDetail } from '../services/historyApi';
 import { mapBackendHistoryResponse, mapBackendTaskToFrontend } from '../utils/mapping';
 import { useGenerateStore } from './generateStore';
@@ -22,9 +22,62 @@ interface HistoryState {
   deleteItems: (ids: string[]) => Promise<void>;
   deleteImage: (imageId: string, taskId: string) => Promise<void>;
   getDetail: (id: string) => Promise<HistoryItem>;
+  upsertTask: (task: HistoryTaskUpdate) => void;
 }
 
 let latestHistoryRequestId = 0;
+
+type HistoryTaskUpdate = Partial<HistoryItem> & { id: string };
+
+const mergeImages = (existing: GeneratedImage[] = [], incoming: GeneratedImage[] = []) => {
+  if (!incoming.length) return existing;
+  const imageMap = new Map(existing.map((img) => [img.id, img]));
+  incoming.forEach((img) => {
+    const prev = imageMap.get(img.id);
+    imageMap.set(img.id, prev ? { ...prev, ...img } : img);
+  });
+  return Array.from(imageMap.values());
+};
+
+const mergeTask = (existing: HistoryItem | undefined, incoming: HistoryTaskUpdate): HistoryItem => {
+  if (!existing) {
+    return {
+      id: incoming.id,
+      prompt: incoming.prompt || '',
+      model: incoming.model || '',
+      totalCount: incoming.totalCount ?? 0,
+      completedCount: incoming.completedCount ?? 0,
+      status: incoming.status || 'processing',
+      options: incoming.options || '',
+      errorMessage: incoming.errorMessage || '',
+      createdAt: incoming.createdAt || new Date().toISOString(),
+      updatedAt: incoming.updatedAt || new Date().toISOString(),
+      images: incoming.images ? [...incoming.images] : []
+    };
+  }
+
+  const mergedImages = mergeImages(existing.images, incoming.images || []);
+  const nextTotal =
+    typeof incoming.totalCount === 'number' && incoming.totalCount > 0 ? incoming.totalCount : existing.totalCount;
+  const nextCompleted =
+    typeof incoming.completedCount === 'number'
+      ? Math.max(existing.completedCount, incoming.completedCount)
+      : existing.completedCount;
+
+  return {
+    ...existing,
+    ...incoming,
+    prompt: incoming.prompt || existing.prompt,
+    model: incoming.model || existing.model,
+    options: incoming.options || existing.options,
+    errorMessage: incoming.errorMessage || existing.errorMessage,
+    totalCount: nextTotal,
+    completedCount: nextCompleted,
+    createdAt: incoming.createdAt || existing.createdAt,
+    updatedAt: incoming.updatedAt || existing.updatedAt,
+    images: mergedImages
+  };
+};
 
 export const useHistoryStore = create<HistoryState>()(
   persist(
@@ -240,6 +293,19 @@ export const useHistoryStore = create<HistoryState>()(
               toast.error(errorMessage);
               throw error;
           }
+      },
+
+      upsertTask: (task) => {
+        set((state) => {
+          const existingIndex = state.items.findIndex((item) => item.id === task.id);
+          const nextItems = [...state.items];
+          if (existingIndex >= 0) {
+            nextItems[existingIndex] = mergeTask(nextItems[existingIndex], task);
+          } else {
+            nextItems.unshift(mergeTask(undefined, task));
+          }
+          return { items: nextItems };
+        });
       },
 
       // 获取详情

@@ -6,6 +6,7 @@ import { useWebSocket } from './useWebSocket';
 import { setUpdateSource, getUpdateSource, clearUpdateSource } from '../store/updateSourceStore';
 import { toast } from '../store/toastStore';
 import { usePromptHistoryStore } from '../store/promptHistoryStore';
+import { useHistoryStore } from '../store/historyStore';
 
 // WebSocket 超时时间（毫秒）- 超过此时间无消息则启动轮询
 const WS_TIMEOUT = 15000;
@@ -253,6 +254,13 @@ export function useGenerate() {
           prompt: config.prompt,
           aspectRatio: config.aspectRatio,
           imageSize: config.imageSize
+      });
+
+      // 生成区与历史区同步：先写入一条本地任务占位，避免历史列表不刷新导致状态不同步
+      useHistoryStore.getState().upsertTask({
+        ...task,
+        status: 'processing',
+        updatedAt: new Date().toISOString()
       });
 
       // 竞态条件修复：设置初始更新源为 websocket

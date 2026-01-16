@@ -207,9 +207,10 @@ func ListProvidersHandler(c *gin.Context) {
 
 // PromptOptimizeRequest 提示词优化请求
 type PromptOptimizeRequest struct {
-	Provider string `json:"provider"`
-	Model    string `json:"model"`
-	Prompt   string `json:"prompt" binding:"required"`
+	Provider       string `json:"provider"`
+	Model          string `json:"model"`
+	Prompt         string `json:"prompt" binding:"required"`
+	ResponseFormat string `json:"response_format"`
 }
 
 // OptimizePromptHandler 使用 OpenAI 标准接口优化提示词
@@ -257,12 +258,15 @@ func OptimizePromptHandler(c *gin.Context) {
 		return
 	}
 
+	responseFormat := strings.ToLower(strings.TrimSpace(req.ResponseFormat))
+	forceJSON := responseFormat == "json" || responseFormat == "json_object" || responseFormat == "application/json"
+
 	var optimized string
 	var err error
 	if req.Provider == "gemini-chat" {
-		optimized, err = callGeminiOptimize(c.Request.Context(), &cfg, modelName, req.Prompt)
+		optimized, err = callGeminiOptimize(c.Request.Context(), &cfg, modelName, req.Prompt, forceJSON)
 	} else {
-		optimized, err = callOpenAIOptimize(c.Request.Context(), &cfg, modelName, req.Prompt)
+		optimized, err = callOpenAIOptimize(c.Request.Context(), &cfg, modelName, req.Prompt, forceJSON)
 	}
 	if err != nil {
 		Error(c, http.StatusBadRequest, 400, err.Error())
@@ -544,7 +548,14 @@ func DownloadImageHandler(c *gin.Context) {
 	c.File(task.LocalPath)
 }
 
-func getOptimizeSystemPrompt() string {
+func getOptimizeSystemPrompt(forceJSON bool) string {
+	if forceJSON {
+		prompt := strings.TrimSpace(config.GlobalConfig.Prompts.OptimizeSystemJSON)
+		if prompt == "" {
+			return config.DefaultOptimizeSystemJSONPrompt
+		}
+		return prompt
+	}
 	prompt := strings.TrimSpace(config.GlobalConfig.Prompts.OptimizeSystem)
 	if prompt == "" {
 		return config.DefaultOptimizeSystemPrompt
@@ -552,7 +563,7 @@ func getOptimizeSystemPrompt() string {
 	return prompt
 }
 
-func callGeminiOptimize(ctx context.Context, cfg *model.ProviderConfig, modelName, prompt string) (string, error) {
+func callGeminiOptimize(ctx context.Context, cfg *model.ProviderConfig, modelName, prompt string, forceJSON bool) (string, error) {
 	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
 	if timeout <= 0 {
 		timeout = 60 * time.Second
@@ -586,11 +597,14 @@ func callGeminiOptimize(ctx context.Context, cfg *model.ProviderConfig, modelNam
 		return "", fmt.Errorf("创建 Gemini 客户端失败: %w", err)
 	}
 
-	systemPrompt := getOptimizeSystemPrompt()
+	systemPrompt := getOptimizeSystemPrompt(forceJSON)
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: &genai.Content{
 			Parts: []*genai.Part{{Text: systemPrompt}},
 		},
+	}
+	if forceJSON {
+		config.ResponseMIMEType = "application/json"
 	}
 	contents := []*genai.Content{
 		{
@@ -611,7 +625,7 @@ func callGeminiOptimize(ctx context.Context, cfg *model.ProviderConfig, modelNam
 	return optimized, nil
 }
 
-func callOpenAIOptimize(ctx context.Context, cfg *model.ProviderConfig, modelName, prompt string) (string, error) {
+func callOpenAIOptimize(ctx context.Context, cfg *model.ProviderConfig, modelName, prompt string, forceJSON bool) (string, error) {
 	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
 	if timeout <= 0 {
 		timeout = 60 * time.Second
@@ -627,13 +641,16 @@ func callOpenAIOptimize(ctx context.Context, cfg *model.ProviderConfig, modelNam
 	}
 	client := openai.NewClient(opts...)
 
-	systemPrompt := getOptimizeSystemPrompt()
+	systemPrompt := getOptimizeSystemPrompt(forceJSON)
 	payload := map[string]interface{}{
 		"model": modelName,
 		"messages": []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(systemPrompt),
 			openai.UserMessage(prompt),
 		},
+	}
+	if forceJSON {
+		payload["response_format"] = map[string]interface{}{"type": "json_object"}
 	}
 
 	var respBytes []byte

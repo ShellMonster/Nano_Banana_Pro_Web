@@ -72,7 +72,7 @@ export function ImageGrid({ onPreview }: ImageGridProps) {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+    <div className="h-full min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
       <AutoSizer
         className="h-full w-full"
         renderProp={({ width }) => {

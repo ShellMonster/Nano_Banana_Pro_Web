@@ -37,6 +37,9 @@ export default function MainLayout() {
   const taskId = useGenerateStore((s) => s.taskId);
   const status = useGenerateStore((s) => s.status);
   const images = useGenerateStore((s) => s.images);
+  const totalCount = useGenerateStore((s) => s.totalCount);
+  const completedCount = useGenerateStore((s) => s.completedCount);
+  const errorMessage = useGenerateStore((s) => s.error);
 
   const [isHydrated, setIsHydrated] = useState(false);
   const [isTauriReady, setIsTauriReady] = useState(false);
@@ -44,6 +47,7 @@ export default function MainLayout() {
   const [isBackendHealthy, setIsBackendHealthy] = useState<boolean | null>(null);
   const [isTemplateMarketOpen, setIsTemplateMarketOpen] = useState(false);
   const safeTab = currentTab === 'history' ? 'history' : 'generate';
+  const lastTaskIdRef = useRef<string | null>(null);
 
   // 1. 确保状态恢复
   useEffect(() => {
@@ -60,6 +64,12 @@ export default function MainLayout() {
       setTab('generate');
     }
   }, [currentTab, setTab]);
+
+  useEffect(() => {
+    if (taskId) {
+      lastTaskIdRef.current = taskId;
+    }
+  }, [taskId]);
 
   // 2. 检查后端健康状态
   useEffect(() => {
@@ -112,6 +122,25 @@ export default function MainLayout() {
       hasPrefetchedHistoryRef.current = false;
     });
   }, [isHydrated, isTauriReady]);
+
+  // 轻量同步：生成区状态变化时写回历史列表，避免两边状态不一致
+  useEffect(() => {
+    if (!isHydrated || !isTauriReady) return;
+    const syncTaskId = taskId || (status !== 'idle' ? lastTaskIdRef.current : null);
+    if (!syncTaskId) return;
+
+    const taskImages = images.filter((img) => img.taskId === syncTaskId);
+    const historyStatus = status === 'idle' ? undefined : status;
+    useHistoryStore.getState().upsertTask({
+      id: syncTaskId,
+      status: historyStatus,
+      totalCount,
+      completedCount,
+      errorMessage: status === 'failed' ? (errorMessage || '') : '',
+      images: taskImages,
+      updatedAt: new Date().toISOString()
+    });
+  }, [isHydrated, isTauriReady, taskId, status, totalCount, completedCount, images, errorMessage]);
 
   const hasCurrentTaskImages = useMemo(() => {
     if (!taskId) return false;

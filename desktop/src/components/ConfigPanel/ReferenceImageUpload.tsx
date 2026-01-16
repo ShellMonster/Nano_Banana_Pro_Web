@@ -10,6 +10,7 @@ import { calculateMd5, compressImage, fetchFileWithMd5 } from '../../utils/image
 import { getImageUrl } from '../../services/api';
 
 const REF_IMAGE_DIR = 'ref_images';
+const REORDER_DRAG_THRESHOLD = 6;
 
 const normalizePath = (value: string) => value.replace(/\\/g, '/').replace(/\/+/g, '/');
 const isWindowsAbsolutePath = (value: string) => /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith('\\\\');
@@ -116,6 +117,16 @@ export function ReferenceImageUpload() {
   const fileMd5MapRef = useRef<Map<string, string>>(new Map());
   const isProcessingRef = useRef<boolean>(false); // 防止并发操作
   const prevRefFilesLengthRef = useRef(0); // 记录上一次 refFiles 的长度，用于检测新增文件
+  const prevScrollFilesLengthRef = useRef(0); // 仅用于新增时滚动到末尾
+  const previewListRef = useRef<HTMLDivElement>(null);
+  const reorderPointerIdRef = useRef<number | null>(null);
+  const reorderStartRef = useRef({ x: 0, y: 0 });
+  const reorderIndexRef = useRef<number | null>(null);
+  const isReorderingRef = useRef(false);
+  const [isReordering, setIsReordering] = useState(false);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const dragPreviewDataRef = useRef<{ key: string; url: string } | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ key: string; url: string; x: number; y: number } | null>(null);
   const isInternalDragging = useInternalDragStore((s) => s.isDragging);
   const isOverDropTarget = useInternalDragStore((s) => s.isOverDropTarget);
   const setDropTarget = useInternalDragStore((s) => s.setDropTarget);
@@ -1004,6 +1015,12 @@ export function ReferenceImageUpload() {
 
   // 处理拖拽释放
   const handleDrop = useCallback(async (e: React.DragEvent) => {
+    if (isReorderingRef.current || reorderPointerIdRef.current !== null) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDraggingOver(false);
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingOver(false);
@@ -1269,6 +1286,149 @@ export function ReferenceImageUpload() {
     prevRefFilesLengthRef.current = useConfigStore.getState().refFiles.length;
   }, [removeRefFile]);
 
+  const ensurePreviewInfo = (file: File) => {
+    const key = (file as ExtendedFile).__md5 || `${file.name}-${file.size}-${file.lastModified}`;
+    if (!objectUrlsRef.current.has(key)) {
+      let url: string;
+      const extFile = file as ExtendedFile;
+      if (extFile.__path) {
+        url = getImageUrl(extFile.__path);
+        if (!url) url = URL.createObjectURL(file);
+      } else {
+        url = URL.createObjectURL(file);
+      }
+      objectUrlsRef.current.set(key, url);
+    }
+    return { key, url: objectUrlsRef.current.get(key)! };
+  };
+
+  const reorderRefFiles = useCallback((fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    const currentFiles = useConfigStore.getState().refFiles;
+    if (fromIndex < 0 || toIndex < 0 || fromIndex >= currentFiles.length || toIndex >= currentFiles.length) return;
+    const nextFiles = [...currentFiles];
+    const [moved] = nextFiles.splice(fromIndex, 1);
+    nextFiles.splice(toIndex, 0, moved);
+    setRefFiles(nextFiles);
+  }, [setRefFiles]);
+
+  const handlePreviewPointerDown = useCallback((index: number) => (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    if ((event.target as HTMLElement)?.closest('button')) return;
+    if (refFiles.length < 2) return;
+    const currentFiles = useConfigStore.getState().refFiles;
+    const file = currentFiles[index];
+    if (file) {
+      dragPreviewDataRef.current = ensurePreviewInfo(file);
+    } else {
+      dragPreviewDataRef.current = null;
+    }
+    reorderPointerIdRef.current = event.pointerId;
+    reorderStartRef.current = { x: event.clientX, y: event.clientY };
+    reorderIndexRef.current = index;
+    isReorderingRef.current = false;
+    setDraggingIndex(index);
+    setIsReordering(true);
+  }, [refFiles.length]);
+
+  useEffect(() => {
+    if (!isReordering) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (event.pointerId !== reorderPointerIdRef.current) return;
+      const fromIndex = reorderIndexRef.current;
+      if (fromIndex === null) return;
+      const dx = event.clientX - reorderStartRef.current.x;
+      const dy = event.clientY - reorderStartRef.current.y;
+
+      if (!isReorderingRef.current) {
+        if (Math.hypot(dx, dy) < REORDER_DRAG_THRESHOLD) {
+          return;
+        }
+        isReorderingRef.current = true;
+        if (dragPreviewDataRef.current) {
+          setDragPreview({
+            ...dragPreviewDataRef.current,
+            x: event.clientX,
+            y: event.clientY,
+          });
+        }
+      }
+
+      if (event.cancelable) event.preventDefault();
+
+      if (dragPreviewDataRef.current) {
+        setDragPreview((prev) =>
+          prev
+            ? { ...prev, x: event.clientX, y: event.clientY }
+            : { ...dragPreviewDataRef.current!, x: event.clientX, y: event.clientY }
+        );
+      }
+
+      const listEl = previewListRef.current;
+      if (listEl) {
+        const rect = listEl.getBoundingClientRect();
+        const edge = 24;
+        const step = 12;
+        if (event.clientX < rect.left + edge) {
+          listEl.scrollLeft -= step;
+        } else if (event.clientX > rect.right - edge) {
+          listEl.scrollLeft += step;
+        }
+      }
+
+      const target = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
+      const targetItem = target?.closest('[data-ref-index]') as HTMLElement | null;
+      if (!targetItem) return;
+      const nextIndex = Number(targetItem.dataset.refIndex);
+      if (!Number.isFinite(nextIndex) || nextIndex === fromIndex) return;
+      reorderRefFiles(fromIndex, nextIndex);
+      reorderIndexRef.current = nextIndex;
+      setDraggingIndex(nextIndex);
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      if (event.pointerId !== reorderPointerIdRef.current) return;
+      reorderPointerIdRef.current = null;
+      reorderIndexRef.current = null;
+      isReorderingRef.current = false;
+      setIsReordering(false);
+      setDraggingIndex(null);
+      dragPreviewDataRef.current = null;
+      setDragPreview(null);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, true);
+    window.addEventListener('pointerup', handlePointerUp, true);
+    window.addEventListener('pointercancel', handlePointerUp, true);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove, true);
+      window.removeEventListener('pointerup', handlePointerUp, true);
+      window.removeEventListener('pointercancel', handlePointerUp, true);
+    };
+  }, [isReordering, reorderRefFiles]);
+
+  useEffect(() => {
+    if (!isReordering) return;
+    const previous = document.body.style.userSelect;
+    document.body.style.userSelect = 'none';
+    return () => {
+      document.body.style.userSelect = previous;
+    };
+  }, [isReordering]);
+
+  useEffect(() => {
+    if (refFiles.length > prevScrollFilesLengthRef.current) {
+      requestAnimationFrame(() => {
+        const listEl = previewListRef.current;
+        if (listEl) {
+          listEl.scrollLeft = listEl.scrollWidth;
+        }
+      });
+    }
+    prevScrollFilesLengthRef.current = refFiles.length;
+  }, [refFiles.length]);
+
   // 处理区域点击
   const handleAreaClick = () => {
     if (!isExpanded) {
@@ -1298,31 +1458,40 @@ export function ReferenceImageUpload() {
         });
 
         if (Array.isArray(selected) && selected.length > 0) {
-           const remainingSlots = 10 - refFiles.length;
-           const filesToProcess = selected.slice(0, remainingSlots);
-           
-           const newFiles: ExtendedFile[] = [];
-           for (const path of filesToProcess) {
-             try {
-               // 获取文件名
-               const name = path.split(/[/\\]/).pop() || 'image.jpg';
-               // 建立一个空的 File 对象，但带有 __path 属性
-               // 这样我们就避免了通过 IPC 传输二进制数据
-               const file = new File([], name, { type: 'image/jpeg' }) as ExtendedFile;
-               file.__path = path;
-               // 使用路径作为唯一的 MD5 标识，避免重复读取计算
-               file.__md5 = buildPathMd5(path);
-               newFiles.push(file);
-             } catch (err) {
-               console.error(`Failed to process file at ${path}:`, err);
-             }
-           }
-           
-           if (newFiles.length > 0) {
-              addRefFiles(newFiles);
-              toast.success(`已添加 ${newFiles.length} 张参考图`);
-           }
-         }
+          const remainingSlots = 10 - refFiles.length;
+          const dedupeSet = new Set(fileMd5SetRef.current);
+          const newFiles: ExtendedFile[] = [];
+          let skipped = 0;
+
+          for (const path of selected) {
+            if (newFiles.length >= remainingSlots) break;
+            const md5Key = buildPathMd5(path);
+            if (dedupeSet.has(md5Key)) {
+              skipped += 1;
+              continue;
+            }
+            dedupeSet.add(md5Key);
+            try {
+              const name = path.split(/[/\\]/).pop() || 'image.jpg';
+              const file = new File([], name, { type: 'image/jpeg' }) as ExtendedFile;
+              file.__path = path;
+              file.__md5 = md5Key;
+              newFiles.push(file);
+            } catch (err) {
+              console.error(`Failed to process file at ${path}:`, err);
+            }
+          }
+
+          if (newFiles.length > 0) {
+            addRefFiles(newFiles);
+            toast.success(`已添加 ${newFiles.length} 张参考图`);
+            if (skipped > 0) {
+              toast.info('已过滤重复图片');
+            }
+          } else if (skipped > 0) {
+            toast.info('图片已存在');
+          }
+        }
         return;
       } catch (err) {
         console.error('Failed to use native dialog:', err);
@@ -1399,47 +1568,69 @@ export function ReferenceImageUpload() {
         <>
           {/* 预览列表 */}
           {refFiles.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x">
-                  {refFiles.map((file, index) => {
-                      // 使用 MD5 作为稳定的 key（压缩后 MD5 会变化，但每个文件阶段是稳定的）
-                      const md5 = (file as ExtendedFile).__md5 || `${file.name}-${file.size}-${file.lastModified}`;
-                      // 使用缓存的 ObjectURL 或创建新的
-                      if (!objectUrlsRef.current.has(md5)) {
-                        let url: string;
-                        const extFile = file as ExtendedFile;
-                        if (extFile.__path) {
-                           // 如果有本地路径，优先使用 getImageUrl 统一处理（兼容 asset:// 与 http 回退）
-                           url = getImageUrl(extFile.__path);
-                           if (!url) url = URL.createObjectURL(file);
-                        } else {
-                           url = URL.createObjectURL(file);
-                        }
-                        objectUrlsRef.current.set(md5, url);
-                      }
-                      const url = objectUrlsRef.current.get(md5)!;
+            <div
+              ref={previewListRef}
+              className="flex gap-2 overflow-x-auto pb-2 pr-2 scrollbar-none snap-x snap-mandatory scroll-smooth overscroll-x-contain"
+            >
+              {refFiles.map((file, index) => {
+                // 使用 MD5 作为稳定的 key（压缩后 MD5 会变化，但每个文件阶段是稳定的）
+                const { key, url } = ensurePreviewInfo(file);
 
-                      return (
-                          <div key={md5} className="relative flex-shrink-0 w-20 h-20 rounded-2xl overflow-hidden border-2 border-white shadow-sm snap-start group">
-                              <img src={url} alt="ref" className="w-full h-full object-cover" />
-                              <button
-                                onClick={() => handleRemoveFile(index)}
-                                className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                          </div>
-                      );
-                  })}
-              </div>
+                return (
+                  <div
+                    key={key}
+                    data-ref-index={index}
+                    onPointerDown={handlePreviewPointerDown(index)}
+                    className={cn(
+                      "relative flex-shrink-0 w-20 h-20 rounded-2xl overflow-hidden border-2 border-white shadow-sm snap-start group transition-transform",
+                      refFiles.length > 1 && "cursor-grab active:cursor-grabbing",
+                      draggingIndex === index && "ring-2 ring-blue-400/70 scale-[0.98] opacity-80"
+                    )}
+                    draggable={false}
+                    onDragStart={(event) => event.preventDefault()}
+                  >
+                    <img
+                      src={url}
+                      alt="ref"
+                      className="w-full h-full object-cover"
+                      draggable={false}
+                      onDragStart={(event) => event.preventDefault()}
+                    />
+                    <button
+                      onClick={() => handleRemoveFile(index)}
+                      className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })}
+              {refFiles.length < 10 && (
+                <button
+                  type="button"
+                  onClick={handleUploadClick}
+                  className={cn(
+                    "flex-shrink-0 w-20 h-20 rounded-2xl border-2 border-dashed bg-white/80 transition-all group snap-start",
+                    isDraggingOver
+                      ? "border-blue-500 bg-blue-100"
+                      : "border-slate-200 hover:border-blue-400 hover:bg-blue-50/40"
+                  )}
+                  title="添加参考图"
+                >
+                  <div className="w-full h-full flex items-center justify-center">
+                    <ImagePlus className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors" />
+                  </div>
+                </button>
+              )}
+            </div>
           )}
 
           {/* 上传按钮/区域 */}
-          {refFiles.length < 10 && (
+          {refFiles.length === 0 && refFiles.length < 10 && (
               <button
                 onClick={handleUploadClick}
                 className={cn(
                     "w-full py-3 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 transition-all group",
-                    refFiles.length > 0 ? "py-2" : "py-4",
                     isDraggingOver
                       ? "border-blue-500 bg-blue-100"
                       : "border-slate-200 hover:border-blue-400 hover:bg-blue-50/30"
@@ -1452,17 +1643,31 @@ export function ReferenceImageUpload() {
                     </span>
                     <span className="text-[10px] text-slate-400 mt-0.5">(支持多选或拖拽)</span>
                 </div>
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileChange}
-                />
               </button>
           )}
         </>
+      )}
+      <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+      />
+      {dragPreview && (
+        <div className="fixed inset-0 z-[9999] pointer-events-none">
+          <div
+            className="absolute flex items-center justify-center w-16 h-16 rounded-2xl bg-white/90 shadow-lg border border-white/60 ring-2 ring-blue-400/70"
+            style={{ transform: `translate3d(${dragPreview.x + 6}px, ${dragPreview.y + 6}px, 0)` }}
+          >
+            {dragPreview.url ? (
+              <img src={dragPreview.url} alt="drag-preview" className="w-full h-full object-cover rounded-2xl" />
+            ) : (
+              <ImageIcon className="w-6 h-6 text-slate-400" />
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

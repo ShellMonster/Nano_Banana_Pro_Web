@@ -8,6 +8,7 @@ export interface OptimizePromptRequest {
   provider?: string;
   model: string;
   prompt: string;
+  response_format?: string;
 }
 
 const extractPrompt = (value: any): string => {
