@@ -436,4 +436,5 @@ services:
 
 ## 🙏 特别鸣谢
 
-本项目中的许多优质模板复用了来自 [awesome-nanobananapro-prompts](https://github.com/xianyu110/awesome-nanobananapro-prompts) 仓库的精选提示词，感谢原作者的无私分享！
+- 本项目中的许多优质模板复用了来自 [awesome-nanobananapro-prompts](https://github.com/xianyu110/awesome-nanobananapro-prompts) 仓库的精选提示词，感谢原作者的无私分享！
+- 项目中的 JSON 提示词优化参考了 [fofr](https://gist.github.com/fofr/eec0dae326243321c645aceba28c6119) 的优秀设计，在此表示感谢！
