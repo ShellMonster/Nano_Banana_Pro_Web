@@ -1,5 +1,14 @@
 # 🎨 Banana Pro AI (Web & Desktop)
 
+[![GitHub stars](https://img.shields.io/github/stars/ShellMonster/Nano_Banana_Pro_Web?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/stargazers)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/blob/main/LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/ShellMonster/Nano_Banana_Pro_Web?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/releases)
+![React](https://img.shields.io/badge/React-18.3.1-blue.svg?style=flat-square)
+![Tauri](https://img.shields.io/badge/Tauri-2.0-FFC131.svg?style=flat-square)
+![Go](https://img.shields.io/badge/Go-1.21-00ADD8.svg?style=flat-square)
+
+[English](README_EN.md) | [简体中文](README.md) | [日本語](README_JP.md) | [한국어](README_KR.md)
+
 **Banana Pro AI**는 크리에이티브 전문가를 위해 설계된 고성능 이미지 생성 플랫폼입니다. Gemini와 OpenAI 표준 API 기능을 통합하여 고해상도(최대 4K)의 Text-to-Image 및 Image-to-Image 생성을 지원하며, 데스크톱과 웹 두 가지 형태를 제공합니다.
 
 <p align="center">
@@ -9,15 +18,6 @@
   <br>
   <img src="assets/preview3.png" alt="Banana Pro Web 미리보기 3" width="800">
 </p>
-
-[![GitHub stars](https://img.shields.io/github/stars/ShellMonster/Nano_Banana_Pro_Web?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/stargazers)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/blob/main/LICENSE)
-[![GitHub release](https://img.shields.io/github/v/release/ShellMonster/Nano_Banana_Pro_Web?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/releases)
-![React](https://img.shields.io/badge/React-18.3.1-blue.svg?style=flat-square)
-![Tauri](https://img.shields.io/badge/Tauri-2.0-FFC131.svg?style=flat-square)
-![Go](https://img.shields.io/badge/Go-1.21-00ADD8.svg?style=flat-square)
-
-[English](README_EN.md) | [简体中文](README.md) | [日本語](README_JP.md) | [한국어](README_KR.md)
 
 > 💡 **최근 업데이트 하이라이트**:
 > - **✨ OpenAI 표준 API 통합**: 프롬프트 최적화 및 이미지 생성 모두에서 Gemini / OpenAI 호환 인터페이스를 전환하여 사용 가능.

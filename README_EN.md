@@ -1,5 +1,14 @@
 # 🎨 Banana Pro AI (Web & Desktop)
 
+[![GitHub stars](https://img.shields.io/github/stars/ShellMonster/Nano_Banana_Pro_Web?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/stargazers)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/blob/main/LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/ShellMonster/Nano_Banana_Pro_Web?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/releases)
+![React](https://img.shields.io/badge/React-18.3.1-blue.svg?style=flat-square)
+![Tauri](https://img.shields.io/badge/Tauri-2.0-FFC131.svg?style=flat-square)
+![Go](https://img.shields.io/badge/Go-1.21-00ADD8.svg?style=flat-square)
+
+[English](README_EN.md) | [简体中文](README.md) | [日本語](README_JP.md) | [한국어](README_KR.md)
+
 **Banana Pro AI** is a high-performance image generation platform designed for creative professionals. It integrates Gemini and OpenAI standard API capabilities, supporting high-resolution (up to 4K) text-to-image and image-to-image generation, available in both Desktop and Web formats.
 
 <p align="center">
@@ -9,15 +18,6 @@
   <br>
   <img src="assets/preview3.png" alt="Banana Pro Web Preview 3" width="800">
 </p>
-
-[![GitHub stars](https://img.shields.io/github/stars/ShellMonster/Nano_Banana_Pro_Web?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/stargazers)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/blob/main/LICENSE)
-[![GitHub release](https://img.shields.io/github/v/release/ShellMonster/Nano_Banana_Pro_Web?style=flat-square)](https://github.com/ShellMonster/Nano_Banana_Pro_Web/releases)
-![React](https://img.shields.io/badge/React-18.3.1-blue.svg?style=flat-square)
-![Tauri](https://img.shields.io/badge/Tauri-2.0-FFC131.svg?style=flat-square)
-![Go](https://img.shields.io/badge/Go-1.21-00ADD8.svg?style=flat-square)
-
-[English](README_EN.md) | [简体中文](README.md) | [日本語](README_JP.md) | [한국어](README_KR.md)
 
 > 💡 **Recent Highlights**:
 > - **✨ OpenAI Standard API Integration**: Switch between Gemini / OpenAI compatible interfaces for both prompt optimization and image generation.
