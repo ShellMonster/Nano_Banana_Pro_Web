@@ -1,5 +1,7 @@
 # 🎨 大香蕉 AI (Banana Pro Web & Desktop)
 
+**大香蕉 AI** 是一款专为创意工作者打造的高性能图片生成平台。它融合 Gemini 与 OpenAI 标准接口能力，支持高分辨率（最高 4K）的文生图与图生图，并提供桌面端与 Web 端两种形态。
+
 <p align="center">
   <img src="assets/preview1.png" alt="Banana Pro Web 预览 1" width="800">
   <br>
@@ -16,8 +18,6 @@
 ![Go](https://img.shields.io/badge/Go-1.21-00ADD8.svg?style=flat-square)
 
 [English](README_EN.md) | [简体中文](README.md) | [日本語](README_JP.md) | [한국어](README_KR.md)
-
-**大香蕉 AI** 是一款专为创意工作者打造的高性能图片生成平台。它融合 Gemini 与 OpenAI 标准接口能力，支持高分辨率（最高 4K）的文生图与图生图，并提供桌面端与 Web 端两种形态。
 
 > 💡 **近期更新亮点**：
 > - **✨ OpenAI 标准接口对接**：提示词优化 + 生图两条链路可切换 Gemini / OpenAI 兼容接口。

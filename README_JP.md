@@ -1,5 +1,7 @@
 # 🎨 Banana Pro AI (Web & Desktop)
 
+**Banana Pro AI** は、クリエイター向けに設計された高性能な画像生成プラットフォームです。Gemini と OpenAI の標準 API 機能を統合し、高解像度（最大 4K）の Text-to-Image（文生図）および Image-to-Image（図生図）をサポート。デスクトップ版と Web 版の両方を提供しています。
+
 <p align="center">
   <img src="assets/preview1.png" alt="Banana Pro Web プレビュー 1" width="800">
   <br>
@@ -16,8 +18,6 @@
 ![Go](https://img.shields.io/badge/Go-1.21-00ADD8.svg?style=flat-square)
 
 [English](README_EN.md) | [简体中文](README.md) | [日本語](README_JP.md) | [한국어](README_KR.md)
-
-**Banana Pro AI** は、クリエイター向けに設計された高性能な画像生成プラットフォームです。Gemini と OpenAI の標準 API 機能を統合し、高解像度（最大 4K）の Text-to-Image（文生図）および Image-to-Image（図生図）をサポート。デスクトップ版と Web 版の両方を提供しています。
 
 > 💡 **最近のアップデートのハイライト**:
 > - **✨ OpenAI 標準 API 統合**: プロンプト最適化と画像生成の両方で、Gemini / OpenAI 互換インターフェースの切り替えが可能に。

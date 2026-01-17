@@ -1,5 +1,7 @@
 # 🎨 Banana Pro AI (Web & Desktop)
 
+**Banana Pro AI** is a high-performance image generation platform designed for creative professionals. It integrates Gemini and OpenAI standard API capabilities, supporting high-resolution (up to 4K) text-to-image and image-to-image generation, available in both Desktop and Web formats.
+
 <p align="center">
   <img src="assets/preview1.png" alt="Banana Pro Web Preview 1" width="800">
   <br>
@@ -16,8 +18,6 @@
 ![Go](https://img.shields.io/badge/Go-1.21-00ADD8.svg?style=flat-square)
 
 [English](README_EN.md) | [简体中文](README.md) | [日本語](README_JP.md) | [한국어](README_KR.md)
-
-**Banana Pro AI** is a high-performance image generation platform designed for creative professionals. It integrates Gemini and OpenAI standard API capabilities, supporting high-resolution (up to 4K) text-to-image and image-to-image generation, available in both Desktop and Web formats.
 
 > 💡 **Recent Highlights**:
 > - **✨ OpenAI Standard API Integration**: Switch between Gemini / OpenAI compatible interfaces for both prompt optimization and image generation.
