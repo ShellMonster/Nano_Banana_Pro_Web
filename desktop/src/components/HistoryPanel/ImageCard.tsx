@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Trash2, GripVertical } from 'lucide-react';
 import { FlattenedImage } from './HistoryList';
 import { formatDateTime } from '../../utils/date';
@@ -13,6 +14,7 @@ interface ImageCardProps {
 
 // 使用 React.memo 防止不必要的重渲染
 export const ImageCard = React.memo(function ImageCard({ image, onClick }: ImageCardProps) {
+    const { t } = useTranslation();
     const [isDeleting, setIsDeleting] = React.useState(false);
     const [showConfirm, setShowConfirm] = React.useState(false);
     const confirmTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -61,7 +63,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
             // 如果复制了图片，显示提示
             if (hasImage && !hasNotifiedCopyRef.current) {
                 hasNotifiedCopyRef.current = true;
-                toast.success('图片已复制到剪贴板');
+                toast.success(t('toast.copyImageSuccess'));
 
                 // 2秒后重置标记，允许下次复制时再次提示
                 setTimeout(() => {
@@ -101,7 +103,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
                 setIsDeleting(false);
                 setShowConfirm(false);
             } catch (error) {
-                console.error('删除图片失败:', error);
+                console.error('Delete image failed:', error);
                 // 删除失败时保持确认状态，允许用户重试
                 setIsDeleting(false);
                 // 不重置 showConfirm，让用户可以直接重试
@@ -202,7 +204,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
                             ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}
                             pointer-events-auto
                         `}
-                        title="删除图片"
+                        title={t('history.actions.deleteImage')}
                     >
                         {isDeleting ? (
                             <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -226,12 +228,12 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
                             ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}
                             pointer-events-auto
                         `}
-                        title="再次点击确认删除"
+                        title={t('history.actions.confirmDeleteTitle')}
                     >
                         {isDeleting ? (
                             <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         ) : (
-                            <span className="text-xs font-bold">确认?</span>
+                            <span className="text-xs font-bold">{t('common.confirmShort')}</span>
                         )}
                     </button>
                 </div>
@@ -243,7 +245,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
                     <button
                         onClick={handleCancelConfirm}
                         className="bg-slate-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-600 transition-colors shadow-lg opacity-100 pointer-events-auto"
-                        title="取消"
+                        title={t('common.cancel')}
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

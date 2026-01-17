@@ -8,9 +8,11 @@ import { ExtendedFile, PersistedRefImage } from '../../types';
 import SparkMD5 from 'spark-md5';
 import { calculateMd5, compressImage, fetchFileWithMd5 } from '../../utils/image';
 import { getImageUrl } from '../../services/api';
+import { useTranslation } from 'react-i18next';
 
 const REF_IMAGE_DIR = 'ref_images';
 const REORDER_DRAG_THRESHOLD = 6;
+const BUSY_ERROR_MESSAGE = 'REF_IMAGE_BUSY';
 
 const normalizePath = (value: string) => value.replace(/\\/g, '/').replace(/\/+/g, '/');
 const isWindowsAbsolutePath = (value: string) => /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith('\\\\');
@@ -100,6 +102,7 @@ const normalizeLocalPathInput = (value: string) => {
 };
 
 export function ReferenceImageUpload() {
+  const { t } = useTranslation();
   const refFiles = useConfigStore((s) => s.refFiles);
   const addRefFiles = useConfigStore((s) => s.addRefFiles);
   const removeRefFile = useConfigStore((s) => s.removeRefFile);
@@ -547,7 +550,7 @@ export function ReferenceImageUpload() {
   // 带并发保护的包装函数（添加超时机制）
   const withProcessingLock = useCallback(async (fn: () => Promise<any>, timeoutMs: number = 60000) => {
     if (isProcessingRef.current) {
-      throw new Error('操作正在进行中，请稍候');
+      throw new Error(BUSY_ERROR_MESSAGE);
     }
 
     isProcessingRef.current = true;
@@ -556,7 +559,7 @@ export function ReferenceImageUpload() {
     // 创建超时 Promise
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutId = setTimeout(() => {
-        reject(new Error(`操作超时（${timeoutMs / 1000}秒）`));
+        reject(new Error(t('refImage.toast.timeout', { seconds: Math.round(timeoutMs / 1000) })));
       }, timeoutMs);
     });
 
@@ -570,7 +573,7 @@ export function ReferenceImageUpload() {
       }
       isProcessingRef.current = false;
     }
-  }, []);
+  }, [t]);
 
   // 压缩图片函数（使用工具函数）
   const compressImageCallback = useCallback(compressImage, []);
@@ -623,7 +626,7 @@ export function ReferenceImageUpload() {
       if (sizeMB > 2) {
         // 文件超过 2MB，必须压缩
         shouldCompress = true;
-        compressReason = `文件过大 (${sizeMB.toFixed(2)}MB)`;
+        compressReason = t('refImage.compressReason.fileTooLarge', { size: sizeMB.toFixed(2) });
       } else if (sizeMB > 1) {
         // 文件在 1-2MB 之间，检查图片尺寸
         let objectUrl = '';
@@ -631,7 +634,7 @@ export function ReferenceImageUpload() {
           const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
             const img = new Image();
             img.onload = () => resolve({ width: img.width, height: img.height });
-            img.onerror = () => reject(new Error('图片加载失败'));
+            img.onerror = () => reject(new Error(t('errors.imageLoadFailed')));
             objectUrl = URL.createObjectURL(file);
             img.src = objectUrl;
           });
@@ -640,7 +643,7 @@ export function ReferenceImageUpload() {
           if (maxDimension > 2048) {
             // 图片尺寸超过 2048px，建议压缩
             shouldCompress = true;
-            compressReason = `尺寸过大 (${dimensions.width}x${dimensions.height})`;
+            compressReason = t('refImage.compressReason.dimensions', { width: dimensions.width, height: dimensions.height });
           }
         } catch (error) {
           // 尺寸检查失败，跳过压缩
@@ -689,7 +692,7 @@ export function ReferenceImageUpload() {
     }
 
     return uniqueFiles;
-  }, [calculateMd5Callback, compressImageCallback]);
+  }, [calculateMd5Callback, compressImageCallback, t]);
 
   const handleInternalDrop = useCallback(async (payload: InternalDragPayload) => {
     if (!payload) return;
@@ -702,7 +705,7 @@ export function ReferenceImageUpload() {
       await withProcessingLock(async () => {
         const remainingSlots = 10 - refFiles.length;
         if (remainingSlots <= 0) {
-          toast.error('参考图已满');
+          toast.error(t('refImage.toast.full'));
           return;
         }
 
@@ -710,7 +713,7 @@ export function ReferenceImageUpload() {
         if (path) {
           const md5Key = buildPathMd5(path);
           if (fileMd5SetRef.current.has(md5Key)) {
-            toast.info('图片已存在');
+            toast.info(t('refImage.toast.exists'));
             return;
           }
           const name = String(payload.name || '').trim() || path.split(/[/\\]/).pop() || 'ref-image.jpg';
@@ -718,7 +721,7 @@ export function ReferenceImageUpload() {
           file.__path = path;
           file.__md5 = md5Key;
           addRefFiles([file]);
-          toast.success('已添加 1 张参考图');
+          toast.success(t('refImage.toast.addedOne'));
           return;
         }
 
@@ -728,9 +731,9 @@ export function ReferenceImageUpload() {
           const file = await createImageFileFromUrl(url, name);
           if (file) {
             addRefFiles([file]);
-            toast.success('已添加 1 张参考图');
+            toast.success(t('refImage.toast.addedOne'));
           } else {
-            toast.error('获取图片失败');
+            toast.error(t('refImage.toast.fetchFailed'));
           }
           return;
         }
@@ -743,23 +746,24 @@ export function ReferenceImageUpload() {
             const uniqueFiles = await processFilesWithMd5([file]);
             if (uniqueFiles.length > 0) {
               addRefFiles(uniqueFiles);
-              toast.success('已添加 1 张参考图');
+              toast.success(t('refImage.toast.addedOne'));
             } else {
-              toast.info('图片已存在');
+              toast.info(t('refImage.toast.exists'));
             }
           } else {
-            toast.error('获取图片失败');
+            toast.error(t('refImage.toast.fetchFailed'));
           }
           return;
         }
 
-        toast.error('未检测到可添加的图片');
+        toast.error(t('refImage.toast.noImage'));
       });
     } catch (error) {
-      if (error instanceof Error && error.message === '操作正在进行中，请稍候') {
-        toast.info('请等待当前操作完成');
+      if (error instanceof Error && error.message === BUSY_ERROR_MESSAGE) {
+        toast.info(t('refImage.toast.busy'));
       } else {
-        toast.error(`添加参考图失败：${error instanceof Error ? error.message : '未知错误'}`);
+        const message = error instanceof Error ? error.message : t('refImage.toast.unknown');
+        toast.error(t('refImage.toast.addFailed', { message }));
       }
     }
   }, [addRefFiles, createImageFileFromUrl, isExpanded, processFilesWithMd5, refFiles.length, withProcessingLock]);
@@ -782,14 +786,14 @@ export function ReferenceImageUpload() {
 
         // 如果选择的文件超过剩余槽位，提示用户
         if (files.length > remainingSlots) {
-          toast.error(`最多10张，还能添加${remainingSlots}张`);
+          toast.error(t('refImage.toast.remainingSlots', { count: remainingSlots }));
           files.length = remainingSlots;
         }
 
         // 先校验文件类型
         const validFiles = files.filter(file => {
           const isImage = file.type.startsWith('image/');
-          if (!isImage) toast.error(`${file.name} 不是图片文件`);
+          if (!isImage) toast.error(t('refImage.toast.notImage', { name: file.name }));
           return isImage;
         });
 
@@ -801,17 +805,17 @@ export function ReferenceImageUpload() {
           // 检查是否有压缩过的文件，显示压缩提示
           const compressedFiles = uniqueFiles.filter(f => (f as ExtendedFile).__compressed);
           if (compressedFiles.length > 0) {
-            toast.success(`已添加${uniqueFiles.length}张（${compressedFiles.length}张已压缩）`);
+            toast.success(t('refImage.toast.addedCompressed', { count: uniqueFiles.length, compressed: compressedFiles.length }));
           } else {
-            toast.success(`已添加${uniqueFiles.length}张参考图`);
+            toast.success(t('refImage.toast.addedCount', { count: uniqueFiles.length }));
           }
         } else if (validFiles.length > 0) {
-          toast.warning('所有图片都已存在');
+          toast.warning(t('refImage.toast.allExists'));
         }
       });
     } catch (error) {
-      if (error instanceof Error && error.message === '操作正在进行中，请稍候') {
-        toast.info('请等待当前操作完成');
+      if (error instanceof Error && error.message === BUSY_ERROR_MESSAGE) {
+        toast.info(t('refImage.toast.busy'));
       }
     }
 
@@ -856,13 +860,13 @@ export function ReferenceImageUpload() {
     await withProcessingLock(async () => {
       const remainingSlots = 10 - refFiles.length;
       if (remainingSlots <= 0) {
-        toast.error('参考图已满');
+        toast.error(t('refImage.toast.full'));
         return;
       }
 
       const clipped = files.slice(0, remainingSlots);
       if (files.length > remainingSlots) {
-        toast.error(`最多10张，还能添加${remainingSlots}张`);
+        toast.error(t('refImage.toast.remainingSlots', { count: remainingSlots }));
       }
 
       const uniqueFiles = await processFilesWithMd5(clipped);
@@ -870,12 +874,12 @@ export function ReferenceImageUpload() {
         addRefFiles(uniqueFiles);
         const compressedFiles = uniqueFiles.filter(f => (f as ExtendedFile).__compressed);
         if (compressedFiles.length > 0) {
-          toast.success(`已添加${uniqueFiles.length}张（${compressedFiles.length}张已压缩）`);
+          toast.success(t('refImage.toast.addedCompressed', { count: uniqueFiles.length, compressed: compressedFiles.length }));
         } else {
-          toast.success(`已添加${uniqueFiles.length}张参考图`);
+          toast.success(t('refImage.toast.addedCount', { count: uniqueFiles.length }));
         }
       } else {
-        toast.info('图片已存在');
+        toast.info(t('refImage.toast.exists'));
       }
     });
   }, [isExpanded, refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5]);
@@ -883,7 +887,7 @@ export function ReferenceImageUpload() {
   const tryPasteFromTauriClipboard = useCallback(async () => {
     const remainingSlots = 10 - refFiles.length;
     if (remainingSlots <= 0) {
-      toast.error('参考图已满');
+      toast.error(t('refImage.toast.full'));
       return;
     }
 
@@ -900,7 +904,7 @@ export function ReferenceImageUpload() {
 
       const md5Key = buildPathMd5(imagePath);
       if (fileMd5SetRef.current.has(md5Key)) {
-        toast.info('图片已存在');
+        toast.info(t('refImage.toast.exists'));
         return;
       }
 
@@ -910,7 +914,7 @@ export function ReferenceImageUpload() {
       file.__md5 = md5Key;
 
       addRefFiles([file]);
-      toast.success('已添加 1 张参考图');
+      toast.success(t('refImage.toast.addedOne'));
     } catch (err) {
       // 原生读取失败：静默忽略，避免影响正常文本粘贴体验
       console.warn('[ReferenceImageUpload] read_image_from_clipboard failed:', err);
@@ -926,11 +930,12 @@ export function ReferenceImageUpload() {
       try {
         await processPastedFiles(files);
       } catch (error) {
-        if (error instanceof Error && error.message === '操作正在进行中，请稍候') {
-          toast.info('请等待当前操作完成');
+        if (error instanceof Error && error.message === BUSY_ERROR_MESSAGE) {
+          toast.info(t('refImage.toast.busy'));
         } else {
-          console.error('粘贴图片失败:', error);
-          toast.error(`粘贴图片失败：${error instanceof Error ? error.message : '未知错误'}`);
+          console.error('Paste image failed:', error);
+          const message = error instanceof Error ? error.message : t('refImage.toast.unknown');
+          toast.error(t('refImage.toast.pasteFailed', { message }));
         }
       }
       return;
@@ -1037,7 +1042,7 @@ export function ReferenceImageUpload() {
         const remainingSlots = 10 - refFiles.length;
 
         if (remainingSlots <= 0) {
-          toast.error('参考图已满');
+          toast.error(t('refImage.toast.full'));
           return;
         }
 
@@ -1082,7 +1087,7 @@ export function ReferenceImageUpload() {
           if (imagePath && !imagePath.includes('://')) {
             const md5Key = buildPathMd5(imagePath);
             if (fileMd5SetRef.current.has(md5Key)) {
-              toast.info('图片已存在');
+              toast.info(t('refImage.toast.exists'));
               return;
             }
 
@@ -1093,7 +1098,7 @@ export function ReferenceImageUpload() {
             file.__md5 = md5Key;
 
             addRefFiles([file]);
-            toast.success('已添加 1 张参考图');
+            toast.success(t('refImage.toast.addedOne'));
             return;
           }
         }
@@ -1125,7 +1130,7 @@ export function ReferenceImageUpload() {
                   if (file.size / 1024 / 1024 < 5) {
                     filesToAdd.push(file);
                   } else {
-                    toast.error('图片超过 5MB');
+                    toast.error(t('refImage.toast.tooLarge'));
                   }
                 }
               } catch (err) {
@@ -1138,9 +1143,9 @@ export function ReferenceImageUpload() {
               const uniqueFiles = await processFilesWithMd5(filesToAdd);
               if (uniqueFiles.length > 0) {
                 addRefFiles(uniqueFiles);
-                toast.success(`已添加 ${uniqueFiles.length} 张参考图`);
+                toast.success(t('refImage.toast.addedCount', { count: uniqueFiles.length }));
               } else {
-                toast.info('图片已存在');
+                toast.info(t('refImage.toast.exists'));
               }
               return;
             }
@@ -1190,11 +1195,11 @@ export function ReferenceImageUpload() {
 
           if (imageUrl && imageName) {
             if (validatedFiles.length + rawFiles.length >= remainingSlots) {
-              toast.error('参考图已满');
+              toast.error(t('refImage.toast.full'));
               return;
             }
 
-            toast.info('正在添加图片...');
+            toast.info(t('refImage.toast.adding'));
 
             const file = await createImageFileFromUrl(imageUrl, imageName);
             if (file) {
@@ -1205,7 +1210,7 @@ export function ReferenceImageUpload() {
           }
         } catch (error) {
           // 继续走 files 兜底
-          console.error('处理拖拽 URL 失败:', error);
+          console.error('Handle drag URL failed:', error);
         }
 
         // 处理拖拽的文件
@@ -1217,8 +1222,8 @@ export function ReferenceImageUpload() {
             const validFiles = droppedFiles.filter(file => {
               const isImage = file.type.startsWith('image/');
               const isLt5M = file.size / 1024 / 1024 < 5;
-              if (!isImage) toast.error(`${file.name} 不是图片文件`);
-              if (!isLt5M) toast.error(`${file.name} 超过 5MB`);
+              if (!isImage) toast.error(t('refImage.toast.notImage', { name: file.name }));
+              if (!isLt5M) toast.error(t('refImage.toast.fileTooLarge', { name: file.name }));
               return isImage && isLt5M;
             });
 
@@ -1237,23 +1242,24 @@ export function ReferenceImageUpload() {
 
             const compressedFiles = finalFiles.filter(f => (f as ExtendedFile).__compressed);
             if (compressedFiles.length > 0) {
-              toast.success(`已添加${finalFiles.length}张（${compressedFiles.length}张已压缩）`);
+              toast.success(t('refImage.toast.addedCompressed', { count: finalFiles.length, compressed: compressedFiles.length }));
             } else {
-              toast.success(`已添加${finalFiles.length}张参考图`);
+              toast.success(t('refImage.toast.addedCount', { count: finalFiles.length }));
             }
           } else {
-            toast.info('图片已存在');
+            toast.info(t('refImage.toast.exists'));
           }
         } else {
-          toast.error('未检测到可添加的图片');
+          toast.error(t('refImage.toast.noImage'));
         }
       });
     } catch (error) {
-      if (error instanceof Error && error.message === '操作正在进行中，请稍候') {
-        toast.info('请等待当前操作完成');
+      if (error instanceof Error && error.message === BUSY_ERROR_MESSAGE) {
+        toast.info(t('refImage.toast.busy'));
       } else {
-        console.error('添加参考图失败:', error);
-        toast.error(`添加参考图失败：${error instanceof Error ? error.message : '未知错误'}`);
+        console.error('Add reference images failed:', error);
+        const message = error instanceof Error ? error.message : t('refImage.toast.unknown');
+        toast.error(t('refImage.toast.addFailed', { message }));
       }
     }
   }, [isExpanded, refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5, createImageFileFromUrl, normalizePathFromUri]);
@@ -1484,12 +1490,12 @@ export function ReferenceImageUpload() {
 
           if (newFiles.length > 0) {
             addRefFiles(newFiles);
-            toast.success(`已添加 ${newFiles.length} 张参考图`);
+            toast.success(t('refImage.toast.addedCount', { count: newFiles.length }));
             if (skipped > 0) {
-              toast.info('已过滤重复图片');
+              toast.info(t('refImage.toast.deduped'));
             }
           } else if (skipped > 0) {
-            toast.info('图片已存在');
+            toast.info(t('refImage.toast.exists'));
           }
         }
         return;
@@ -1531,7 +1537,7 @@ export function ReferenceImageUpload() {
               setIsExpanded(!isExpanded);
             }}
             className="p-1 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0"
-            title={isExpanded ? "收起参考图区域" : "展开参考图区域"}
+            title={isExpanded ? t('refImage.toggleCollapse') : t('refImage.toggleExpand')}
           >
             {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
           </button>
@@ -1539,18 +1545,18 @@ export function ReferenceImageUpload() {
             className="text-sm font-medium text-gray-700 flex items-center gap-2 cursor-pointer"
           >
             <ImageIcon className="w-4 h-4 text-blue-500" />
-            风格参考图 ({refFiles.length}/10)
+            {t('refImage.title', { count: refFiles.length })}
           </label>
         </div>
         <div className="flex items-center gap-2">
           {showDragOver && (
             <span className="text-[10px] text-blue-600 font-medium">
-              松开添加图片
+              {t('refImage.dropHint')}
             </span>
           )}
           {refFiles.length > 0 && !showDragOver && (
             <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">
-              图生图模式已激活
+              {t('refImage.modeActive')}
             </span>
           )}
         </div>
@@ -1559,7 +1565,7 @@ export function ReferenceImageUpload() {
       {/* 收起状态提示 */}
       {!isExpanded && refFiles.length === 0 && (
         <div className="text-[11px] text-slate-400 italic pl-7">
-          点击展开可上传参考图片进行图生图
+          {t('refImage.collapsedHint')}
         </div>
       )}
 
@@ -1615,7 +1621,7 @@ export function ReferenceImageUpload() {
                       ? "border-blue-500 bg-blue-100"
                       : "border-slate-200 hover:border-blue-400 hover:bg-blue-50/40"
                   )}
-                  title="添加参考图"
+                  title={t('refImage.add')}
                 >
                   <div className="w-full h-full flex items-center justify-center">
                     <ImagePlus className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors" />
@@ -1639,9 +1645,9 @@ export function ReferenceImageUpload() {
                 <ImagePlus className="w-6 h-6 text-slate-300 group-hover:text-blue-500 transition-colors" />
                 <div className="flex flex-col items-center">
                     <span className="text-xs font-bold text-slate-400 group-hover:text-blue-600">
-                        {refFiles.length > 0 ? "继续添加" : "添加参考图"}
+                        {refFiles.length > 0 ? t('refImage.addMore') : t('refImage.add')}
                     </span>
-                    <span className="text-[10px] text-slate-400 mt-0.5">(支持多选或拖拽)</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">{t('refImage.supportHint')}</span>
                 </div>
               </button>
           )}

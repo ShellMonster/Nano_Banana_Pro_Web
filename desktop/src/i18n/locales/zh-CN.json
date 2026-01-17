@@ -1,0 +1,581 @@
+{
+  "app": {
+    "title": "大香蕉 AI",
+    "headerTitle": "大香蕉图片生成工具"
+  },
+  "nav": {
+    "generate": "生成",
+    "history": "历史",
+    "settings": "设置",
+    "generateArea": "生成区域",
+    "historyArea": "历史记录"
+  },
+  "language": {
+    "label": "语言",
+    "system": "跟随系统",
+    "zhCN": "中文",
+    "enUS": "English",
+    "jaJP": "日本語",
+    "koKR": "한국어"
+  },
+  "common": {
+    "copy": "复制",
+    "copied": "已复制",
+    "close": "关闭",
+    "cancel": "取消",
+    "confirm": "确认",
+    "open": "打开",
+    "save": "保存",
+    "loading": "加载中...",
+    "confirmShort": "确认",
+    "unknownTime": "未知时间",
+    "invalidDate": "无效时间",
+    "parseFailed": "时间解析失败",
+    "unknownError": "未知错误"
+  },
+  "toast": {
+    "copyImageSuccess": "图片已复制到剪贴板",
+    "copyImageUnsupported": "当前环境不支持复制图片，已复制图片链接",
+    "copyImageFallback": "复制图片失败，已为你复制图片链接",
+    "copyImageFailed": "复制图片失败，请尝试右键另存为",
+    "copyPromptSuccess": "提示词已复制到剪贴板",
+    "copyFailedManual": "复制失败，请手动复制",
+    "imagePathEmpty": "图片路径为空",
+    "noLocalPath": "当前图片没有本地路径",
+    "imagePathCopied": "图片路径已复制",
+    "copyFailed": "复制失败",
+    "deleteFailed": "删除失败",
+    "imageSrcEmpty": "图片地址为空",
+    "imageFetchFailed": "图片获取失败: {{status}}"
+  },
+  "preview": {
+    "copyImage": "复制图片",
+    "imageLoadFailed": "图片加载失败",
+    "menu": {
+      "label": "图片操作菜单",
+      "copyImage": "复制图片",
+      "copyImagePath": "复制图片路径",
+      "downloadOriginal": "下载高清原图",
+      "resetZoom": "重置缩放/位置"
+    },
+    "title": "生成详情",
+    "delete": {
+      "title": "删除图片",
+      "confirmTitle": "再次点击确认删除",
+      "deleting": "删除中...",
+      "confirmLabel": "确认?",
+      "action": "删除"
+    },
+    "prompt": {
+      "label": "提示词 (Prompt)",
+      "copied": "已复制",
+      "empty": "暂无提示词"
+    },
+    "meta": {
+      "model": "模型",
+      "unknown": "未知",
+      "size": "尺寸",
+      "time": "时间"
+    },
+    "downloadOriginal": "下载高清原图"
+  },
+  "prompt": {
+    "label": "提示词 (Prompt)",
+    "optimize": "优化提示词",
+    "optimizeJson": "JSON提示词",
+    "undo": "撤销",
+    "redo": "重做",
+    "placeholder": "描述你想要生成的图片...",
+    "toast": {
+      "empty": "请输入提示词",
+      "chatConfig": "请先在设置中配置对话模型",
+      "chatConfigChanged": "对话模型配置已修改，请先在设置中同步保存",
+      "optimizeEmpty": "优化失败，未返回内容",
+      "optimizeFailed": "优化失败",
+      "syncChatConfig": "请先在设置中同步保存对话模型配置",
+      "chatModelMissing": "请先在设置中填写对话模型并同步保存",
+      "optimizeCheckConfig": "优化失败，请检查对话模型配置",
+      "apiKeyInvalid": "API Key 无效或权限不足",
+      "baseUrlInvalid": "Base URL 不正确或接口未开启",
+      "timeout": "请求超时，请稍后重试",
+      "optimizeRetry": "优化失败，请稍后重试"
+    }
+  },
+  "refImage": {
+    "title": "风格参考图 ({{count}}/10)",
+    "toggleCollapse": "收起参考图区域",
+    "toggleExpand": "展开参考图区域",
+    "dropHint": "松开添加图片",
+    "modeActive": "图生图模式已激活",
+    "collapsedHint": "点击展开可上传参考图片进行图生图",
+    "add": "添加参考图",
+    "addMore": "继续添加",
+    "supportHint": "(支持多选或拖拽)",
+    "toast": {
+      "full": "参考图已满",
+      "exists": "图片已存在",
+      "addedOne": "已添加 1 张参考图",
+      "fetchFailed": "获取图片失败",
+      "fetchFailedDetail": "获取图片失败: {{message}}",
+      "noImage": "未检测到可添加的图片",
+      "busy": "请等待当前操作完成",
+      "unknown": "未知错误",
+      "addFailed": "添加参考图失败：{{message}}",
+      "remainingSlots": "最多10张，还能添加{{count}}张",
+      "notImage": "{{name}} 不是图片文件",
+      "fileTooLarge": "{{name}} 超过 5MB",
+      "addedCompressed": "已添加{{count}}张（{{compressed}}张已压缩）",
+      "addedCount": "已添加{{count}}张参考图",
+      "allExists": "所有图片都已存在",
+      "tooLarge": "图片超过 5MB",
+      "adding": "正在添加图片...",
+      "pasteFailed": "粘贴图片失败：{{message}}",
+      "deduped": "已过滤重复图片",
+      "timeout": "操作超时（{{seconds}}秒）"
+    },
+    "compressReason": {
+      "fileTooLarge": "文件过大 ({{size}}MB)",
+      "dimensions": "尺寸过大 ({{width}}x{{height}})"
+    }
+  },
+  "settings": {
+    "title": "系统设置",
+    "tabs": {
+      "image": "生图模型",
+      "chat": "对话模型"
+    },
+    "language": {
+      "label": "语言",
+      "hint": "切换后立即生效"
+    },
+    "provider": {
+      "label": "AI对接方式",
+      "recommended": "推荐平台：",
+      "yunwu": "云雾API",
+      "openaiImageLimit": "OpenAI 类型当前仅支持生成 1K 图片"
+    },
+    "model": {
+      "default": "默认模型",
+      "chat": "对话模型"
+    },
+    "update": {
+      "title": "软件更新",
+      "check": "检查更新",
+      "checking": "正在检查更新...",
+      "checkingShort": "检查中...",
+      "view": "查看更新",
+      "latest": "已是最新版本",
+      "available": "发现新版本 v{{version}}",
+      "failed": "检查失败",
+      "failedWith": "检查失败：{{error}}",
+      "desktopOnly": "仅桌面端可用",
+      "autoNote": "开启应用会自动检查更新；如有新版本会弹窗提示，一键下载安装。"
+    },
+    "logs": {
+      "title": "诊断日志",
+      "openDir": "打开日志目录",
+      "copyDirTitle": "复制日志目录路径",
+      "verboseLabel": "启用详细日志（记录更多调试信息）",
+      "help": "遇到问题时，请将 app.log 和 server.log 提交给开发者（注意日志可能包含提示词等信息）。"
+    },
+    "save": "同步并保存",
+    "toast": {
+      "fetchFailed": "获取后端配置失败",
+      "imageConfigIncomplete": "请先完整配置生图模型",
+      "chatConfigIncomplete": "请完整配置对话模型",
+      "openaiGeminiUnsupported": "OpenAI 官方 Base URL 不支持 Gemini 模型，请更换兼容接口",
+      "saveSuccess": "配置已成功同步到服务器",
+      "saveFailed": "保存失败: {{msg}}",
+      "checkNetwork": "请检查网络",
+      "logDirDesktopOnly": "日志目录仅在桌面端可用",
+      "logDirOpenFailed": "打开日志目录失败",
+      "logDirCopied": "日志路径已复制",
+      "logDirCopyFailedManual": "复制失败，请手动打开日志目录",
+      "logDirCopyFailed": "复制日志路径失败",
+      "verboseEnabled": "已启用详细日志",
+      "verboseDisabled": "已关闭详细日志",
+      "openLinkFailed": "打开链接失败"
+    }
+  },
+  "versionBadge": {
+    "downloading": "下载中 {{percent}}%",
+    "installing": "正在安装更新...",
+    "downloaded": "更新已下载，点击安装",
+    "available": "发现新版本 v{{version}}，点击查看/安装",
+    "check": "点击检查更新",
+    "checking": "检查中...",
+    "latest": "已是最新",
+    "error": "检查失败",
+    "availableShort": "发现更新",
+    "desktopOnly": "仅桌面端",
+    "updateProgress": "更新 {{percent}}%",
+    "installingShort": "安装中",
+    "pendingInstall": "待安装",
+    "version": "v{{version}}",
+    "repoMissing": "未配置 GitHub 仓库地址"
+  },
+  "updater": {
+    "dismiss": {
+      "background": "后台下载",
+      "later": "稍后"
+    },
+    "title": {
+      "checking": "正在检查更新...",
+      "downloading": "正在下载更新...",
+      "downloaded": "更新已下载",
+      "installing": "正在安装更新...",
+      "installed": "更新完成",
+      "error": "更新失败",
+      "available": "发现新版本"
+    },
+    "newVersion": "新版本",
+    "progress": "下载进度",
+    "downloadHint": "你可以关闭窗口继续使用，下载会在后台进行。",
+    "downloadedHint": "更新包已下载，点击“安装并重启”完成更新。",
+    "installingHint": "正在安装，请勿关闭应用",
+    "errorFallback": "更新失败，请稍后重试",
+    "errorExtra": "若你刚集成 Updater，请先在 `desktop/src-tauri/tauri.conf.json` 填入 `plugins.updater.pubkey` 并在 CI 配置 `TAURI_SIGNING_PRIVATE_KEY`。",
+    "actions": {
+      "download": "下载更新",
+      "install": "安装并重启",
+      "retry": "重新检查"
+    },
+    "toast": {
+      "checkFailed": "检查更新失败",
+      "checkFailedManifest": "检查更新失败：未找到 latest.json",
+      "checkFailedPubkey": "检查更新失败：缺少签名公钥",
+      "checkFailedNetwork": "检查更新失败：网络异常",
+      "downloadFailed": "下载更新失败",
+      "downloaded": "更新已下载",
+      "installFailed": "安装更新失败",
+      "installManual": "更新已安装，请手动重启应用",
+      "installed": "更新已安装"
+    }
+  },
+  "generate": {
+    "batch": {
+      "clearSuccess": "已清空生成列表",
+      "readError": "无法读取错误响应",
+      "exportFailed": "导出失败",
+      "exportFailedServer": "导出失败：服务器返回错误",
+      "exported": "已导出 {{count}} 张图片",
+      "exportFailedRetry": "导出失败，请稍后重试",
+      "networkError": "网络错误，请检查连接",
+      "timeout": "请求超时，请稍后重试",
+      "serviceUnavailable": "导出服务不可用",
+      "serverError": "服务器错误，请稍后重试",
+      "clearSelection": "取消全选",
+      "selectAll": "全选",
+      "selectedCount": "已选 {{count}} 项",
+      "exporting": "打包中...",
+      "exportSelected": "导出选定",
+      "clearConfirm": "确认清空?",
+      "clearList": "清空列表"
+    },
+    "card": {
+      "removeSuccess": "已从生成列表移除",
+      "deleteTitle": "删除图片",
+      "confirmDeleteTitle": "再次点击确认删除",
+      "confirmLabel": "确认?",
+      "generating": "生成中",
+      "failed": "生成失败",
+      "imageAlt": "图片",
+      "emptyPrompt": "无提示词"
+    },
+    "error": {
+      "title": "生成任务失败",
+      "collapse": "收起详情",
+      "expand": "展开详情"
+    },
+    "empty": {
+      "title": "开始创作你的图片",
+      "subtitle": "在左侧配置面板输入提示词，或上传参考图片进行图生图",
+      "textToImage": "文字生图",
+      "textToImageDesc": "输入描述生成图片",
+      "imageToImage": "图生图",
+      "imageToImageDesc": "上传参考图生成"
+    },
+    "grid": {
+      "empty": "暂无生成的图片，请在左侧配置并开始生成",
+      "limitNotice": "显示前 {{max}} 张图片，共 {{total}} 张",
+      "limitHint": "提示：为获得最佳性能，建议分批生成或清理历史记录"
+    },
+    "submitting": {
+      "title": "正在启动生成任务",
+      "subtitle": "正在与 AI 模型建立连接，请稍候..."
+    },
+    "start": "开始生成",
+    "startImg2Img": "开始图生图",
+    "progress": {
+      "generating": "正在生成",
+      "connection": {
+        "websocket": "实时连接",
+        "polling": "轮询中",
+        "initializing": "连接中..."
+      }
+    },
+    "toast": {
+      "countMismatch": "返回图片数量不足（{{returned}}/{{total}}）",
+      "pollFailed": "任务状态同步失败",
+      "missingApiKey": "请先配置生图 API Key",
+      "taskIdMissing": "任务 ID 缺失",
+      "startFailed": "启动生成失败",
+      "failed": "生成失败",
+      "failedWith": "生成失败：{{message}}",
+      "partial": "任务部分完成",
+      "recovered": "已恢复生成进度"
+    }
+  },
+  "config": {
+    "batch": {
+      "title": "生成设置",
+      "count": "数量 (1-10)",
+      "resolution": "分辨率",
+      "resolution1k": "1K (1024px)",
+      "resolution2k": "2K (2048px)",
+      "resolution4k": "4K (3840px)",
+      "aspectRatio": "宽高比",
+      "ratio": {
+        "1_1": "1:1 (正方形)",
+        "2_3": "2:3 (竖向 2:3)",
+        "3_2": "3:2 (横向 3:2)",
+        "3_4": "3:4 (竖向 3:4)",
+        "4_3": "4:3 (标准 4:3)",
+        "4_5": "4:5 (竖向 4:5)",
+        "5_4": "5:4 (横向 5:4)",
+        "9_16": "9:16 (手机宽屏)",
+        "16_9": "16:9 (电脑宽屏)",
+        "21_9": "21:9 (超宽屏)"
+      }
+    },
+    "apiKeyHint": "请先在右上角配置生图 API Key"
+  },
+  "errors": {
+    "fileReadEmpty": "文件读取为空",
+    "fileReadFailed": "文件读取失败",
+    "canvasContextFailed": "无法获取画布上下文",
+    "compressAttemptsExceeded": "图片压缩尝试次数过多",
+    "compressBlobFailed": "压缩结果为空",
+    "imageLoadFailed": "图片加载失败",
+    "responseStreamMissing": "响应流不可用"
+  },
+  "layout": {
+    "loadingModule": "模块加载中...",
+    "backendBanner": "后端服务未就绪，部分功能不可用",
+    "toast": {
+      "backendUnavailable": "后端服务不可用，请稍后重试"
+    },
+    "generateConfigTitle": "生成配置"
+  },
+  "history": {
+    "searchPlaceholder": "搜索提示词或模型",
+    "empty": "暂无历史记录",
+    "noImage": "暂无图片",
+    "prompt": {
+      "empty": "无提示词"
+    },
+    "loadMore": {
+      "noMore": "没有更多了",
+      "loading": "加载中...",
+      "action": "加载更多"
+    },
+    "actions": {
+      "deleteImage": "删除图片",
+      "deleteTask": "删除任务",
+      "deleteRecord": "删除记录",
+      "confirmDeleteTitle": "再次点击确认删除"
+    },
+    "status": {
+      "pending": {
+        "title": "排队中",
+        "description": "任务排队中"
+      },
+      "processing": {
+        "title": "生成中",
+        "description": "正在生成第 {{index}} 张"
+      },
+      "failed": {
+        "title": "生成失败",
+        "description": "任务生成失败"
+      },
+      "partial": {
+        "title": "部分完成",
+        "description": "已完成 {{completed}}/{{total}}"
+      },
+      "completed": {
+        "title": "已完成",
+        "description": "任务已完成"
+      },
+      "unknown": {
+        "title": "未知状态",
+        "description": "任务状态未知"
+      }
+    },
+    "toast": {
+      "updated": "历史记录已更新",
+      "loadFailed": "加载历史记录失败",
+      "deleted": "记录已删除",
+      "deleteFailed": "删除失败",
+      "batchDeleted": "已删除 {{count}} 条记录",
+      "batchDeleteFailed": "批量删除失败",
+      "imageDeleted": "图片已删除",
+      "imageDeleteFailed": "图片删除失败"
+    }
+  },
+  "templateMarket": {
+    "title": "模板市场",
+    "searchPlaceholder": "搜索模板关键词",
+    "toggle": {
+      "title": "打开模板市场",
+      "label": "模板"
+    },
+    "actions": {
+      "backToGenerate": "返回生成区",
+      "clearFilters": "清除筛选"
+    },
+    "loading": {
+      "fetching": "正在获取模板..."
+    },
+    "activeFilters": {
+      "title": "已筛选",
+      "empty": "暂无筛选"
+    },
+    "active": {
+      "search": "搜索：{{keyword}}",
+      "channel": "渠道：{{label}}",
+      "material": "物料：{{label}}",
+      "industry": "行业：{{label}}",
+      "ratio": "比例：{{label}}"
+    },
+    "filters": {
+      "channel": "渠道",
+      "material": "物料",
+      "industry": "行业",
+      "ratio": "比例"
+    },
+    "list": {
+      "count": "共 {{count}} 个模板",
+      "loading": "加载中...",
+      "empty": "没有匹配的模板"
+    },
+    "card": {
+      "view": "查看",
+      "use": "复用",
+      "applying": "套用中...",
+      "loading": "加载中...",
+      "imageFailed": "图片加载失败",
+      "imageEmpty": "无预览"
+    },
+    "preview": {
+      "title": "模板预览",
+      "infoTitle": "模板信息",
+      "source": "来源",
+      "tips": "使用提示",
+      "requirements": "参考图要求",
+      "prompt": "模板 Prompt",
+      "copyImage": "复制图片",
+      "copyImageDisabled": "无图片可复制",
+      "imageFailed": "图片加载失败",
+      "imageFailedHint": "图片加载失败，可继续查看模板信息",
+      "noImage": "无图展示",
+      "menuLabel": "图片操作菜单",
+      "menu": {
+        "copyImage": "复制图片",
+        "copyImagePath": "复制图片链接",
+        "downloadOriginal": "下载原图",
+        "resetZoom": "重置缩放/位置"
+      },
+      "applying": "正在套用...",
+      "use": "复用模板"
+    },
+    "placeholder": {
+      "noImage": "无图展示"
+    },
+    "toast": {
+      "refreshed": "模板已刷新",
+      "refreshFailed": "刷新失败",
+      "invalidData": "模板数据异常",
+      "emptyData": "模板数据为空",
+      "fetchFailed": "获取模板失败",
+      "fetchFallback": "获取失败，已使用内置模板",
+      "imageLinkCopied": "图片链接已复制",
+      "promptCopied": "模板 Prompt 已复制",
+      "tipsCopied": "使用提示已复制",
+      "requirementsCopied": "参考图要求已复制",
+      "noCopyContent": "暂无可复制内容",
+      "noDownload": "没有可下载的图片",
+      "downloadStarted": "已开始下载",
+      "downloadFailed": "下载失败",
+      "applied": "模板已套用",
+      "applyFailed": "模板套用失败",
+      "moreRefsNeeded": "请添加参考图"
+    },
+    "labels": {
+      "all": "全部",
+      "ecommerce": "电商",
+      "wechat": "微信/公众号",
+      "community": "社群发圈",
+      "life": "生活",
+      "entertainment": "娱乐",
+      "xhs": "小红书",
+      "shortVideo": "短视频平台",
+      "education": "教育培训",
+      "marketing": "广告营销",
+      "productDesign": "产品设计",
+      "filmProduction": "影视制作",
+      "print": "线下印刷",
+      "offlineEcommerce": "线下电商",
+      "poster": "海报",
+      "wechatCover": "公众号首图",
+      "wechatSecondary": "公众号次图",
+      "longImage": "文章长图",
+      "courseware": "教育课件",
+      "productShowcase": "产品展示",
+      "xhsCover": "小红书封面",
+      "xhsImage": "小红书配图",
+      "fullPoster": "全屏海报",
+      "ecomVerticalPoster": "电商竖版海报",
+      "productMain": "商品主图",
+      "detailPage": "详情页",
+      "adGraphic": "广告图",
+      "sticker": "表情包",
+      "moviePoster": "电影海报",
+      "infographic": "信息图",
+      "studyCard": "学习卡片",
+      "comic": "漫画插图",
+      "historyScene": "历史场景",
+      "architectureDesign": "建筑设计",
+      "gridPortrait": "九宫格写真",
+      "portrait": "个人写真",
+      "general": "通用",
+      "finance": "金融保险",
+      "retail": "商品零售",
+      "enterprise": "企业行政",
+      "government": "政务媒体",
+      "beauty": "美容美妆",
+      "foodFresh": "食品生鲜",
+      "fashion": "服饰箱包",
+      "lifeService": "生活服务",
+      "travel": "旅游出行",
+      "motherBaby": "母婴育儿",
+      "tech": "数码科技",
+      "fitness": "运动健身",
+      "home": "家居家装",
+      "auto": "汽车",
+      "jewelry": "珠宝首饰",
+      "pet": "宠物",
+      "art": "艺术创作",
+      "dining": "美食餐饮",
+      "photography": "摄影",
+      "music": "音乐艺术",
+      "architecture": "建筑",
+      "film": "影视",
+      "ratio1_1": "1:1",
+      "ratio3_4": "3:4",
+      "ratio4_5": "4:5",
+      "ratio9_16": "9:16",
+      "ratio16_9": "16:9",
+      "ratio2_3": "2:3"
+    }
+  }
+}

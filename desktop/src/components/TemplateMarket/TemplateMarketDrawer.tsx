@@ -1,4 +1,5 @@
 import React, { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
@@ -42,7 +43,9 @@ import {
   templateIndustries,
   templateItems,
   templateMaterials,
-  templateRatios
+  templateRatios,
+  templateLabelKeys,
+  TEMPLATE_ALL_VALUE
 } from '../../data/templateMarket';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -69,7 +72,9 @@ const mimeToExtension = (mime: string) => {
   if (lower.includes('gif')) return 'gif';
   return 'jpg';
 };
-const DEFAULT_TEMPLATE_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponent(
+const ALL_VALUE = TEMPLATE_ALL_VALUE;
+
+const buildDefaultTemplateImage = (label: string) => `data:image/svg+xml;utf8,${encodeURIComponent(
   `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
@@ -79,13 +84,13 @@ const DEFAULT_TEMPLATE_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponent(
     </linearGradient>
   </defs>
   <rect width="1024" height="1024" rx="72" fill="url(#bg)"/>
-  <text x="512" y="540" font-size="72" font-family="Arial, sans-serif" font-weight="700" fill="#1e3a8a" text-anchor="middle">无图展示</text>
+  <text x="512" y="540" font-size="72" font-family="Arial, sans-serif" font-weight="700" fill="#1e3a8a" text-anchor="middle">${label}</text>
 </svg>`
 )}`;
 
-const resolveTemplateImageSrc = (source?: string) => {
+const resolveTemplateImageSrc = (source?: string, fallbackText = '') => {
   const trimmed = source?.trim();
-  if (!trimmed) return DEFAULT_TEMPLATE_IMAGE;
+  if (!trimmed) return buildDefaultTemplateImage(fallbackText);
   if (/^https?:\/\//i.test(trimmed)) return getTemplateImageProxyUrl(trimmed);
   return trimmed;
 };
@@ -95,6 +100,13 @@ const fallbackMeta: TemplateMeta = {
   materials: templateMaterials,
   industries: templateIndustries,
   ratios: templateRatios
+};
+
+const FILTER_LABEL_KEYS: Record<string, string> = templateLabelKeys;
+
+const getFilterLabel = (value: string, translate: (key: string, options?: any) => string) => {
+  const key = FILTER_LABEL_KEYS[value];
+  return key ? translate(key) : value;
 };
 
 const dedupeList = (items: string[]) => {
@@ -107,8 +119,8 @@ const dedupeList = (items: string[]) => {
 };
 
 const ensureAllFirst = (items: string[]) => {
-  if (items.length === 0) return ['全部'];
-  return ['全部', ...items.filter((item) => item !== '全部')];
+  if (items.length === 0) return [ALL_VALUE];
+  return [ALL_VALUE, ...items.filter((item) => item !== ALL_VALUE)];
 };
 
 const normalizeMeta = (meta?: TemplateMeta) => {
@@ -271,6 +283,7 @@ const TemplatePreviewModal = ({
   onUse: (template: TemplateItem) => void;
   applying: boolean;
 }) => {
+  const { t } = useTranslation();
   const rawImageSrc = template?.image || template?.preview || '';
   const hasImage = Boolean(rawImageSrc);
   const defaultScale = hasImage ? 1 : 0.5;
@@ -283,9 +296,9 @@ const TemplatePreviewModal = ({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; adjusted: boolean } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
-  const imageSrc = resolveTemplateImageSrc(rawImageSrc);
+  const imageSrc = resolveTemplateImageSrc(rawImageSrc, t('templateMarket.placeholder.noImage'));
   const resolvedImageSrc = useCachedImage(imageSrc);
-  const errorText = hasImage ? '图片加载失败' : '暂无图片';
+  const errorText = hasImage ? t('templateMarket.preview.imageFailed') : t('templateMarket.preview.noImage');
   const items = templates ?? [];
   const currentIndex = template ? items.findIndex((item) => item.id === template.id) : -1;
   const hasPrev = currentIndex > 0;
@@ -300,7 +313,7 @@ const TemplatePreviewModal = ({
 
   const performZoom = useCallback((nextScale: number) => {
     setScale(clamp(nextScale, 0.5, 5));
-  }, []);
+  }, [t]);
 
   const handleWheel = useCallback((event: WheelEvent) => {
     event.preventDefault();
@@ -381,7 +394,7 @@ const TemplatePreviewModal = ({
           const bytes = new Uint8Array(await blob.arrayBuffer());
           await writeFile(relativePath, bytes, { baseDir: BaseDirectory.AppData });
           await invoke('copy_image_to_clipboard', { path: relativePath });
-          toast.success('图片已复制到剪贴板');
+          toast.success(t('toast.copyImageSuccess'));
           return;
         } catch (err) {
           console.warn('template copy (tauri) failed, fallback to web clipboard:', err);
@@ -391,12 +404,12 @@ const TemplatePreviewModal = ({
       const ClipboardItemCtor = (window as any).ClipboardItem as typeof ClipboardItem | undefined;
       if (ClipboardItemCtor && navigator.clipboard?.write) {
         await navigator.clipboard.write([new ClipboardItemCtor({ [blob.type || 'image/png']: blob })]);
-        toast.success('图片已复制到剪贴板');
+        toast.success(t('toast.copyImageSuccess'));
         return;
       }
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(rawImageSrc);
-        toast.info('当前环境不支持复制图片，已复制图片链接');
+        toast.info(t('toast.copyImageUnsupported'));
         return;
       }
       throw new Error('clipboard unavailable');
@@ -405,17 +418,17 @@ const TemplatePreviewModal = ({
       if (navigator.clipboard?.writeText) {
         try {
           await navigator.clipboard.writeText(rawImageSrc);
-          toast.success('已复制图片链接');
+          toast.success(t('templateMarket.toast.imageLinkCopied'));
           return;
         } catch (fallbackError) {
           console.error('copy template url failed:', fallbackError);
         }
       }
-      toast.error('复制失败');
+      toast.error(t('toast.copyFailed'));
     } finally {
       setIsCopying(false);
     }
-  }, [rawImageSrc, isCopying]);
+  }, [rawImageSrc, isCopying, t]);
 
   const copyText = useCallback(async (value: string) => {
     if (navigator.clipboard?.writeText) {
@@ -440,50 +453,50 @@ const TemplatePreviewModal = ({
 
   const handleCopyImagePath = useCallback(async () => {
     if (!rawImageSrc) {
-      toast.info('图片路径为空');
+      toast.info(t('toast.imagePathEmpty'));
       return;
     }
     const ok = await copyText(rawImageSrc);
-    if (ok) toast.success('图片路径已复制');
-    else toast.error('复制失败');
-  }, [copyText, rawImageSrc]);
+    if (ok) toast.success(t('toast.imagePathCopied'));
+    else toast.error(t('toast.copyFailed'));
+  }, [copyText, rawImageSrc, t]);
 
   const handleCopyPrompt = useCallback(async () => {
     const prompt = template?.prompt?.trim();
     if (!prompt) {
-      toast.info('暂无可复制内容');
+      toast.info(t('templateMarket.toast.noCopyContent'));
       return;
     }
     const ok = await copyText(prompt);
-    if (ok) toast.success('模板 Prompt 已复制');
-    else toast.error('复制失败');
-  }, [copyText, template?.prompt]);
+    if (ok) toast.success(t('templateMarket.toast.promptCopied'));
+    else toast.error(t('toast.copyFailed'));
+  }, [copyText, template?.prompt, t]);
 
   const handleCopyTips = useCallback(async () => {
     const tips = template?.tips?.trim();
     if (!tips) {
-      toast.info('暂无可复制内容');
+      toast.info(t('templateMarket.toast.noCopyContent'));
       return;
     }
     const ok = await copyText(tips);
-    if (ok) toast.success('使用提示已复制');
-    else toast.error('复制失败');
-  }, [copyText, template?.tips]);
+    if (ok) toast.success(t('templateMarket.toast.tipsCopied'));
+    else toast.error(t('toast.copyFailed'));
+  }, [copyText, template?.tips, t]);
 
   const handleCopyRequirements = useCallback(async () => {
     const note = template?.requirements?.note?.trim();
     if (!note) {
-      toast.info('暂无可复制内容');
+      toast.info(t('templateMarket.toast.noCopyContent'));
       return;
     }
     const ok = await copyText(note);
-    if (ok) toast.success('参考图要求已复制');
-    else toast.error('复制失败');
-  }, [copyText, template?.requirements?.note]);
+    if (ok) toast.success(t('templateMarket.toast.requirementsCopied'));
+    else toast.error(t('toast.copyFailed'));
+  }, [copyText, template?.requirements?.note, t]);
 
   const handleDownload = useCallback(async () => {
     if (!rawImageSrc) {
-      toast.info('暂无可下载图片');
+      toast.info(t('templateMarket.toast.noDownload'));
       return;
     }
     try {
@@ -501,12 +514,12 @@ const TemplatePreviewModal = ({
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      toast.success('下载已开始');
+      toast.success(t('templateMarket.toast.downloadStarted'));
     } catch (error) {
       console.error('download template image failed:', error);
-      toast.error('下载失败');
+      toast.error(t('templateMarket.toast.downloadFailed'));
     }
-  }, [rawImageSrc, template?.id]);
+  }, [rawImageSrc, template?.id, t]);
 
   useEffect(() => {
     if (!template) return;
@@ -583,7 +596,7 @@ const TemplatePreviewModal = ({
     <Modal
       isOpen={Boolean(template)}
       onClose={onClose}
-      title="模板预览"
+      title={t('templateMarket.preview.title')}
       className="max-w-5xl h-[82vh]"
       contentScrollable={false}
       contentClassName="h-full min-h-0"
@@ -668,14 +681,14 @@ const TemplatePreviewModal = ({
               }}
               disabled={!hasImage || isCopying}
               className="px-3 py-2 rounded-full bg-white/90 text-slate-600 text-xs font-semibold flex items-center gap-1.5 shadow-sm hover:bg-white disabled:opacity-60 disabled:cursor-not-allowed"
-              title={hasImage ? '复制图片' : '暂无可复制图片'}
+              title={hasImage ? t('templateMarket.preview.copyImage') : t('templateMarket.preview.copyImageDisabled')}
             >
               {isCopying ? (
                 <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
               ) : (
                 <Copy className="w-3.5 h-3.5" />
               )}
-              复制图片
+              {t('templateMarket.preview.copyImage')}
             </button>
           </div>
 
@@ -711,7 +724,7 @@ const TemplatePreviewModal = ({
                 className="fixed z-[1000] min-w-[180px] bg-white/95 backdrop-blur-xl border border-slate-200/70 rounded-2xl shadow-[0_18px_60px_-18px_rgba(0,0,0,0.35)] overflow-hidden"
                 style={{ left: contextMenu.x, top: contextMenu.y }}
                 role="menu"
-                aria-label="模板图片操作菜单"
+                aria-label={t('templateMarket.preview.menuLabel')}
                 onClick={(event) => event.stopPropagation()}
                 onMouseDown={(event) => event.stopPropagation()}
                 onContextMenu={(event) => {
@@ -731,7 +744,7 @@ const TemplatePreviewModal = ({
                   disabled={!hasImage}
                 >
                   <Copy className="w-4 h-4 text-slate-600" />
-                  复制图片
+                  {t('templateMarket.preview.menu.copyImage')}
                 </button>
                 <button
                   type="button"
@@ -745,7 +758,7 @@ const TemplatePreviewModal = ({
                   disabled={!hasImage}
                 >
                   <Copy className="w-4 h-4 text-slate-600" />
-                  复制图片路径
+                  {t('templateMarket.preview.menu.copyImagePath')}
                 </button>
                 <div className="h-px bg-slate-200/60" />
                 <button
@@ -760,7 +773,7 @@ const TemplatePreviewModal = ({
                   disabled={!hasImage}
                 >
                   <Download className="w-4 h-4 text-slate-600" />
-                  下载高清原图
+                  {t('templateMarket.preview.menu.downloadOriginal')}
                 </button>
                 <button
                   type="button"
@@ -773,7 +786,7 @@ const TemplatePreviewModal = ({
                   role="menuitem"
                 >
                   <Maximize2 className="w-4 h-4 text-slate-600" />
-                  重置缩放/位置
+                  {t('templateMarket.preview.menu.resetZoom')}
                 </button>
               </div>,
               document.body
@@ -781,13 +794,15 @@ const TemplatePreviewModal = ({
           : null}
         <div className="flex flex-col gap-4 md:h-full md:min-h-0">
           <div className="flex-shrink-0">
-            <p className="text-xs uppercase text-slate-400 tracking-widest">模板信息</p>
+            <p className="text-xs uppercase text-slate-400 tracking-widest">{t('templateMarket.preview.infoTitle')}</p>
             <h3 className="text-xl font-black text-slate-900 mt-2">{template.title}</h3>
             <div className="flex flex-wrap gap-2 mt-3">
-              <span className="px-2.5 py-1 rounded-full text-xs bg-slate-100 text-slate-600">{template.ratio}</span>
+              <span className="px-2.5 py-1 rounded-full text-xs bg-slate-100 text-slate-600">
+                {getFilterLabel(template.ratio, t)}
+              </span>
               {template.materials?.map((item) => (
                 <span key={item} className="px-2.5 py-1 rounded-full text-xs bg-slate-100 text-slate-600">
-                  {item}
+                  {getFilterLabel(item, t)}
                 </span>
               ))}
             </div>
@@ -796,7 +811,7 @@ const TemplatePreviewModal = ({
             <div className="space-y-4">
               {template.source?.name && (
                 <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <span className="text-xs uppercase text-slate-400 tracking-widest">来源</span>
+                  <span className="text-xs uppercase text-slate-400 tracking-widest">{t('templateMarket.preview.source')}</span>
                   <div className="flex items-center gap-2 bg-white/70 border border-white/60 rounded-full px-3 py-1">
                     {renderSourceIcon(template.source)}
                     {template.source.url ? (
@@ -821,7 +836,7 @@ const TemplatePreviewModal = ({
                   {previewStatus === 'error' && (
                     <div className="rounded-2xl border border-rose-200/70 bg-rose-50/70 px-4 py-3 flex items-start gap-2 text-xs font-semibold text-rose-700">
                       <AlertTriangle className="w-4 h-4 mt-0.5" />
-                      <span>图片加载失败，可继续查看模板信息</span>
+                      <span>{t('templateMarket.preview.imageFailedHint')}</span>
                     </div>
                   )}
                   {template.tips && (
@@ -829,14 +844,14 @@ const TemplatePreviewModal = ({
                       <div className="flex items-center justify-between text-[11px] font-semibold text-blue-700 tracking-widest">
                         <div className="flex items-center gap-2">
                           <Sparkles className="w-3.5 h-3.5" />
-                          使用提示
+                          {t('templateMarket.preview.tips')}
                         </div>
                         <button
                           type="button"
                           onClick={handleCopyTips}
                           className="text-blue-600 hover:text-blue-700 font-semibold"
                         >
-                          复制
+                          {t('common.copy')}
                         </button>
                       </div>
                       <p className="text-sm text-slate-700 mt-2 leading-relaxed">{template.tips}</p>
@@ -847,14 +862,14 @@ const TemplatePreviewModal = ({
                       <div className="flex items-center justify-between text-[11px] font-semibold text-amber-700 tracking-widest">
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="w-3.5 h-3.5" />
-                          参考图要求
+                          {t('templateMarket.preview.requirements')}
                         </div>
                         <button
                           type="button"
                           onClick={handleCopyRequirements}
                           className="text-blue-600 hover:text-blue-700 font-semibold"
                         >
-                          复制
+                          {t('common.copy')}
                         </button>
                       </div>
                       <p className="text-sm text-slate-700 mt-2 leading-relaxed">{template.requirements.note}</p>
@@ -865,14 +880,14 @@ const TemplatePreviewModal = ({
                       <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 tracking-widest">
                         <div className="flex items-center gap-2">
                           <MessageCircle className="w-3.5 h-3.5" />
-                          模板 Prompt
+                          {t('templateMarket.preview.prompt')}
                         </div>
                         <button
                           type="button"
                           onClick={handleCopyPrompt}
                           className="text-blue-600 hover:text-blue-700 font-semibold"
                         >
-                          复制
+                          {t('common.copy')}
                         </button>
                       </div>
                       <div className="mt-2 rounded-xl border border-slate-200/60 bg-slate-50/70 p-3">
@@ -892,7 +907,7 @@ const TemplatePreviewModal = ({
             disabled={applying}
             className="w-full"
           >
-            {applying ? '处理中...' : '复用此模板'}
+            {applying ? t('templateMarket.preview.applying') : t('templateMarket.preview.use')}
           </Button>
         </div>
       </div>
@@ -911,8 +926,9 @@ const TemplateCard = React.memo(function TemplateCard({
   onPreview: (item: TemplateItem) => void;
   onApply: (item: TemplateItem) => void;
 }) {
+  const { t } = useTranslation();
   const hasPreview = Boolean(item.preview || item.image);
-  const previewSrc = resolveTemplateImageSrc(item.preview || item.image);
+  const previewSrc = resolveTemplateImageSrc(item.preview || item.image, t('templateMarket.placeholder.noImage'));
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>(hasPreview ? 'loading' : 'loaded');
   const resolvedSrc = useCachedImage(previewSrc);
 
@@ -957,19 +973,19 @@ const TemplateCard = React.memo(function TemplateCard({
           {status === 'loaded' ? (
             <div className="absolute inset-0 rounded-2xl pointer-events-none">
               <span className="absolute bottom-2 right-2 rounded-full bg-white/85 text-slate-700 text-[11px] font-semibold px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                点击查看
+                {t('templateMarket.card.view')}
               </span>
             </div>
           ) : (
             <div className="absolute inset-0 rounded-2xl flex items-center justify-center text-xs text-slate-500">
               {status === 'error' ? (
                 <span className="px-2.5 py-1 rounded-full bg-white/85">
-                  {hasPreview ? '图片加载失败' : '图片地址为空'}
+                  {hasPreview ? t('templateMarket.card.imageFailed') : t('templateMarket.card.imageEmpty')}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/85">
                   <Loader2 className="w-4 h-4 text-slate-500 animate-spin" />
-                  加载中
+                  {t('templateMarket.card.loading')}
                 </span>
               )}
             </div>
@@ -978,7 +994,7 @@ const TemplateCard = React.memo(function TemplateCard({
       </button>
       <div className="flex-1">
         <h4 className="text-sm font-bold text-slate-800 line-clamp-2">{item.title}</h4>
-        <p className="text-xs text-slate-400 mt-1">{item.ratio}</p>
+        <p className="text-xs text-slate-400 mt-1">{getFilterLabel(item.ratio, t)}</p>
       </div>
       {item.requirements && (
         <div className="text-[11px] text-amber-600 bg-amber-50 rounded-full px-2 py-1">
@@ -988,12 +1004,12 @@ const TemplateCard = React.memo(function TemplateCard({
       <Button
         variant="secondary"
         size="sm"
-        onClick={() => onApply(item)}
-        disabled={disableActions}
-        className="w-full"
-      >
-        {isApplying ? '应用中...' : disableActions ? '加载中...' : '复用模板'}
-      </Button>
+      onClick={() => onApply(item)}
+      disabled={disableActions}
+      className="w-full"
+    >
+        {isApplying ? t('templateMarket.card.applying') : disableActions ? t('templateMarket.card.loading') : t('templateMarket.card.use')}
+    </Button>
     </div>
   );
 });
@@ -1003,6 +1019,7 @@ export function TemplateMarketDrawer({
 }: {
   onOpenChange?: (open: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const { addRefFiles, setPrompt, clearRefFiles } = useConfigStore(
     useShallow((s) => ({
       addRefFiles: s.addRefFiles,
@@ -1017,10 +1034,10 @@ export function TemplateMarketDrawer({
   const [pull, setPull] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [search, setSearch] = useState('');
-  const [channel, setChannel] = useState('全部');
-  const [material, setMaterial] = useState('全部');
-  const [industry, setIndustry] = useState('全部');
-  const [ratio, setRatio] = useState('全部');
+  const [channel, setChannel] = useState(ALL_VALUE);
+  const [material, setMaterial] = useState(ALL_VALUE);
+  const [industry, setIndustry] = useState(ALL_VALUE);
+  const [ratio, setRatio] = useState(ALL_VALUE);
   const [previewTemplate, setPreviewTemplate] = useState<TemplateItem | null>(null);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [templateData, setTemplateData] = useState<TemplateListResponse>({
@@ -1049,6 +1066,7 @@ export function TemplateMarketDrawer({
   const maxPull = 120;
 
   const normalizedMeta = useMemo(() => normalizeMeta(templateData.meta), [templateData.meta]);
+  const formatFilterLabel = useCallback((value: string) => getFilterLabel(value, t), [t]);
 
   useEffect(() => {
     onOpenChange?.(isOpen);
@@ -1075,10 +1093,10 @@ export function TemplateMarketDrawer({
     const keyword = deferredSearch.trim().toLowerCase();
     return templateData.items.filter((item) => {
       const matchesSearch = !keyword || (searchIndex.get(item.id) || '').includes(keyword);
-      const matchesChannel = channel === '全部' || (item.channels?.includes(channel) ?? false);
-      const matchesMaterial = material === '全部' || (item.materials?.includes(material) ?? false);
-      const matchesIndustry = industry === '全部' || (item.industries?.includes(industry) ?? false);
-      const matchesRatio = ratio === '全部' || item.ratio === ratio;
+      const matchesChannel = channel === ALL_VALUE || (item.channels?.includes(channel) ?? false);
+      const matchesMaterial = material === ALL_VALUE || (item.materials?.includes(material) ?? false);
+      const matchesIndustry = industry === ALL_VALUE || (item.industries?.includes(industry) ?? false);
+      const matchesRatio = ratio === ALL_VALUE || item.ratio === ratio;
       return matchesSearch && matchesChannel && matchesMaterial && matchesIndustry && matchesRatio;
     });
   }, [isDormant, deferredSearch, channel, material, industry, ratio, templateData.items, searchIndex]);
@@ -1086,31 +1104,31 @@ export function TemplateMarketDrawer({
   const activeFilters = useMemo(() => {
     const filters: { label: string; onClear: () => void }[] = [];
     if (search.trim()) {
-      filters.push({ label: `搜索: ${search.trim()}`, onClear: () => setSearch('') });
+      filters.push({ label: t('templateMarket.active.search', { keyword: search.trim() }), onClear: () => setSearch('') });
     }
-    if (channel !== '全部') {
-      filters.push({ label: `渠道: ${channel}`, onClear: () => setChannel('全部') });
+    if (channel !== ALL_VALUE) {
+      filters.push({ label: t('templateMarket.active.channel', { label: formatFilterLabel(channel) }), onClear: () => setChannel(ALL_VALUE) });
     }
-    if (material !== '全部') {
-      filters.push({ label: `物料: ${material}`, onClear: () => setMaterial('全部') });
+    if (material !== ALL_VALUE) {
+      filters.push({ label: t('templateMarket.active.material', { label: formatFilterLabel(material) }), onClear: () => setMaterial(ALL_VALUE) });
     }
-    if (industry !== '全部') {
-      filters.push({ label: `行业: ${industry}`, onClear: () => setIndustry('全部') });
+    if (industry !== ALL_VALUE) {
+      filters.push({ label: t('templateMarket.active.industry', { label: formatFilterLabel(industry) }), onClear: () => setIndustry(ALL_VALUE) });
     }
-    if (ratio !== '全部') {
-      filters.push({ label: `比例: ${ratio}`, onClear: () => setRatio('全部') });
+    if (ratio !== ALL_VALUE) {
+      filters.push({ label: t('templateMarket.active.ratio', { label: formatFilterLabel(ratio) }), onClear: () => setRatio(ALL_VALUE) });
     }
     return filters;
-  }, [search, channel, material, industry, ratio]);
+  }, [search, channel, material, industry, ratio, t, formatFilterLabel]);
 
   const hasActiveFilters = activeFilters.length > 0;
 
   const clearAllFilters = () => {
     setSearch('');
-    setChannel('全部');
-    setMaterial('全部');
-    setIndustry('全部');
-    setRatio('全部');
+    setChannel(ALL_VALUE);
+    setMaterial(ALL_VALUE);
+    setIndustry(ALL_VALUE);
+    setRatio(ALL_VALUE);
   };
 
   const fetchTemplates = useCallback(async (fromUser = false) => {
@@ -1121,10 +1139,10 @@ export function TemplateMarketDrawer({
       const res = await getTemplates({ refresh: fromUser });
       if (requestId !== requestIdRef.current) return;
       if (!res || !Array.isArray(res.items)) {
-        throw new Error('模板数据异常');
+        throw new Error(t('templateMarket.toast.invalidData'));
       }
       if (res.items.length === 0) {
-        throw new Error('模板数据为空');
+        throw new Error(t('templateMarket.toast.emptyData'));
       }
       setTemplateData({
         meta: normalizeMeta(res.meta),
@@ -1133,7 +1151,7 @@ export function TemplateMarketDrawer({
       setTemplateSource('remote');
       setLoadError(null);
       if (fromUser) {
-        toast.success('模板已刷新');
+        toast.success(t('templateMarket.toast.refreshed'));
       }
     } catch (error) {
       if (requestId !== requestIdRef.current) return;
@@ -1144,10 +1162,12 @@ export function TemplateMarketDrawer({
           items: templateItems
         });
       }
-      const message = isFallback ? '模板拉取失败，已使用内置模板' : '模板拉取失败，已保留当前模板';
+      const message = isFallback
+        ? t('templateMarket.toast.fetchFallback')
+        : t('templateMarket.toast.fetchFailed');
       setLoadError(message);
       if (fromUser) {
-        toast.error(message.replace('拉取', '刷新'));
+        toast.error(t('templateMarket.toast.refreshFailed'));
       } else if (!toastOnceRef.current) {
         toastOnceRef.current = true;
         toast.info(message);
@@ -1294,13 +1314,13 @@ export function TemplateMarketDrawer({
       const nextCount = useConfigStore.getState().refFiles.length;
       const minRefs = template.requirements?.minRefs ?? 0;
       if (minRefs > 0 && nextCount < minRefs) {
-        toast.info(template.requirements?.note || '还需要补充更多参考图');
+        toast.info(template.requirements?.note || t('templateMarket.toast.moreRefsNeeded'));
       }
 
       setPreviewTemplate(null);
-      toast.success('已替换 Prompt 与参考图');
+      toast.success(t('templateMarket.toast.applied'));
     } catch (error) {
-      toast.error('模板应用失败，请稍后重试');
+      toast.error(t('templateMarket.toast.applyFailed'));
     } finally {
       setApplyingId(null);
     }
@@ -1321,11 +1341,11 @@ export function TemplateMarketDrawer({
           className={`w-6 h-6 rounded-full border border-slate-300 shadow-md bg-white/95 transition-all flex items-center justify-center ${
             isDragging ? 'scale-110' : ''
           }`}
-          title="下拉打开模板市场"
+          title={t('templateMarket.toggle.title')}
         >
           <span className="w-2 h-2 rounded-full bg-blue-500/80 shadow-sm" />
         </button>
-        <span className="mt-1 text-[11px] text-slate-500 tracking-[0.25em] font-semibold">模板</span>
+        <span className="mt-1 text-[11px] text-slate-500 tracking-[0.25em] font-semibold">{t('templateMarket.toggle.label')}</span>
       </div>
       )}
 
@@ -1346,7 +1366,7 @@ export function TemplateMarketDrawer({
         <div className="flex items-center justify-between px-8 py-5 border-b border-white/60">
           <div>
             <p className="text-xs text-slate-400 tracking-[0.3em]">TEMPLATE</p>
-            <h2 className="text-xl font-black text-slate-900">模板市场</h2>
+            <h2 className="text-xl font-black text-slate-900">{t('templateMarket.title')}</h2>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -1355,7 +1375,7 @@ export function TemplateMarketDrawer({
               className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold bg-white/80 text-slate-600 hover:bg-white"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              返回生成
+              {t('templateMarket.actions.backToGenerate')}
             </button>
             <button
               type="button"
@@ -1369,7 +1389,7 @@ export function TemplateMarketDrawer({
 
         {(isLoading || loadError) && (
           <div className="px-8 py-2 text-xs text-slate-500 bg-white/60 border-b border-white/60">
-            {isLoading ? '正在拉取最新模板…' : loadError}
+            {isLoading ? t('templateMarket.loading.fetching') : loadError}
           </div>
         )}
 
@@ -1380,12 +1400,12 @@ export function TemplateMarketDrawer({
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索模板、标签、行业"
+                placeholder={t('templateMarket.searchPlaceholder')}
                 className="pl-10 bg-white/80"
               />
             </div>
             <div className="flex items-center gap-2 overflow-x-auto flex-nowrap min-h-[34px] pb-1">
-              <span className="text-xs text-slate-400 shrink-0">已选</span>
+              <span className="text-xs text-slate-400 shrink-0">{t('templateMarket.activeFilters.title')}</span>
               {hasActiveFilters ? (
                 <>
                   {activeFilters.map((filter) => (
@@ -1396,22 +1416,22 @@ export function TemplateMarketDrawer({
                     onClick={clearAllFilters}
                     className="text-xs text-blue-600 hover:underline shrink-0"
                   >
-                    清空筛选
+                    {t('templateMarket.actions.clearFilters')}
                   </button>
                 </>
               ) : (
-                <span className="text-xs text-slate-400 shrink-0">暂无</span>
+                <span className="text-xs text-slate-400 shrink-0">{t('templateMarket.activeFilters.empty')}</span>
               )}
             </div>
 
             <div className="space-y-4">
               <div>
-                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">渠道</p>
+                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">{t('templateMarket.filters.channel')}</p>
                 <div className="flex flex-wrap gap-2">
                   {normalizedMeta.channels.map((item) => (
                     <FilterChip
                       key={item}
-                      label={item}
+                      label={formatFilterLabel(item)}
                       active={channel === item}
                       onClick={() => setChannel(item)}
                     />
@@ -1419,12 +1439,12 @@ export function TemplateMarketDrawer({
                 </div>
               </div>
               <div>
-                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">物料</p>
+                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">{t('templateMarket.filters.material')}</p>
                 <div className="flex flex-wrap gap-2">
                   {normalizedMeta.materials.map((item) => (
                     <FilterChip
                       key={item}
-                      label={item}
+                      label={formatFilterLabel(item)}
                       active={material === item}
                       onClick={() => setMaterial(item)}
                     />
@@ -1432,12 +1452,12 @@ export function TemplateMarketDrawer({
                 </div>
               </div>
               <div>
-                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">行业</p>
+                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">{t('templateMarket.filters.industry')}</p>
                 <div className="flex flex-wrap gap-2">
                   {normalizedMeta.industries.map((item) => (
                     <FilterChip
                       key={item}
-                      label={item}
+                      label={formatFilterLabel(item)}
                       active={industry === item}
                       onClick={() => setIndustry(item)}
                     />
@@ -1445,12 +1465,12 @@ export function TemplateMarketDrawer({
                 </div>
               </div>
               <div>
-                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">画幅比例</p>
+                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">{t('templateMarket.filters.ratio')}</p>
                 <div className="flex flex-wrap gap-2">
                   {normalizedMeta.ratios.map((item) => (
                     <FilterChip
                       key={item}
-                      label={item}
+                      label={formatFilterLabel(item)}
                       active={ratio === item}
                       onClick={() => setRatio(item)}
                     />
@@ -1462,7 +1482,7 @@ export function TemplateMarketDrawer({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-500">
-                  {isLoading ? '模板加载中...' : `共 ${filteredTemplates.length} 个模板`}
+                  {isLoading ? t('templateMarket.list.loading') : t('templateMarket.list.count', { count: filteredTemplates.length })}
                 </p>
               </div>
                 <button
@@ -1498,7 +1518,7 @@ export function TemplateMarketDrawer({
               </div>
             ) : filteredTemplates.length === 0 ? (
               <div className="text-sm text-slate-500 bg-white/70 border border-white/60 rounded-2xl p-6 text-center">
-                暂无匹配模板，试试调整筛选条件
+                {t('templateMarket.list.empty')}
                 {hasActiveFilters && (
                   <div className="mt-3">
                     <button
@@ -1506,7 +1526,7 @@ export function TemplateMarketDrawer({
                       onClick={clearAllFilters}
                       className="text-xs text-blue-600 hover:underline"
                     >
-                      清空筛选
+                      {t('templateMarket.actions.clearFilters')}
                     </button>
                   </div>
                 )}

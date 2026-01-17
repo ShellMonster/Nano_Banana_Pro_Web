@@ -19,6 +19,9 @@ interface ConfigState {
     apiKey: string;
     model: string;
   } | null;
+
+  language: string;
+  languageResolved: string | null;
   
   prompt: string;
   count: number;
@@ -36,6 +39,8 @@ interface ConfigState {
   setChatApiKey: (key: string) => void;
   setChatModel: (model: string) => void;
   setChatSyncedConfig: (config: { apiBaseUrl: string; apiKey: string; model: string } | null) => void;
+  setLanguage: (language: string) => void;
+  setLanguageResolved: (languageResolved: string | null) => void;
   setPrompt: (prompt: string) => void;
   setCount: (count: number) => void;
   setImageSize: (size: string) => void;
@@ -61,6 +66,8 @@ export const useConfigStore = create<ConfigState>()(
       chatApiKey: '',
       chatModel: 'gemini-3-flash-preview',
       chatSyncedConfig: null,
+      language: 'system',
+      languageResolved: null,
       prompt: '',
       count: 1,
       imageSize: '2K',
@@ -77,6 +84,8 @@ export const useConfigStore = create<ConfigState>()(
       setChatApiKey: (chatApiKey) => set({ chatApiKey }),
       setChatModel: (chatModel) => set({ chatModel }),
       setChatSyncedConfig: (chatSyncedConfig) => set({ chatSyncedConfig }),
+      setLanguage: (language) => set({ language }),
+      setLanguageResolved: (languageResolved) => set({ languageResolved }),
       setPrompt: (prompt) => set({ prompt }),
       setCount: (count) => set({ count }),
       setImageSize: (imageSize) => set({ imageSize }),
@@ -113,7 +122,7 @@ export const useConfigStore = create<ConfigState>()(
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 6,
+      version: 8,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;
@@ -155,6 +164,17 @@ export const useConfigStore = create<ConfigState>()(
         }
         if (version < 6) {
           next = { ...next, refImageEntries: next.refImageEntries ?? [] };
+        }
+        if (version < 7) {
+          next = { ...next, language: next.language ?? '' };
+        }
+        if (version < 8) {
+          const rawLanguage = typeof next.language === 'string' ? next.language.trim() : '';
+          next = {
+            ...next,
+            language: rawLanguage ? next.language : 'system',
+            languageResolved: next.languageResolved ?? null
+          };
         }
         return next;
       },

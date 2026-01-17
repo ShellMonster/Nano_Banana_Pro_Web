@@ -1,0 +1,581 @@
+{
+  "app": {
+    "title": "Banana AI",
+    "headerTitle": "Banana Image Generator"
+  },
+  "nav": {
+    "generate": "Generate",
+    "history": "History",
+    "settings": "Settings",
+    "generateArea": "Generate",
+    "historyArea": "History"
+  },
+  "language": {
+    "label": "Language",
+    "system": "Follow system",
+    "zhCN": "Chinese",
+    "enUS": "English",
+    "jaJP": "Japanese",
+    "koKR": "Korean"
+  },
+  "common": {
+    "copy": "Copy",
+    "copied": "Copied",
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "open": "Open",
+    "save": "Save",
+    "loading": "Loading...",
+    "confirmShort": "Confirm",
+    "unknownTime": "Unknown time",
+    "invalidDate": "Invalid date",
+    "parseFailed": "Failed to parse time",
+    "unknownError": "Unknown error"
+  },
+  "toast": {
+    "copyImageSuccess": "Image copied to clipboard",
+    "copyImageUnsupported": "Image copy is not supported here. The image link was copied instead.",
+    "copyImageFallback": "Failed to copy image. The image link was copied instead.",
+    "copyImageFailed": "Failed to copy image. Please try right-clicking to save.",
+    "copyPromptSuccess": "Prompt copied to clipboard",
+    "copyFailedManual": "Copy failed. Please copy manually.",
+    "imagePathEmpty": "Image path is empty",
+    "noLocalPath": "No local path for this image",
+    "imagePathCopied": "Image path copied",
+    "copyFailed": "Copy failed",
+    "deleteFailed": "Delete failed",
+    "imageSrcEmpty": "Image source is empty",
+    "imageFetchFailed": "Failed to fetch image: {{status}}"
+  },
+  "preview": {
+    "copyImage": "Copy image",
+    "imageLoadFailed": "Image failed to load",
+    "menu": {
+      "label": "Image actions",
+      "copyImage": "Copy image",
+      "copyImagePath": "Copy image path",
+      "downloadOriginal": "Download original",
+      "resetZoom": "Reset zoom/position"
+    },
+    "title": "Generation details",
+    "delete": {
+      "title": "Delete image",
+      "confirmTitle": "Click again to confirm deletion",
+      "deleting": "Deleting...",
+      "confirmLabel": "Confirm?",
+      "action": "Delete"
+    },
+    "prompt": {
+      "label": "Prompt",
+      "copied": "Copied",
+      "empty": "No prompt"
+    },
+    "meta": {
+      "model": "Model",
+      "unknown": "Unknown",
+      "size": "Size",
+      "time": "Time"
+    },
+    "downloadOriginal": "Download original"
+  },
+  "prompt": {
+    "label": "Prompt",
+    "optimize": "Optimize prompt",
+    "optimizeJson": "JSON prompt",
+    "undo": "Undo",
+    "redo": "Redo",
+    "placeholder": "Describe the image you want to generate...",
+    "toast": {
+      "empty": "Please enter a prompt",
+      "chatConfig": "Please configure the chat model in Settings first",
+      "chatConfigChanged": "Chat model config changed. Please sync it in Settings.",
+      "optimizeEmpty": "Optimization returned no content",
+      "optimizeFailed": "Optimization failed",
+      "syncChatConfig": "Please sync the chat model config in Settings",
+      "chatModelMissing": "Please set a chat model and sync it in Settings",
+      "optimizeCheckConfig": "Optimization failed. Please check the chat model config.",
+      "apiKeyInvalid": "API key is invalid or lacks permission",
+      "baseUrlInvalid": "Base URL is invalid or the endpoint is unavailable",
+      "timeout": "Request timed out. Please try again later.",
+      "optimizeRetry": "Optimization failed. Please try again later."
+    }
+  },
+  "refImage": {
+    "title": "Style reference images ({{count}}/10)",
+    "toggleCollapse": "Collapse reference images",
+    "toggleExpand": "Expand reference images",
+    "dropHint": "Release to add images",
+    "modeActive": "Image-to-image mode active",
+    "collapsedHint": "Click to expand and upload reference images for image-to-image",
+    "add": "Add reference images",
+    "addMore": "Add more",
+    "supportHint": "(supports multi-select or drag & drop)",
+    "toast": {
+      "full": "Reference images are full",
+      "exists": "Image already exists",
+      "addedOne": "Added 1 reference image",
+      "fetchFailed": "Failed to fetch image",
+      "fetchFailedDetail": "Failed to fetch image: {{message}}",
+      "noImage": "No images detected to add",
+      "busy": "Please wait for the current operation to finish",
+      "unknown": "Unknown error",
+      "addFailed": "Failed to add reference image: {{message}}",
+      "remainingSlots": "Max 10. You can add {{count}} more",
+      "notImage": "{{name}} is not an image file",
+      "fileTooLarge": "{{name}} exceeds 5MB",
+      "addedCompressed": "Added {{count}} images ({{compressed}} compressed)",
+      "addedCount": "Added {{count}} reference images",
+      "allExists": "All images already exist",
+      "tooLarge": "Image exceeds 5MB",
+      "adding": "Adding images...",
+      "pasteFailed": "Paste failed: {{message}}",
+      "deduped": "Duplicate images filtered",
+      "timeout": "Operation timed out ({{seconds}}s)"
+    },
+    "compressReason": {
+      "fileTooLarge": "File too large ({{size}}MB)",
+      "dimensions": "Dimensions too large ({{width}}x{{height}})"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "tabs": {
+      "image": "Image Model",
+      "chat": "Chat Model"
+    },
+    "language": {
+      "label": "Language",
+      "hint": "Changes apply immediately"
+    },
+    "provider": {
+      "label": "Provider",
+      "recommended": "Recommended:",
+      "yunwu": "Yunwu API",
+      "openaiImageLimit": "OpenAI providers currently support only 1K images"
+    },
+    "model": {
+      "default": "Default Model",
+      "chat": "Chat Model"
+    },
+    "update": {
+      "title": "Updates",
+      "check": "Check for updates",
+      "checking": "Checking for updates...",
+      "checkingShort": "Checking...",
+      "view": "View update",
+      "latest": "You're up to date",
+      "available": "New version v{{version}} available",
+      "failed": "Check failed",
+      "failedWith": "Check failed: {{error}}",
+      "desktopOnly": "Desktop only",
+      "autoNote": "The app checks for updates automatically; if a new version is available, you'll be prompted to download and install."
+    },
+    "logs": {
+      "title": "Diagnostics",
+      "openDir": "Open log folder",
+      "copyDirTitle": "Copy log folder path",
+      "verboseLabel": "Enable verbose logs (more diagnostic info)",
+      "help": "If you encounter issues, please send app.log and server.log to the developer (logs may include prompts)."
+    },
+    "save": "Sync and Save",
+    "toast": {
+      "fetchFailed": "Failed to fetch backend config",
+      "imageConfigIncomplete": "Please complete the image model config",
+      "chatConfigIncomplete": "Please complete the chat model config",
+      "openaiGeminiUnsupported": "OpenAI base URL does not support Gemini models. Please use a compatible endpoint.",
+      "saveSuccess": "Config synced to server",
+      "saveFailed": "Save failed: {{msg}}",
+      "checkNetwork": "Please check your network",
+      "logDirDesktopOnly": "Log folder is available on desktop only",
+      "logDirOpenFailed": "Failed to open log folder",
+      "logDirCopied": "Log path copied",
+      "logDirCopyFailedManual": "Copy failed. Please open the log folder manually.",
+      "logDirCopyFailed": "Failed to copy log path",
+      "verboseEnabled": "Verbose logs enabled",
+      "verboseDisabled": "Verbose logs disabled",
+      "openLinkFailed": "Failed to open link"
+    }
+  },
+  "versionBadge": {
+    "downloading": "Downloading {{percent}}%",
+    "installing": "Installing update...",
+    "downloaded": "Update downloaded. Click to install.",
+    "available": "New version v{{version}} available. Click to view/install.",
+    "check": "Check for updates",
+    "checking": "Checking...",
+    "latest": "You're up to date",
+    "error": "Check failed",
+    "availableShort": "Update available",
+    "desktopOnly": "Desktop only",
+    "updateProgress": "Update {{percent}}%",
+    "installingShort": "Installing",
+    "pendingInstall": "Ready to install",
+    "version": "v{{version}}",
+    "repoMissing": "GitHub repo URL not configured"
+  },
+  "updater": {
+    "dismiss": {
+      "background": "Download in background",
+      "later": "Later"
+    },
+    "title": {
+      "checking": "Checking for updates...",
+      "downloading": "Downloading update...",
+      "downloaded": "Update downloaded",
+      "installing": "Installing update...",
+      "installed": "Update installed",
+      "error": "Update failed",
+      "available": "New version available"
+    },
+    "newVersion": "New version",
+    "progress": "Download progress",
+    "downloadHint": "You can close this window and keep using the app while the download continues in the background.",
+    "downloadedHint": "The update package is ready. Click \"Install and Restart\" to finish.",
+    "installingHint": "Installing. Please keep the app open.",
+    "errorFallback": "Update failed. Please try again later.",
+    "errorExtra": "If you just integrated Updater, set `plugins.updater.pubkey` in `desktop/src-tauri/tauri.conf.json` and configure `TAURI_SIGNING_PRIVATE_KEY` in CI.",
+    "actions": {
+      "download": "Download update",
+      "install": "Install and Restart",
+      "retry": "Check again"
+    },
+    "toast": {
+      "checkFailed": "Update check failed",
+      "checkFailedManifest": "Update check failed: latest.json not found",
+      "checkFailedPubkey": "Update check failed: missing signing public key",
+      "checkFailedNetwork": "Update check failed: network error",
+      "downloadFailed": "Update download failed",
+      "downloaded": "Update downloaded",
+      "installFailed": "Update install failed",
+      "installManual": "Update installed. Please restart the app.",
+      "installed": "Update installed"
+    }
+  },
+  "generate": {
+    "batch": {
+      "clearSuccess": "Generation list cleared",
+      "readError": "Failed to read error response",
+      "exportFailed": "Export failed",
+      "exportFailedServer": "Export failed: server returned an error",
+      "exported": "Exported {{count}} images",
+      "exportFailedRetry": "Export failed. Please try again later.",
+      "networkError": "Network error. Please check your connection.",
+      "timeout": "Request timed out. Please try again later.",
+      "serviceUnavailable": "Export service unavailable",
+      "serverError": "Server error. Please try again later.",
+      "clearSelection": "Clear selection",
+      "selectAll": "Select all",
+      "selectedCount": "{{count}} selected",
+      "exporting": "Packaging...",
+      "exportSelected": "Export selected",
+      "clearConfirm": "Confirm clear?",
+      "clearList": "Clear list"
+    },
+    "card": {
+      "removeSuccess": "Removed from generation list",
+      "deleteTitle": "Delete image",
+      "confirmDeleteTitle": "Click again to confirm deletion",
+      "confirmLabel": "Confirm?",
+      "generating": "Generating",
+      "failed": "Generation failed",
+      "imageAlt": "Image",
+      "emptyPrompt": "No prompt"
+    },
+    "error": {
+      "title": "Generation failed",
+      "collapse": "Collapse",
+      "expand": "Expand"
+    },
+    "empty": {
+      "title": "Start creating your images",
+      "subtitle": "Enter a prompt on the left, or upload reference images for image-to-image.",
+      "textToImage": "Text to Image",
+      "textToImageDesc": "Generate images from text",
+      "imageToImage": "Image to Image",
+      "imageToImageDesc": "Generate from reference images"
+    },
+    "grid": {
+      "empty": "No generated images yet. Configure on the left and start generating.",
+      "limitNotice": "Showing the first {{max}} images out of {{total}}",
+      "limitHint": "Tip: For best performance, generate in batches or clear history."
+    },
+    "submitting": {
+      "title": "Starting generation task",
+      "subtitle": "Connecting to the AI model, please wait..."
+    },
+    "start": "Start generating",
+    "startImg2Img": "Start image-to-image",
+    "progress": {
+      "generating": "Generating",
+      "connection": {
+        "websocket": "Live",
+        "polling": "Polling",
+        "initializing": "Connecting..."
+      }
+    },
+    "toast": {
+      "countMismatch": "Returned image count mismatch ({{returned}}/{{total}})",
+      "pollFailed": "Failed to sync task status",
+      "missingApiKey": "Please configure the image API key",
+      "taskIdMissing": "Task ID is missing",
+      "startFailed": "Failed to start generation",
+      "failed": "Generation failed",
+      "failedWith": "Generation failed: {{message}}",
+      "partial": "Task partially completed",
+      "recovered": "Generation progress restored"
+    }
+  },
+  "config": {
+    "batch": {
+      "title": "Generation Settings",
+      "count": "Count (1-10)",
+      "resolution": "Resolution",
+      "resolution1k": "1K (1024px)",
+      "resolution2k": "2K (2048px)",
+      "resolution4k": "4K (3840px)",
+      "aspectRatio": "Aspect Ratio",
+      "ratio": {
+        "1_1": "1:1 (Square)",
+        "2_3": "2:3 (Portrait 2:3)",
+        "3_2": "3:2 (Landscape 3:2)",
+        "3_4": "3:4 (Portrait 3:4)",
+        "4_3": "4:3 (Standard 4:3)",
+        "4_5": "4:5 (Portrait 4:5)",
+        "5_4": "5:4 (Landscape 5:4)",
+        "9_16": "9:16 (Mobile)",
+        "16_9": "16:9 (Widescreen)",
+        "21_9": "21:9 (Ultra-wide)"
+      }
+    },
+    "apiKeyHint": "Please configure the image API key in the top-right settings first"
+  },
+  "errors": {
+    "fileReadEmpty": "File read returned empty",
+    "fileReadFailed": "File read failed",
+    "canvasContextFailed": "Failed to get canvas context",
+    "compressAttemptsExceeded": "Image compression attempts exceeded",
+    "compressBlobFailed": "Failed to create compressed blob",
+    "imageLoadFailed": "Image failed to load",
+    "responseStreamMissing": "Response stream unavailable"
+  },
+  "layout": {
+    "loadingModule": "Loading module...",
+    "backendBanner": "Backend not ready. Some features may be unavailable.",
+    "toast": {
+      "backendUnavailable": "Backend unavailable. Please try again later."
+    },
+    "generateConfigTitle": "Generation Settings"
+  },
+  "history": {
+    "searchPlaceholder": "Search prompt or model",
+    "empty": "No history yet",
+    "noImage": "No image",
+    "prompt": {
+      "empty": "No prompt"
+    },
+    "loadMore": {
+      "noMore": "No more records",
+      "loading": "Loading...",
+      "action": "Load more"
+    },
+    "actions": {
+      "deleteImage": "Delete image",
+      "deleteTask": "Delete task",
+      "deleteRecord": "Delete record",
+      "confirmDeleteTitle": "Click again to confirm delete"
+    },
+    "status": {
+      "pending": {
+        "title": "Queued",
+        "description": "Task is queued"
+      },
+      "processing": {
+        "title": "Generating",
+        "description": "Generating image {{index}}"
+      },
+      "failed": {
+        "title": "Failed",
+        "description": "Task failed"
+      },
+      "partial": {
+        "title": "Partially completed",
+        "description": "{{completed}}/{{total}} completed"
+      },
+      "completed": {
+        "title": "Completed",
+        "description": "Task completed"
+      },
+      "unknown": {
+        "title": "Unknown",
+        "description": "Unknown task status"
+      }
+    },
+    "toast": {
+      "updated": "History updated",
+      "loadFailed": "Failed to load history",
+      "deleted": "Record deleted",
+      "deleteFailed": "Delete failed",
+      "batchDeleted": "Deleted {{count}} records",
+      "batchDeleteFailed": "Batch delete failed",
+      "imageDeleted": "Image deleted",
+      "imageDeleteFailed": "Image delete failed"
+    }
+  },
+  "templateMarket": {
+    "title": "Template Market",
+    "searchPlaceholder": "Search templates",
+    "toggle": {
+      "title": "Open template market",
+      "label": "Template"
+    },
+    "actions": {
+      "backToGenerate": "Back to Generate",
+      "clearFilters": "Clear filters"
+    },
+    "loading": {
+      "fetching": "Fetching templates..."
+    },
+    "activeFilters": {
+      "title": "Active Filters",
+      "empty": "No filters"
+    },
+    "active": {
+      "search": "Search: {{keyword}}",
+      "channel": "Channel: {{label}}",
+      "material": "Material: {{label}}",
+      "industry": "Industry: {{label}}",
+      "ratio": "Ratio: {{label}}"
+    },
+    "filters": {
+      "channel": "Channel",
+      "material": "Material",
+      "industry": "Industry",
+      "ratio": "Ratio"
+    },
+    "list": {
+      "count": "{{count}} templates",
+      "loading": "Loading...",
+      "empty": "No templates found"
+    },
+    "card": {
+      "view": "View",
+      "use": "Use",
+      "applying": "Applying...",
+      "loading": "Loading...",
+      "imageFailed": "Image failed",
+      "imageEmpty": "No preview"
+    },
+    "preview": {
+      "title": "Template Preview",
+      "infoTitle": "Template Info",
+      "source": "Source",
+      "tips": "Tips",
+      "requirements": "Reference Requirements",
+      "prompt": "Template Prompt",
+      "copyImage": "Copy image",
+      "copyImageDisabled": "No image to copy",
+      "imageFailed": "Image failed to load",
+      "imageFailedHint": "Image failed to load. You can still view template info.",
+      "noImage": "No image",
+      "menuLabel": "Image actions",
+      "menu": {
+        "copyImage": "Copy image",
+        "copyImagePath": "Copy image URL",
+        "downloadOriginal": "Download original",
+        "resetZoom": "Reset zoom/position"
+      },
+      "applying": "Applying...",
+      "use": "Use Template"
+    },
+    "placeholder": {
+      "noImage": "No image"
+    },
+    "toast": {
+      "refreshed": "Templates refreshed",
+      "refreshFailed": "Refresh failed",
+      "invalidData": "Invalid template data",
+      "emptyData": "Template data is empty",
+      "fetchFailed": "Failed to fetch templates",
+      "fetchFallback": "Fetch failed, using built-in templates",
+      "imageLinkCopied": "Image URL copied",
+      "promptCopied": "Prompt copied",
+      "tipsCopied": "Tips copied",
+      "requirementsCopied": "Requirements copied",
+      "noCopyContent": "Nothing to copy",
+      "noDownload": "No image to download",
+      "downloadStarted": "Download started",
+      "downloadFailed": "Download failed",
+      "applied": "Template applied",
+      "applyFailed": "Failed to apply template",
+      "moreRefsNeeded": "Please add reference images"
+    },
+    "labels": {
+      "all": "All",
+      "ecommerce": "E-commerce",
+      "wechat": "WeChat/Official Account",
+      "community": "Community",
+      "life": "Lifestyle",
+      "entertainment": "Entertainment",
+      "xhs": "Xiaohongshu",
+      "shortVideo": "Short Video",
+      "education": "Education",
+      "marketing": "Marketing",
+      "productDesign": "Product Design",
+      "filmProduction": "Film Production",
+      "print": "Print",
+      "offlineEcommerce": "Offline Commerce",
+      "poster": "Poster",
+      "wechatCover": "WeChat Cover",
+      "wechatSecondary": "WeChat Secondary",
+      "longImage": "Long Image",
+      "courseware": "Courseware",
+      "productShowcase": "Product Showcase",
+      "xhsCover": "XHS Cover",
+      "xhsImage": "XHS Image",
+      "fullPoster": "Full Poster",
+      "ecomVerticalPoster": "Ecom Vertical Poster",
+      "productMain": "Product Main",
+      "detailPage": "Detail Page",
+      "adGraphic": "Ad Graphic",
+      "sticker": "Sticker",
+      "moviePoster": "Movie Poster",
+      "infographic": "Infographic",
+      "studyCard": "Study Card",
+      "comic": "Comic",
+      "historyScene": "Historical Scene",
+      "architectureDesign": "Architecture Design",
+      "gridPortrait": "Grid Portrait",
+      "portrait": "Portrait",
+      "general": "General",
+      "finance": "Finance & Insurance",
+      "retail": "Retail",
+      "enterprise": "Enterprise Admin",
+      "government": "Government/Media",
+      "beauty": "Beauty",
+      "foodFresh": "Food & Fresh",
+      "fashion": "Fashion",
+      "lifeService": "Local Service",
+      "travel": "Travel",
+      "motherBaby": "Mother & Baby",
+      "tech": "Tech & Digital",
+      "fitness": "Fitness",
+      "home": "Home & Decor",
+      "auto": "Automotive",
+      "jewelry": "Jewelry",
+      "pet": "Pet",
+      "art": "Art",
+      "dining": "Dining",
+      "photography": "Photography",
+      "music": "Music & Art",
+      "architecture": "Architecture",
+      "film": "Film",
+      "ratio1_1": "1:1",
+      "ratio3_4": "3:4",
+      "ratio4_5": "4:5",
+      "ratio9_16": "9:16",
+      "ratio16_9": "16:9",
+      "ratio2_3": "2:3"
+    }
+  }
+}

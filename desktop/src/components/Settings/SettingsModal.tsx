@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, FileText, FolderOpen, Copy, RefreshCw } from 'lucide-react';
+import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, FileText, FolderOpen, Copy, RefreshCw, Languages, MessageSquare, Github } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '../../store/configStore';
 import { Input } from '../common/Input';
 import { Select } from '../common/Select';
@@ -9,6 +10,9 @@ import { getProviders, updateProviderConfig, ProviderConfig } from '../../servic
 import { toast } from '../../store/toastStore';
 import { getDiagnosticVerbose, setDiagnosticVerbose } from '../../utils/diagnosticLogger';
 import { useUpdaterStore } from '../../store/updaterStore';
+import i18n, { DEFAULT_LANGUAGE } from '../../i18n';
+import { getSystemLocale } from '../../i18n/systemLocale';
+import appIcon from '../../assets/app-icon.png';
 
 const CHAT_PROVIDER_OPTIONS = [
   { value: 'gemini-chat', label: 'Gemini(/v1beta)', defaultBase: 'https://generativelanguage.googleapis.com' },
@@ -16,7 +20,7 @@ const CHAT_PROVIDER_OPTIONS = [
 ];
 const DEFAULT_CHAT_PROVIDER = 'openai-chat';
 
-type SettingsTab = 'image' | 'chat';
+type SettingsTab = 'language' | 'image' | 'chat' | 'update' | 'logs';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -46,7 +50,18 @@ const getChatProviderDefaults = (provider: string) => {
   };
 };
 
+const resolveSystemLanguage = (locale: string | null) => {
+  if (!locale) return DEFAULT_LANGUAGE;
+  const lower = locale.toLowerCase();
+  if (lower.startsWith('zh')) return 'zh-CN';
+  if (lower.startsWith('ja')) return 'ja-JP';
+  if (lower.startsWith('ko')) return 'ko-KR';
+  if (lower.startsWith('en')) return 'en-US';
+  return 'en-US';
+};
+
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+  const { t } = useTranslation();
   const {
     imageProvider, setImageProvider,
     imageApiKey, setImageApiKey,
@@ -56,7 +71,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     chatApiBaseUrl, setChatApiBaseUrl,
     chatApiKey, setChatApiKey,
     chatModel, setChatModel,
-    setChatSyncedConfig
+    setChatSyncedConfig,
+    language,
+    languageResolved,
+    setLanguage,
+    setLanguageResolved
   } = useConfigStore();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('image');
@@ -66,6 +85,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [fetching, setFetching] = useState(false);
   const [verboseLogs, setVerboseLogs] = useState(getDiagnosticVerbose());
+  const [appVersion, setAppVersion] = useState('');
   const checkForUpdates = useUpdaterStore((s) => s.checkForUpdates);
   const openUpdater = useUpdaterStore((s) => s.open);
   const update = useUpdaterStore((s) => s.update);
@@ -73,6 +93,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const updaterError = useUpdaterStore((s) => s.error);
   const [updateHint, setUpdateHint] = useState<{ type: 'checking' | 'latest' | 'available' | 'error'; message: string } | null>(null);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+  const repoUrl = import.meta.env.VITE_GITHUB_REPO_URL || 'https://github.com/ShellMonster/Nano_Banana_Pro_Web';
 
   // 当弹窗打开时，从后端获取最新的配置
   useEffect(() => {
@@ -84,6 +105,27 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setUpdateHint(null);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    let canceled = false;
+    const loadVersion = async () => {
+      try {
+        if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+          const { getVersion } = await import('@tauri-apps/api/app');
+          const v = await getVersion();
+          if (!canceled) setAppVersion(v);
+          return;
+        }
+      } catch {}
+
+      if (!canceled) setAppVersion(import.meta.env.DEV ? 'dev' : '');
+    };
+
+    loadVersion();
+    return () => {
+      canceled = true;
+    };
+  }, []);
 
   const updateHintStyle = useMemo(() => {
     if (!updateHint) return 'text-slate-500';
@@ -129,8 +171,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setChatSyncedConfig(null);
       }
     } catch (error) {
-      console.error('获取配置失败:', error);
-      toast.error('获取后端配置失败');
+      console.error('Failed to fetch config:', error);
+      toast.error(t('settings.toast.fetchFailed'));
     } finally {
       setFetching(false);
     }
@@ -141,7 +183,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const imageKey = imageApiKey.trim();
     const imageModelValue = imageModel.trim();
     if (!imageBase || !imageKey || !imageModelValue) {
-      toast.error('请先完整配置生图模型');
+      toast.error(t('settings.toast.imageConfigIncomplete'));
       return;
     }
 
@@ -150,7 +192,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const chatModelValue = chatModel.trim();
     const wantsChat = Boolean(chatKey);
     if (wantsChat && (!chatBase || !chatModelValue)) {
-      toast.error('请完整配置对话模型');
+      toast.error(t('settings.toast.chatConfigIncomplete'));
       return;
     }
     if (
@@ -159,7 +201,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       chatModelValue.toLowerCase().startsWith('gemini') &&
       chatBase.includes('api.openai.com')
     ) {
-      toast.error('OpenAI 官方 Base URL 不支持 Gemini 模型，请更换兼容接口');
+      toast.error(t('settings.toast.openaiGeminiUnsupported'));
       return;
     }
 
@@ -188,12 +230,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setChatSyncedConfig(null);
       }
 
-      toast.success('配置已成功同步到服务器');
+      toast.success(t('settings.toast.saveSuccess'));
       onClose();
     } catch (error: any) {
-      console.error('保存失败:', error);
-      const msg = error.response?.data?.message || error.message || '请检查网络';
-      toast.error(`保存失败: ${msg}`);
+      console.error('Save failed:', error);
+      const msg = error.response?.data?.message || error.message || t('settings.toast.checkNetwork');
+      toast.error(t('settings.toast.saveFailed', { msg }));
     } finally {
       setLoading(false);
     }
@@ -212,6 +254,28 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (modelFromConfig) {
         setImageModel(modelFromConfig);
       }
+    }
+  };
+
+  const handleLanguageChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextLanguage = e.target.value;
+    if (nextLanguage === 'system') {
+      setLanguage('system');
+      const systemLocale = await getSystemLocale();
+      const resolved = resolveSystemLanguage(systemLocale);
+      setLanguageResolved(resolved);
+      if (i18n.language !== resolved) {
+        void i18n.changeLanguage(resolved);
+      }
+      return;
+    }
+
+    setLanguage(nextLanguage);
+    if (languageResolved) {
+      setLanguageResolved(null);
+    }
+    if (i18n.language !== nextLanguage) {
+      void i18n.changeLanguage(nextLanguage);
     }
   };
 
@@ -277,7 +341,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     try {
       const dir = await getLogDir();
       if (!dir) {
-        toast.info('日志目录仅在桌面端可用');
+        toast.info(t('settings.toast.logDirDesktopOnly'));
         return;
       }
       try {
@@ -303,10 +367,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         console.warn('shell open failed:', err);
       }
 
-      toast.error('打开日志目录失败');
+      toast.error(t('settings.toast.logDirOpenFailed'));
     } catch (err) {
-      console.error('打开日志目录失败:', err);
-      toast.error('打开日志目录失败');
+      console.error('Open log folder failed:', err);
+      toast.error(t('settings.toast.logDirOpenFailed'));
     }
   };
 
@@ -314,7 +378,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     try {
       const dir = await getLogDir();
       if (!dir) {
-        toast.info('日志目录仅在桌面端可用');
+        toast.info(t('settings.toast.logDirDesktopOnly'));
         return;
       }
       const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
@@ -322,7 +386,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         try {
           const { invoke } = await import('@tauri-apps/api/core');
           await invoke('copy_text_to_clipboard', { text: dir });
-          toast.success('日志路径已复制');
+          toast.success(t('settings.toast.logDirCopied'));
           return;
         } catch (err) {
           console.warn('tauri clipboard failed:', err);
@@ -330,18 +394,18 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       }
 
       const ok = await copyText(dir);
-      if (ok) toast.success('日志路径已复制');
-      else toast.error('复制失败，请手动打开日志目录');
+      if (ok) toast.success(t('settings.toast.logDirCopied'));
+      else toast.error(t('settings.toast.logDirCopyFailedManual'));
     } catch (err) {
-      console.error('复制日志路径失败:', err);
-      toast.error('复制日志路径失败');
+      console.error('Copy log path failed:', err);
+      toast.error(t('settings.toast.logDirCopyFailed'));
     }
   };
 
   const handleToggleVerboseLogs = (next: boolean) => {
     setVerboseLogs(next);
     setDiagnosticVerbose(next);
-    toast.success(next ? '已启用详细日志' : '已关闭详细日志');
+    toast.success(next ? t('settings.toast.verboseEnabled') : t('settings.toast.verboseDisabled'));
   };
 
   const handleOpenYunwu = async () => {
@@ -355,8 +419,24 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       }
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err) {
-      console.error('打开云雾API链接失败:', err);
-      toast.error('打开链接失败');
+      console.error('Open Yunwu link failed:', err);
+      toast.error(t('settings.toast.openLinkFailed'));
+    }
+  };
+
+  const handleOpenRepo = async () => {
+    if (!repoUrl) return;
+    try {
+      const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+      if (isTauri) {
+        const { openUrl } = await import('@tauri-apps/plugin-opener');
+        await openUrl(repoUrl);
+        return;
+      }
+      window.open(repoUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.error('Open repo failed:', err);
+      toast.error(t('settings.toast.openLinkFailed'));
     }
   };
 
@@ -364,12 +444,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     if (isCheckingUpdates) return;
     const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
     if (!isTauri) {
-      setUpdateHint({ type: 'error', message: '仅桌面端可用' });
+      setUpdateHint({ type: 'error', message: t('settings.update.desktopOnly') });
       return;
     }
 
     setIsCheckingUpdates(true);
-    setUpdateHint({ type: 'checking', message: '正在检查更新...' });
+    setUpdateHint({ type: 'checking', message: t('settings.update.checking') });
 
     try {
       await checkForUpdates({ silent: true, openIfAvailable: false });
@@ -377,12 +457,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     const latest = useUpdaterStore.getState();
     if (latest.status === 'available' && latest.update) {
-      setUpdateHint({ type: 'available', message: `发现新版本 v${latest.update.version}` });
+      setUpdateHint({ type: 'available', message: t('settings.update.available', { version: latest.update.version }) });
     } else if (latest.status === 'error') {
-      const msg = latest.error ? `检查失败：${latest.error}` : '检查失败';
+      const msg = latest.error
+        ? t('settings.update.failedWith', { error: latest.error })
+        : t('settings.update.failed');
       setUpdateHint({ type: 'error', message: msg });
     } else {
-      setUpdateHint({ type: 'latest', message: '已是最新版本' });
+      setUpdateHint({ type: 'latest', message: t('settings.update.latest') });
     }
 
     setIsCheckingUpdates(false);
@@ -396,55 +478,86 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const tabClass = (tab: SettingsTab) => {
     const isActive = activeTab === tab;
     return [
-      'rounded-full px-3 py-1.5 text-xs font-semibold transition-all',
+      'w-full flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-semibold transition-all',
       isActive ? 'bg-slate-900 text-white shadow-sm' : 'bg-white/70 text-slate-600 hover:bg-white'
     ].join(' ');
   };
 
-  const headerActions = (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => setActiveTab('image')}
-        className={tabClass('image')}
-        aria-pressed={activeTab === 'image'}
-      >
-        生图模型
-      </button>
-      <button
-        type="button"
-        onClick={() => setActiveTab('chat')}
-        className={tabClass('chat')}
-        aria-pressed={activeTab === 'chat'}
-      >
-        对话模型
-      </button>
-    </div>
-  );
+  const menuItems = [
+    { id: 'language' as const, label: t('settings.language.label'), icon: Languages },
+    { id: 'image' as const, label: t('settings.tabs.image'), icon: Box },
+    { id: 'chat' as const, label: t('settings.tabs.chat'), icon: MessageSquare },
+    { id: 'update' as const, label: t('settings.update.title'), icon: RefreshCw },
+    { id: 'logs' as const, label: t('settings.logs.title'), icon: FileText }
+  ];
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="系统设置"
-      headerActions={headerActions}
-      className="max-w-sm"
+      title={t('settings.title')}
+      className="max-w-4xl h-[78vh]"
       density="compact"
+      contentScrollable={false}
+      contentClassName="h-full min-h-0"
     >
-      <div className="space-y-5 relative">
-        {fetching && (
-          <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center rounded-2xl backdrop-blur-[1px]">
-            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+      <div className="relative h-full min-h-0">
+        <div className="grid grid-cols-[220px_minmax(0,1fr)] gap-8 h-full min-h-0">
+          <div className="space-y-2">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveTab(item.id)}
+                  className={tabClass(item.id)}
+                  aria-pressed={activeTab === item.id}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
           </div>
-        )}
 
-        {activeTab === 'image' ? (
-          <>
+          <div className="flex flex-col gap-6 min-w-0 h-full min-h-0 relative">
+            {fetching && (
+              <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center rounded-3xl backdrop-blur-[1px]">
+                <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+              </div>
+            )}
+            <div className="space-y-5 flex-1 min-h-0 overflow-y-auto pr-2">
+              {activeTab === 'language' && (
+                <div className="space-y-3">
+                  <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                    <Languages className="w-4 h-4 text-blue-600" />
+                    {t('settings.language.label')}
+                  </label>
+                  <Select
+                    value={language || i18n.language}
+                    onChange={handleLanguageChange}
+                    className="h-10 bg-slate-100 text-slate-900 font-bold rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+                  >
+                    <option value="system">{t('language.system')}</option>
+                    <option value="zh-CN">{t('language.zhCN')}</option>
+                    <option value="en-US">{t('language.enUS')}</option>
+                    <option value="ja-JP">{t('language.jaJP')}</option>
+                    <option value="ko-KR">{t('language.koKR')}</option>
+                  </Select>
+                  <p className="text-xs text-slate-500 px-1">
+                    {t('settings.language.hint')}
+                  </p>
+                </div>
+              )}
+
+              {activeTab === 'image' && (
+                <>
             {/* Provider Selection */}
             <div className="space-y-3">
               <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
                 <Box className="w-4 h-4 text-blue-600" />
-                AI对接方式
+                {t('settings.provider.label')}
               </label>
               <Select
                 value={imageProvider}
@@ -465,13 +578,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 Base URL
               </label>
               <span className="text-xs text-slate-500">
-                推荐平台：
+                {t('settings.provider.recommended')}
                 <button
                   type="button"
                   onClick={handleOpenYunwu}
                   className="text-blue-600 hover:text-blue-700 underline underline-offset-2"
                 >
-                  云雾API
+                  {t('settings.provider.yunwu')}
                 </button>
               </span>
             </div>
@@ -483,7 +596,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
               {imageProvider === 'openai' && (
-                <p className="text-xs text-red-500 px-1">OpenAI 类型当前仅支持生成 1K 图片</p>
+                <p className="text-xs text-red-500 px-1">{t('settings.provider.openaiImageLimit')}</p>
               )}
             </div>
 
@@ -515,7 +628,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="space-y-3">
               <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
                 <Box className="w-4 h-4 text-blue-600" />
-                默认模型
+                {t('settings.model.default')}
               </label>
               <Input
                 type="text"
@@ -524,14 +637,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
             </div>
-          </>
-        ) : (
-          <>
+                </>
+              )}
+
+              {activeTab === 'chat' && (
+                <>
             {/* Provider Selection */}
             <div className="space-y-3">
               <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
                 <Box className="w-4 h-4 text-blue-600" />
-                AI对接方式
+                {t('settings.provider.label')}
               </label>
               <Select
                 value={chatProvider}
@@ -554,13 +669,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   Base URL
                 </label>
                 <span className="text-xs text-slate-500">
-                  推荐平台：
+                  {t('settings.provider.recommended')}
                   <button
                     type="button"
                     onClick={handleOpenYunwu}
                     className="text-blue-600 hover:text-blue-700 underline underline-offset-2"
                   >
-                    云雾API
+                    {t('settings.provider.yunwu')}
                   </button>
                 </span>
               </div>
@@ -605,7 +720,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="space-y-3">
               <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
                 <Box className="w-4 h-4 text-blue-600" />
-                对话模型
+                {t('settings.model.chat')}
               </label>
               <Input
                 type="text"
@@ -615,120 +730,144 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
             </div>
-          </>
-        )}
+                </>
+              )}
 
-        {/* Updater */}
-        <div className="space-y-3">
-          <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
-            <RefreshCw className="w-4 h-4 text-blue-600" />
-            软件更新
-          </label>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={handleCheckUpdates}
-            className="w-full h-10 rounded-2xl"
-            disabled={isCheckingUpdates}
-          >
-            {isCheckingUpdates ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4 mr-2" />
-            )}
-            {isCheckingUpdates ? '检查中...' : '检查更新'}
-          </Button>
-          {updateHint && (
-            <div className={`text-xs font-semibold px-1 flex items-center gap-2 ${updateHintStyle}`}>
-              <span>{updateHint.message}</span>
-              {updateHint.type === 'available' && (
-                <button
-                  type="button"
-                  onClick={handleOpenUpdater}
-                  className="underline underline-offset-2 text-amber-700 hover:text-amber-800"
-                >
-                  查看更新
-                </button>
+              {activeTab === 'update' && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 rounded-2xl bg-white/70 border border-slate-200/60 p-3">
+                    <div className="w-12 h-12 rounded-2xl overflow-hidden bg-white/80 border border-slate-200/60 shadow-lg shadow-blue-200">
+                      <img src={appIcon} alt={t('app.title')} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-900">{t('app.title')}</span>
+                        <span className="text-xs font-semibold text-slate-500 font-mono">v{appVersion || '-'}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleOpenRepo}
+                        className="mt-1 inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 hover:underline underline-offset-2 max-w-full"
+                      >
+                        <Github className="w-3.5 h-3.5" />
+                        <span className="truncate">{repoUrl}</span>
+                      </button>
+                    </div>
+                  </div>
+                  <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                    <RefreshCw className="w-4 h-4 text-blue-600" />
+                    {t('settings.update.title')}
+                  </label>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleCheckUpdates}
+                    className="w-full h-10 rounded-2xl"
+                    disabled={isCheckingUpdates}
+                  >
+                    {isCheckingUpdates ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    {isCheckingUpdates ? t('settings.update.checkingShort') : t('settings.update.check')}
+                  </Button>
+                  {updateHint && (
+                    <div className={`text-xs font-semibold px-1 flex items-center gap-2 ${updateHintStyle}`}>
+                      <span>{updateHint.message}</span>
+                      {updateHint.type === 'available' && (
+                        <button
+                          type="button"
+                          onClick={handleOpenUpdater}
+                          className="underline underline-offset-2 text-amber-700 hover:text-amber-800"
+                        >
+                          {t('settings.update.view')}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {!updateHint && updaterStatus === 'available' && update && (
+                    <div className="text-xs font-semibold px-1 flex items-center gap-2 text-amber-600">
+                      <span>{t('settings.update.available', { version: update.version })}</span>
+                      <button
+                        type="button"
+                        onClick={handleOpenUpdater}
+                        className="underline underline-offset-2 text-amber-700 hover:text-amber-800"
+                      >
+                        {t('settings.update.view')}
+                      </button>
+                    </div>
+                  )}
+                  {!updateHint && updaterStatus === 'error' && updaterError && (
+                    <div className="text-xs font-semibold px-1 text-red-600">
+                      {t('settings.update.failedWith', { error: updaterError })}
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-500 leading-relaxed px-1">
+                    {t('settings.update.autoNote')}
+                  </p>
+                </div>
+              )}
+
+              {activeTab === 'logs' && (
+                <div className="space-y-3">
+                  <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    {t('settings.logs.title')}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleOpenLogDir}
+                      className="flex-1 h-10 rounded-2xl"
+                    >
+                      <FolderOpen className="w-4 h-4 mr-2" />
+                      {t('settings.logs.openDir')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={handleCopyLogDir}
+                      className="h-10 rounded-2xl"
+                      title={t('settings.logs.copyDirTitle')}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-slate-600 select-none">
+                    <input
+                      type="checkbox"
+                      checked={verboseLogs}
+                      onChange={(e) => handleToggleVerboseLogs(e.target.checked)}
+                      className="accent-blue-600"
+                    />
+                    <span>{t('settings.logs.verboseLabel')}</span>
+                  </label>
+                  <p className="text-xs text-slate-500 leading-relaxed px-1">
+                    {t('settings.logs.help')}
+                  </p>
+                </div>
               )}
             </div>
-          )}
-          {!updateHint && updaterStatus === 'available' && update && (
-            <div className="text-xs font-semibold px-1 flex items-center gap-2 text-amber-600">
-              <span>{`发现新版本 v${update.version}`}</span>
-              <button
-                type="button"
-                onClick={handleOpenUpdater}
-                className="underline underline-offset-2 text-amber-700 hover:text-amber-800"
+
+            <div className="pt-3">
+              <Button
+                onClick={handleSave}
+                disabled={loading}
+                className="w-full h-12 text-base bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black rounded-2xl shadow-xl shadow-blue-200/50 border-none transition-all duration-300"
               >
-                查看更新
-              </button>
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    <span>{t('settings.save')}</span>
+                  </>
+                )}
+              </Button>
             </div>
-          )}
-          {!updateHint && updaterStatus === 'error' && updaterError && (
-            <div className="text-xs font-semibold px-1 text-red-600">
-              {`检查失败：${updaterError}`}
-            </div>
-          )}
-          <p className="text-xs text-slate-500 leading-relaxed px-1">
-            开启应用会自动检查更新；如有新版本会弹窗提示，一键下载安装。
-          </p>
-        </div>
-
-        {/* Diagnostic Logs */}
-        <div className="space-y-3">
-          <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
-            <FileText className="w-4 h-4 text-blue-600" />
-            诊断日志
-          </label>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleOpenLogDir}
-              className="flex-1 h-10 rounded-2xl"
-            >
-              <FolderOpen className="w-4 h-4 mr-2" />
-              打开日志目录
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleCopyLogDir}
-              className="h-10 rounded-2xl"
-              title="复制日志目录路径"
-            >
-              <Copy className="w-4 h-4" />
-            </Button>
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-600 select-none">
-            <input
-              type="checkbox"
-              checked={verboseLogs}
-              onChange={(e) => handleToggleVerboseLogs(e.target.checked)}
-              className="accent-blue-600"
-            />
-            <span>启用详细日志（记录更多调试信息）</span>
-          </label>
-          <p className="text-xs text-slate-500 leading-relaxed px-1">
-            遇到问题时，请将 <span className="font-mono">app.log</span> 和 <span className="font-mono">server.log</span> 提交给开发者（注意日志可能包含提示词等信息）。
-          </p>
-        </div>
-
-        <div className="pt-3">
-          <Button
-            onClick={handleSave}
-            disabled={loading}
-            className="w-full h-12 text-base bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black rounded-2xl shadow-xl shadow-blue-200/50 border-none transition-all duration-300"
-          >
-            {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" />
-                <span>同步并保存</span>
-              </>
-            )}
-          </Button>
         </div>
       </div>
     </Modal>

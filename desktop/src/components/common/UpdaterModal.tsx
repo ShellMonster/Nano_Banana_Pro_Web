@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Download, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Modal } from './Modal';
 import { Button, cn } from './Button';
 import { useUpdaterStore } from '../../store/updaterStore';
+import i18n from '../../i18n';
 
 function formatBytes(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
@@ -17,6 +19,7 @@ function formatBytes(bytes: number) {
 }
 
 export function UpdaterModal() {
+  const { t } = useTranslation();
   const { isOpen, status, update, progress, error, close, checkForUpdates, downloadUpdate, installUpdate } =
     useUpdaterStore();
 
@@ -46,16 +49,16 @@ export function UpdaterModal() {
 
   const isDownloading = status === 'downloading';
   const canClose = status !== 'installing';
-  const dismissLabel = isDownloading ? '后台下载' : '稍后';
+  const dismissLabel = isDownloading ? t('updater.dismiss.background') : t('updater.dismiss.later');
 
   const title = (() => {
-    if (status === 'checking') return '正在检查更新...';
-    if (status === 'downloading') return '正在下载更新...';
-    if (status === 'downloaded') return '更新已下载';
-    if (status === 'installing') return '正在安装更新...';
-    if (status === 'installed') return '更新完成';
-    if (status === 'error') return '更新失败';
-    return '发现新版本';
+    if (status === 'checking') return t('updater.title.checking');
+    if (status === 'downloading') return t('updater.title.downloading');
+    if (status === 'downloaded') return t('updater.title.downloaded');
+    if (status === 'installing') return t('updater.title.installing');
+    if (status === 'installed') return t('updater.title.installed');
+    if (status === 'error') return t('updater.title.error');
+    return t('updater.title.available');
   })();
 
   const body = (() => {
@@ -78,15 +81,15 @@ export function UpdaterModal() {
         {update && (
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-sm text-slate-500">新版本</div>
+                <div className="min-w-0">
+                <div className="text-sm text-slate-500">{t('updater.newVersion')}</div>
                 <div className="text-xl font-black text-slate-900 tracking-tight truncate">
                   v{update.version}
                 </div>
               </div>
               {update.date ? (
                 <div className="text-xs text-slate-400 whitespace-nowrap">
-                  {new Date(update.date).toLocaleString('zh-CN', { hour12: false })}
+                  {new Date(update.date).toLocaleString(i18n.language, { hour12: false })}
                 </div>
               ) : null}
             </div>
@@ -96,7 +99,7 @@ export function UpdaterModal() {
         {status === 'downloading' && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs text-slate-500">
-              <span>下载进度</span>
+              <span>{t('updater.progress')}</span>
               <span className="font-mono tabular-nums">
                 {percent}% {progress?.total ? `(${formatBytes(progress.downloaded)} / ${formatBytes(progress.total)})` : ''}
               </span>
@@ -108,29 +111,29 @@ export function UpdaterModal() {
               />
             </div>
             <div className="text-xs text-slate-500">
-              你可以关闭窗口继续使用，下载会在后台进行。
+              {t('updater.downloadHint')}
             </div>
           </div>
         )}
 
         {status === 'downloaded' && (
           <div className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-2xl p-3">
-            更新包已下载，点击“安装并重启”完成更新。
+            {t('updater.downloadedHint')}
           </div>
         )}
 
         {status === 'installing' && (
           <div className="flex items-center gap-2 text-sm text-blue-600 font-bold">
             <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-            正在安装，请勿关闭应用
+            {t('updater.installingHint')}
           </div>
         )}
 
         {status === 'error' && (
           <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-2xl p-3">
-            {error || '更新失败，请稍后重试'}
+            {error || t('updater.errorFallback')}
             <div className="text-xs text-red-500 mt-1">
-              若你刚集成 Updater，请先在 `desktop/src-tauri/tauri.conf.json` 填入 `plugins.updater.pubkey` 并在 CI 配置 `TAURI_SIGNING_PRIVATE_KEY`。
+              {t('updater.errorExtra')}
             </div>
           </div>
         )}
@@ -155,14 +158,14 @@ export function UpdaterModal() {
           {status === 'available' && (
             <Button type="button" onClick={() => downloadUpdate()} className="bg-blue-600">
               <Download className="w-4 h-4 mr-2" />
-              下载更新
+              {t('updater.actions.download')}
             </Button>
           )}
 
           {status === 'downloaded' && (
             <Button type="button" onClick={() => installUpdate()} className="bg-blue-600">
               <Download className="w-4 h-4 mr-2" />
-              安装并重启
+              {t('updater.actions.install')}
             </Button>
           )}
 
@@ -173,7 +176,7 @@ export function UpdaterModal() {
               onClick={() => checkForUpdates({ silent: false, openIfAvailable: true })}
             >
               <RefreshCw className="w-4 h-4 mr-2" />
-              重新检查
+              {t('updater.actions.retry')}
             </Button>
           )}
         </div>

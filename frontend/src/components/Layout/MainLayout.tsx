@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Header } from './Header';
 import { FloatingTabSwitch } from './FloatingTabSwitch';
 import ConfigPanel from '../ConfigPanel';
@@ -10,6 +11,7 @@ import { useHistoryStore } from '../../store/historyStore';
 import { TemplateMarketDrawer } from '../TemplateMarket/TemplateMarketDrawer';
 
 export default function MainLayout() {
+  const { t } = useTranslation();
   const currentTab = useGenerateStore((s) => s.currentTab);
   const setTab = useGenerateStore((s) => s.setTab);
   const isSidebarOpen = useGenerateStore((s) => s.isSidebarOpen);
@@ -120,7 +122,7 @@ export default function MainLayout() {
                 <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsMobileDrawerOpen(false)} />
                 <div className="relative bg-white rounded-t-[2.5rem] shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col">
                     <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
-                        <h3 className="text-xl font-black">生成配置</h3>
+                        <h3 className="text-xl font-black">{t('layout.generateConfigTitle')}</h3>
                         <button onClick={() => setIsMobileDrawerOpen(false)} className="p-2 bg-slate-100 rounded-xl"><X className="w-5 h-5" /></button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4">

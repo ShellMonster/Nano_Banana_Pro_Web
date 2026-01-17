@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useGenerateStore } from '../../store/generateStore';
 
 export function ProgressBar() {
+  const { t } = useTranslation();
   const { status, totalCount, completedCount, connectionMode } = useGenerateStore();
 
   if (status !== 'processing') return null;
@@ -15,14 +17,14 @@ export function ProgressBar() {
         return (
           <span className="flex items-center gap-1.5 text-green-600">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            实时连接
+            {t('generate.progress.connection.websocket')}
           </span>
         );
       case 'polling':
         return (
           <span className="flex items-center gap-1.5 text-amber-600">
             <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
-            轮询模式
+            {t('generate.progress.connection.polling')}
           </span>
         );
       default:
@@ -30,7 +32,7 @@ export function ProgressBar() {
         return (
           <span className="flex items-center gap-1.5 text-slate-400">
             <span className="w-2 h-2 bg-slate-300 rounded-full"></span>
-            初始化连接...
+            {t('generate.progress.connection.initializing')}
           </span>
         );
     }
@@ -39,8 +41,8 @@ export function ProgressBar() {
   return (
     <div className="bg-blue-50 border-b border-blue-100 px-6 py-3">
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-blue-600">生成中...</span>
+      <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-blue-600">{t('generate.progress.generating')}</span>
           {getConnectionStatus()}
         </div>
         <span className="text-xs text-blue-600 font-medium">{completedCount} / {totalCount}</span>

@@ -7,8 +7,10 @@ import { ImagePreview } from './ImagePreview';
 import { GeneratedImage } from '../../types';
 import { useGenerateStore } from '../../store/generateStore';
 import { useShallow } from 'zustand/react/shallow';
+import { useTranslation } from 'react-i18next';
 
 export default function GenerateArea() {
+  const { t } = useTranslation();
   const [previewImage, setPreviewImage] = useState<GeneratedImage | null>(null);
   const [isErrorExpanded, setIsErrorExpanded] = useState(false);
   const { error, dismissError, status, images, isSubmitting } = useGenerateStore(
@@ -40,7 +42,7 @@ export default function GenerateArea() {
         <div className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-start gap-3 animate-in slide-in-from-top-2">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-medium text-red-800">生成任务失败</h3>
+                <h3 className="text-sm font-medium text-red-800">{t('generate.error.title')}</h3>
                 <p
                   className={[
                     'text-sm text-red-700 mt-1 break-words',
@@ -55,7 +57,7 @@ export default function GenerateArea() {
                     onClick={() => setIsErrorExpanded((prev) => !prev)}
                     className="mt-1 text-xs font-medium text-red-600 hover:text-red-700"
                   >
-                    {isErrorExpanded ? '收起详情' : '展开详情'}
+                    {isErrorExpanded ? t('generate.error.collapse') : t('generate.error.expand')}
                   </button>
                 )}
             </div>
@@ -77,9 +79,9 @@ export default function GenerateArea() {
             <div className="w-16 h-16 bg-gradient-to-tr from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Sparkles className="w-8 h-8 text-blue-600" />
             </div>
-            <h2 className="text-xl font-bold text-slate-900 mb-2">开始创作你的图片</h2>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">{t('generate.empty.title')}</h2>
             <p className="text-sm text-slate-500 mb-6">
-              在左侧配置面板输入提示词，或上传参考图片进行图生图
+              {t('generate.empty.subtitle')}
             </p>
 
             <div className="grid grid-cols-2 gap-3 text-left">
@@ -87,16 +89,16 @@ export default function GenerateArea() {
                 <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
                   <Wand2 className="w-4 h-4 text-blue-600" />
                 </div>
-                <h3 className="text-sm font-medium text-slate-900 mb-1">文字生图</h3>
-                <p className="text-xs text-slate-500">输入描述生成图片</p>
+                <h3 className="text-sm font-medium text-slate-900 mb-1">{t('generate.empty.textToImage')}</h3>
+                <p className="text-xs text-slate-500">{t('generate.empty.textToImageDesc')}</p>
               </div>
 
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                 <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mb-2">
                   <ImagePlus className="w-4 h-4 text-indigo-600" />
                 </div>
-                <h3 className="text-sm font-medium text-slate-900 mb-1">图生图</h3>
-                <p className="text-xs text-slate-500">上传参考图生成</p>
+                <h3 className="text-sm font-medium text-slate-900 mb-1">{t('generate.empty.imageToImage')}</h3>
+                <p className="text-xs text-slate-500">{t('generate.empty.imageToImageDesc')}</p>
               </div>
             </div>
           </div>
@@ -112,8 +114,8 @@ export default function GenerateArea() {
               <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
             </div>
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">正在启动生成任务</h2>
-          <p className="text-sm text-slate-500">正在与 AI 模型建立连接，请稍候...</p>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">{t('generate.submitting.title')}</h2>
+          <p className="text-sm text-slate-500">{t('generate.submitting.subtitle')}</p>
         </div>
       )}
 

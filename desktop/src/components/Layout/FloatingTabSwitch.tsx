@@ -4,6 +4,7 @@ import { useGenerateStore } from '../../store/generateStore';
 import { useHistoryStore } from '../../store/historyStore';
 import { toast } from '../../store/toastStore';
 import { cn } from '../common/Button';
+import { useTranslation } from 'react-i18next';
 
 interface TabButtonProps {
   icon: React.ReactNode;
@@ -68,6 +69,7 @@ function savePosition(top: string) {
 }
 
 export function FloatingTabSwitch() {
+  const { t } = useTranslation();
   const currentTab = useGenerateStore((s) => s.currentTab);
   const setTab = useGenerateStore((s) => s.setTab);
 
@@ -127,7 +129,7 @@ export function FloatingTabSwitch() {
 
     // 切换到历史记录时，强制触发一次加载以获取最新数据
     if (tab === 'history') {
-      console.log('[FloatingTabSwitch] 切换到历史记录，触发加载');
+      console.log('[FloatingTabSwitch] switched to history, trigger load');
       const historyState = useHistoryStore.getState();
       const now = Date.now();
       const shouldReload = !historyState.lastLoadedAt || now - historyState.lastLoadedAt > 15000;
@@ -214,7 +216,7 @@ export function FloatingTabSwitch() {
       )}>
         <TabButton
           icon={<LayoutGrid className="w-4 h-4" />}
-          label="生成区域"
+          label={t('nav.generateArea')}
           active={currentTab === 'generate'}
           isExpanded={isExpanded}
           onClick={() => handleTabChange('generate')}
@@ -222,7 +224,7 @@ export function FloatingTabSwitch() {
         />
         <TabButton
           icon={<History className="w-4 h-4" />}
-          label="历史记录"
+          label={t('nav.historyArea')}
           active={currentTab === 'history'}
           isExpanded={isExpanded}
           onClick={() => handleTabChange('history')}

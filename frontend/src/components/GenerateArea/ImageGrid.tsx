@@ -4,6 +4,7 @@ import { ImageCard } from './ImageCard';
 import { useGenerateStore } from '../../store/generateStore';
 import { useShallow } from 'zustand/react/shallow';
 import { GeneratedImage } from '../../types';
+import { useTranslation } from 'react-i18next';
 
 interface ImageGridProps {
   onPreview: (image: GeneratedImage) => void;
@@ -37,6 +38,7 @@ const getGapSize = (width: number) => (width >= 640 ? 16 : 12);
 const getRowExtraHeight = (width: number) => (width >= 640 ? 96 : 88);
 
 export function ImageGrid({ onPreview }: ImageGridProps) {
+  const { t } = useTranslation();
   const { images, selectedIds, toggleSelect } = useGenerateStore(
     useShallow((s) => ({
       images: s.images,
@@ -66,7 +68,7 @@ export function ImageGrid({ onPreview }: ImageGridProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
         </div>
-        <p>暂无生成的图片，请在左侧配置并开始生成</p>
+        <p>{t('generate.grid.empty')}</p>
       </div>
     );
   }
@@ -121,9 +123,9 @@ export function ImageGrid({ onPreview }: ImageGridProps) {
       {hasOverflow && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 m-6 mt-0">
           <p className="text-sm text-blue-800 text-center">
-            显示前 {MAX_IMAGES} 张图片，共 {images.length} 张
+            {t('generate.grid.limitNotice', { max: MAX_IMAGES, total: images.length })}
             <span className="block text-xs text-blue-600 mt-1">
-              提示：为获得最佳性能，建议分批生成或清理历史记录
+              {t('generate.grid.limitHint')}
             </span>
           </p>
         </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, EyeOff, Key, Globe, Box, Save, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, Languages, MessageSquare } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '../../store/configStore';
 import { Input } from '../common/Input';
 import { Select } from '../common/Select';
@@ -7,6 +8,8 @@ import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { getProviders, updateProviderConfig, ProviderConfig } from '../../services/providerApi';
 import { toast } from '../../store/toastStore';
+import i18n, { DEFAULT_LANGUAGE } from '../../i18n';
+import { getSystemLocale } from '../../i18n/systemLocale';
 
 const CHAT_PROVIDER_OPTIONS = [
   { value: 'gemini-chat', label: 'Gemini(/v1beta)', defaultBase: 'https://generativelanguage.googleapis.com' },
@@ -14,7 +17,7 @@ const CHAT_PROVIDER_OPTIONS = [
 ];
 const DEFAULT_CHAT_PROVIDER = 'openai-chat';
 
-type SettingsTab = 'image' | 'chat';
+type SettingsTab = 'language' | 'image' | 'chat';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -44,7 +47,18 @@ const getChatProviderDefaults = (provider: string) => {
   };
 };
 
+const resolveSystemLanguage = (locale: string | null) => {
+  if (!locale) return DEFAULT_LANGUAGE;
+  const lower = locale.toLowerCase();
+  if (lower.startsWith('zh')) return 'zh-CN';
+  if (lower.startsWith('ja')) return 'ja-JP';
+  if (lower.startsWith('ko')) return 'ko-KR';
+  if (lower.startsWith('en')) return 'en-US';
+  return 'en-US';
+};
+
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+  const { t } = useTranslation();
   const {
     imageProvider, setImageProvider,
     imageApiKey, setImageApiKey,
@@ -54,7 +68,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     chatApiBaseUrl, setChatApiBaseUrl,
     chatApiKey, setChatApiKey,
     chatModel, setChatModel,
-    setChatSyncedConfig
+    setChatSyncedConfig,
+    language,
+    languageResolved,
+    setLanguage,
+    setLanguageResolved
   } = useConfigStore();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('image');
@@ -110,8 +128,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setChatSyncedConfig(null);
       }
     } catch (error) {
-      console.error('获取配置失败:', error);
-      toast.error('获取后端配置失败');
+      console.error('Failed to fetch config:', error);
+      toast.error(t('settings.toast.fetchFailed'));
     } finally {
       setFetching(false);
     }
@@ -122,7 +140,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const imageKey = imageApiKey.trim();
     const imageModelValue = imageModel.trim();
     if (!imageBase || !imageKey || !imageModelValue) {
-      toast.error('请先完整配置生图模型');
+      toast.error(t('settings.toast.imageConfigIncomplete'));
       return;
     }
 
@@ -131,7 +149,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const chatModelValue = chatModel.trim();
     const wantsChat = Boolean(chatKey);
     if (wantsChat && (!chatBase || !chatModelValue)) {
-      toast.error('请完整配置对话模型');
+      toast.error(t('settings.toast.chatConfigIncomplete'));
       return;
     }
     if (
@@ -140,7 +158,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       chatModelValue.toLowerCase().startsWith('gemini') &&
       chatBase.includes('api.openai.com')
     ) {
-      toast.error('OpenAI 官方 Base URL 不支持 Gemini 模型，请更换兼容接口');
+      toast.error(t('settings.toast.openaiGeminiUnsupported'));
       return;
     }
 
@@ -169,11 +187,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setChatSyncedConfig(null);
       }
 
-      toast.success('配置已成功同步到服务器');
+      toast.success(t('settings.toast.saveSuccess'));
       onClose();
     } catch (error) {
-      console.error('保存失败:', error);
-      toast.error('保存失败，请检查网络');
+      console.error('Save failed:', error);
+      toast.error(t('settings.toast.saveFailed', { msg: t('settings.toast.checkNetwork') }));
     } finally {
       setLoading(false);
     }
@@ -192,6 +210,28 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (modelFromConfig) {
         setImageModel(modelFromConfig);
       }
+    }
+  };
+
+  const handleLanguageChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextLanguage = e.target.value;
+    if (nextLanguage === 'system') {
+      setLanguage('system');
+      const systemLocale = await getSystemLocale();
+      const resolved = resolveSystemLanguage(systemLocale);
+      setLanguageResolved(resolved);
+      if (i18n.language !== resolved) {
+        void i18n.changeLanguage(resolved);
+      }
+      return;
+    }
+
+    setLanguage(nextLanguage);
+    if (languageResolved) {
+      setLanguageResolved(null);
+    }
+    if (i18n.language !== nextLanguage) {
+      void i18n.changeLanguage(nextLanguage);
     }
   };
 
@@ -224,55 +264,84 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const tabClass = (tab: SettingsTab) => {
     const isActive = activeTab === tab;
     return [
-      'rounded-full px-3 py-1.5 text-xs font-semibold transition-all',
+      'w-full flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-semibold transition-all',
       isActive ? 'bg-slate-900 text-white shadow-sm' : 'bg-white/70 text-slate-600 hover:bg-white'
     ].join(' ');
   };
 
-  const headerActions = (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => setActiveTab('image')}
-        className={tabClass('image')}
-        aria-pressed={activeTab === 'image'}
-      >
-        生图模型
-      </button>
-      <button
-        type="button"
-        onClick={() => setActiveTab('chat')}
-        className={tabClass('chat')}
-        aria-pressed={activeTab === 'chat'}
-      >
-        对话模型
-      </button>
-    </div>
-  );
+  const menuItems = [
+    { id: 'language' as const, label: t('settings.language.label'), icon: Languages },
+    { id: 'image' as const, label: t('settings.tabs.image'), icon: Box },
+    { id: 'chat' as const, label: t('settings.tabs.chat'), icon: MessageSquare }
+  ];
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="系统设置"
-      headerActions={headerActions}
-      className="max-w-sm"
+      title={t('settings.title')}
+      className="max-w-4xl h-[78vh]"
       density="compact"
+      contentScrollable={false}
+      contentClassName="h-full min-h-0"
     >
-      <div className="space-y-5 relative">
-        {fetching && (
-          <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center rounded-2xl backdrop-blur-[1px]">
-            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+      <div className="relative h-full min-h-0">
+        <div className="grid grid-cols-[220px_minmax(0,1fr)] gap-8 h-full min-h-0">
+          <div className="space-y-2">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveTab(item.id)}
+                  className={tabClass(item.id)}
+                  aria-pressed={activeTab === item.id}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
           </div>
-        )}
 
-        {activeTab === 'image' ? (
-          <>
+          <div className="flex flex-col gap-6 min-w-0 h-full min-h-0 relative">
+            {fetching && (
+              <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center rounded-3xl backdrop-blur-[1px]">
+                <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+              </div>
+            )}
+            <div className="space-y-5 flex-1 min-h-0 overflow-y-auto pr-2">
+              {activeTab === 'language' && (
+                <div className="space-y-3">
+                  <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                    <Languages className="w-4 h-4 text-blue-600" />
+                    {t('settings.language.label')}
+                  </label>
+                  <Select
+                    value={language || i18n.language}
+                    onChange={handleLanguageChange}
+                    className="h-10 bg-slate-100 text-slate-900 font-bold rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+                  >
+                    <option value="system">{t('language.system')}</option>
+                    <option value="zh-CN">{t('language.zhCN')}</option>
+                    <option value="en-US">{t('language.enUS')}</option>
+                    <option value="ja-JP">{t('language.jaJP')}</option>
+                    <option value="ko-KR">{t('language.koKR')}</option>
+                  </Select>
+                  <p className="text-xs text-slate-500 px-1">
+                    {t('settings.language.hint')}
+                  </p>
+                </div>
+              )}
+
+              {activeTab === 'image' && (
+                <>
             {/* Provider Selection */}
             <div className="space-y-3">
               <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
                 <Box className="w-4 h-4 text-blue-600" />
-                AI对接方式
+                {t('settings.provider.label')}
               </label>
               <Select
                 value={imageProvider}
@@ -293,14 +362,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 Base URL
               </label>
               <span className="text-xs text-slate-500">
-                推荐平台：
+                {t('settings.provider.recommended')}
                 <a
                   href="https://yunwu.ai/register?aff=i4hh"
                   target="_blank"
                   rel="noreferrer"
                   className="text-blue-600 hover:text-blue-700 underline underline-offset-2"
                 >
-                  云雾API
+                  {t('settings.provider.yunwu')}
                 </a>
               </span>
             </div>
@@ -312,7 +381,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
               {imageProvider === 'openai' && (
-                <p className="text-xs text-red-500 px-1">OpenAI 类型当前仅支持生成 1K 图片</p>
+                <p className="text-xs text-red-500 px-1">{t('settings.provider.openaiImageLimit')}</p>
               )}
             </div>
 
@@ -344,7 +413,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="space-y-3">
               <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
                 <Box className="w-4 h-4 text-blue-600" />
-                默认模型
+                {t('settings.model.default')}
               </label>
               <Input
                 type="text"
@@ -353,14 +422,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
             </div>
-          </>
-        ) : (
-          <>
+                </>
+              )}
+
+              {activeTab === 'chat' && (
+                <>
             {/* Provider Selection */}
             <div className="space-y-3">
               <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
                 <Box className="w-4 h-4 text-blue-600" />
-                AI对接方式
+                {t('settings.provider.label')}
               </label>
               <Select
                 value={chatProvider}
@@ -383,14 +454,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   Base URL
                 </label>
                 <span className="text-xs text-slate-500">
-                  推荐平台：
+                  {t('settings.provider.recommended')}
                   <a
                     href="https://yunwu.ai/register?aff=i4hh"
                     target="_blank"
                     rel="noreferrer"
                     className="text-blue-600 hover:text-blue-700 underline underline-offset-2"
                   >
-                    云雾API
+                    {t('settings.provider.yunwu')}
                   </a>
                 </span>
               </div>
@@ -435,7 +506,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="space-y-3">
               <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
                 <Box className="w-4 h-4 text-blue-600" />
-                对话模型
+                {t('settings.model.chat')}
               </label>
               <Input
                 type="text"
@@ -445,24 +516,27 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
             </div>
-          </>
-        )}
+                </>
+              )}
+            </div>
 
-        <div className="pt-3">
-          <Button
-            onClick={handleSave}
-            disabled={loading}
-            className="w-full h-12 text-base bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black rounded-2xl shadow-xl shadow-blue-200/50 border-none transition-all duration-300"
-          >
-            {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" />
-                <span>同步并保存</span>
-              </>
-            )}
-          </Button>
+            <div className="pt-3">
+              <Button
+                onClick={handleSave}
+                disabled={loading}
+                className="w-full h-12 text-base bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black rounded-2xl shadow-xl shadow-blue-200/50 border-none transition-all duration-300"
+              >
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    <span>{t('settings.save')}</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </Modal>

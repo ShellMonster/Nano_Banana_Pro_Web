@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense, lazy, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Header } from './Header';
 import { FloatingTabSwitch } from './FloatingTabSwitch';
 import GenerateArea from '../GenerateArea';
@@ -18,11 +19,11 @@ const ConfigPanel = lazy(() => import('../ConfigPanel'));
 const HistoryPanel = lazy(() => import('../HistoryPanel'));
 
 // 懒加载加载中状态
-const PanelLoader = () => (
+const PanelLoader = ({ label }: { label: string }) => (
   <div className="flex-1 flex items-center justify-center bg-white/50 backdrop-blur-sm rounded-3xl">
     <div className="flex flex-col items-center gap-3">
       <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-      <span className="text-sm text-slate-500">正在加载模块...</span>
+      <span className="text-sm text-slate-500">{label}</span>
     </div>
   </div>
 );
@@ -30,6 +31,7 @@ const PanelLoader = () => (
 import { tauriInitPromise } from '../../services/api';
 
 export default function MainLayout() {
+  const { t } = useTranslation();
   const currentTab = useGenerateStore((s) => s.currentTab);
   const setTab = useGenerateStore((s) => s.setTab);
   const isSidebarOpen = useGenerateStore((s) => s.isSidebarOpen);
@@ -89,7 +91,7 @@ export default function MainLayout() {
         // 只有在重试多次都失败后才提示用户，给 Sidecar 启动留出时间
         if (retryCount >= maxRetries) {
           setIsBackendHealthy(false);
-          toast.error('无法连接到本地后端服务，请尝试重启应用');
+          toast.error(t('layout.toast.backendUnavailable'));
         } else {
           retryCount++;
         }
@@ -195,7 +197,7 @@ export default function MainLayout() {
           }
 
           if (taskData.status === 'failed') {
-            current.failTask(taskData.errorMessage || '生成任务失败');
+            current.failTask(taskData.errorMessage || t('generate.toast.failed'));
             return;
           }
 
@@ -279,19 +281,22 @@ export default function MainLayout() {
             hasWarnedCountMismatchRef.current !== currentTaskId
           ) {
             hasWarnedCountMismatchRef.current = currentTaskId;
-            toast.info(`本次请求期望生成 ${taskData.totalCount} 张，但后端仅返回 ${taskData.images?.length || 0} 张`);
+            toast.info(t('generate.toast.countMismatch', {
+              total: taskData.totalCount,
+              returned: taskData.images?.length || 0
+            }));
           }
           latest.completeTask();
           return;
         }
 
         if (taskData.status === 'failed') {
-          latest.failTask(taskData.errorMessage || '生成任务失败');
+          latest.failTask(taskData.errorMessage || t('generate.toast.failed'));
           return;
         }
 
         if (taskData.status === 'partial') {
-          toast.info('生成任务部分完成，请查看历史记录');
+          toast.info(t('generate.toast.partial'));
           latest.completeTask();
           return;
         }
@@ -356,7 +361,7 @@ export default function MainLayout() {
         <div className="mx-4 mt-2 p-3 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 animate-in fade-in slide-in-from-top-2">
           <AlertTriangle className="w-5 h-5 flex-shrink-0" />
           <div className="text-sm font-bold">
-            本地服务连接失败。这可能是由于服务正在启动或被防火墙拦截。
+            {t('layout.backendBanner')}
           </div>
         </div>
       )}
@@ -370,7 +375,7 @@ export default function MainLayout() {
             `}
         >
           <div className="w-96 h-full">
-            <Suspense fallback={<PanelLoader />}>
+            <Suspense fallback={<PanelLoader label={t('layout.loadingModule')} />}>
               <ConfigPanel />
             </Suspense>
           </div>
@@ -402,11 +407,11 @@ export default function MainLayout() {
                 <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsMobileDrawerOpen(false)} />
                 <div className="relative bg-white rounded-t-[2.5rem] shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col">
                     <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
-                        <h3 className="text-xl font-black">生成配置</h3>
+                        <h3 className="text-xl font-black">{t('layout.generateConfigTitle')}</h3>
                         <button onClick={() => setIsMobileDrawerOpen(false)} className="p-2 bg-slate-100 rounded-xl"><X className="w-5 h-5" /></button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4">
-                        <Suspense fallback={<PanelLoader />}>
+                        <Suspense fallback={<PanelLoader label={t('layout.loadingModule')} />}>
                             <ConfigPanel />
                         </Suspense>
                     </div>
@@ -424,7 +429,7 @@ export default function MainLayout() {
              <GenerateArea />
           </div>
           <div className={`absolute inset-0 transition-opacity duration-500 ${safeTab === 'history' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-             <Suspense fallback={<PanelLoader />}>
+             <Suspense fallback={<PanelLoader label={t('layout.loadingModule')} />}>
                <HistoryPanel isActive={safeTab === 'history'} />
              </Suspense>
           </div>

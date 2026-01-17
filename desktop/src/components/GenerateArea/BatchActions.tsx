@@ -4,8 +4,10 @@ import { useGenerateStore } from '../../store/generateStore';
 import { Button } from '../common/Button';
 import { exportImages } from '../../services/historyApi';
 import { toast } from '../../store/toastStore';
+import { useTranslation } from 'react-i18next';
 
 export function BatchActions() {
+  const { t } = useTranslation();
   const { images, selectedIds, selectAll, clearSelection, clearImages } = useGenerateStore();
   const [isExporting, setIsExporting] = useState(false);
   const objectUrlRef = useRef<string | null>(null);  // 记录 ObjectURL
@@ -37,7 +39,7 @@ export function BatchActions() {
     if (showClearConfirm) {
       // 确认清空
       clearImages();
-      toast.success('已清空生成列表');
+      toast.success(t('generate.batch.clearSuccess'));
       setShowClearConfirm(false);
     } else {
       // 显示确认状态
@@ -62,16 +64,16 @@ export function BatchActions() {
               const errorText = await new Promise<string>((resolve, reject) => {
                   const reader = new FileReader();
                   reader.onload = () => resolve(reader.result as string);
-                  reader.onerror = () => reject(new Error('无法读取错误响应'));
+                  reader.onerror = () => reject(new Error(t('generate.batch.readError')));
                   reader.readAsText(blob);
               });
 
               try {
                   const errorRes = JSON.parse(errorText);
-                  toast.error(errorRes.message || '导出失败');
+                  toast.error(errorRes.message || t('generate.batch.exportFailed'));
               } catch (parseError) {
                   // 不是 JSON，显示文本内容
-                  toast.error(errorText || '导出失败：服务器返回错误');
+                  toast.error(errorText || t('generate.batch.exportFailedServer'));
               }
               return;
           }
@@ -92,21 +94,21 @@ export function BatchActions() {
           document.body.removeChild(a);
 
           // 添加成功提示
-          toast.success(`已导出 ${selectedIds.size} 张图片`);
+          toast.success(t('generate.batch.exported', { count: selectedIds.size }));
       } catch (error) {
           console.error('Export failed:', error);
 
           // 更详细的错误处理
-          let errorMessage = '导出失败，请稍后重试';
+          let errorMessage = t('generate.batch.exportFailedRetry');
           if (error instanceof Error) {
               if (error.message.includes('Network Error')) {
-                  errorMessage = '网络错误，请检查连接';
+                  errorMessage = t('generate.batch.networkError');
               } else if (error.message.includes('timeout')) {
-                  errorMessage = '请求超时，请稍后重试';
+                  errorMessage = t('generate.batch.timeout');
               } else if (error.message.includes('404')) {
-                  errorMessage = '导出服务不可用';
+                  errorMessage = t('generate.batch.serviceUnavailable');
               } else if (error.message.includes('500')) {
-                  errorMessage = '服务器错误，请稍后重试';
+                  errorMessage = t('generate.batch.serverError');
               } else {
                   errorMessage = error.message || errorMessage;
               }
@@ -127,10 +129,10 @@ export function BatchActions() {
             className="text-gray-600"
         >
           {allSelected ? <CheckSquare className="w-4 h-4 mr-2" /> : <Square className="w-4 h-4 mr-2" />}
-          {allSelected ? '取消全选' : '全选'}
+          {allSelected ? t('generate.batch.clearSelection') : t('generate.batch.selectAll')}
         </Button>
         <span className="text-sm text-gray-500 ml-2">
-            已选 {selectedIds.size} 项
+            {t('generate.batch.selectedCount', { count: selectedIds.size })}
         </span>
       </div>
 
@@ -143,7 +145,7 @@ export function BatchActions() {
             className="text-blue-600 border-blue-200 hover:bg-blue-50"
         >
           {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-          {isExporting ? '打包中...' : '导出选定'}
+          {isExporting ? t('generate.batch.exporting') : t('generate.batch.exportSelected')}
         </Button>
         <Button
             variant="ghost"
@@ -155,7 +157,7 @@ export function BatchActions() {
             }
         >
           <Trash2 className="w-4 h-4 mr-2" />
-          {showClearConfirm ? '确认清空?' : '清空列表'}
+          {showClearConfirm ? t('generate.batch.clearConfirm') : t('generate.batch.clearList')}
         </Button>
       </div>
     </div>

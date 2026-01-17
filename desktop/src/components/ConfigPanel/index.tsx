@@ -6,8 +6,10 @@ import { Button } from '../common/Button';
 import { Wand2, Settings, Sparkles } from 'lucide-react';
 import { useConfigStore } from '../../store/configStore';
 import { useGenerate } from '../../hooks/useGenerate';
+import { useTranslation } from 'react-i18next';
 
 export default function ConfigPanel() {
+  const { t } = useTranslation();
   const apiKey = useConfigStore(s => s.imageApiKey);
   const prompt = useConfigStore(s => s.prompt);
   const hasRefImages = useConfigStore(s => s.refFiles.length > 0);
@@ -33,7 +35,7 @@ export default function ConfigPanel() {
           {!apiKey && (
             <div className="mb-3 text-xs text-amber-600 bg-amber-50 p-3 rounded-2xl border border-amber-200 flex items-center gap-2">
               <Settings className="w-3 h-3" />
-              请先在右上角配置生图 API Key
+              {t('config.apiKeyHint')}
             </div>
           )}
           <Button
@@ -42,7 +44,7 @@ export default function ConfigPanel() {
             disabled={!apiKey || (!prompt && !hasRefImages)}
           >
             {hasRefImages ? <Sparkles className="w-5 h-5 mr-3" /> : <Wand2 className="w-5 h-5 mr-3" />}
-            <span>{hasRefImages ? '开始图生图' : '开始生成'}</span>
+            <span>{hasRefImages ? t('generate.startImg2Img') : t('generate.start')}</span>
           </Button>
         </div>
       </div>

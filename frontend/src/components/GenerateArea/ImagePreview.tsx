@@ -7,6 +7,7 @@ import { formatDateTime } from '../../utils/date';
 import { getImageDownloadUrl } from '../../services/api';
 import { useHistoryStore } from '../../store/historyStore';
 import { toast } from '../../store/toastStore';
+import { useTranslation } from 'react-i18next';
 
 interface ImagePreviewProps {
     image: (GeneratedImage & { model?: string }) | null;
@@ -22,6 +23,7 @@ export const ImagePreview = React.memo(function ImagePreview({
     onImageChange,
     onClose
 }: ImagePreviewProps) {
+    const { t } = useTranslation();
     const [scale, setScale] = useState(1);
     const [position, setPosition] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
@@ -91,7 +93,7 @@ export const ImagePreview = React.memo(function ImagePreview({
             const hasImage = Array.from(items).some((it) => it.type.startsWith('image/'));
             if (hasImage && !hasNotifiedCopyRef.current) {
                 hasNotifiedCopyRef.current = true;
-                toast.success('图片已复制到剪贴板');
+                toast.success(t('toast.copyImageSuccess'));
 
                 setTimeout(() => {
                     hasNotifiedCopyRef.current = false;
@@ -146,8 +148,8 @@ export const ImagePreview = React.memo(function ImagePreview({
                     onClose();
                 }
             } catch (error) {
-                console.error('删除图片失败:', error);
-                const errorMessage = error instanceof Error ? error.message : '删除失败';
+                console.error('Delete image failed:', error);
+                const errorMessage = error instanceof Error ? error.message : t('toast.deleteFailed');
                 toast.error(errorMessage);
                 // 删除失败时保持确认状态，允许用户重试
                 setIsDeleting(false);
@@ -197,7 +199,7 @@ export const ImagePreview = React.memo(function ImagePreview({
         if (successful) {
             // 成功：立即显示状态（真实成功，不是乐观更新）
             setCopySuccess(true);
-            toast.success('提示词已复制到剪贴板');
+            toast.success(t('toast.copyPromptSuccess'));
 
             copySuccessTimerRef.current = setTimeout(() => {
                 setCopySuccess(false);
@@ -207,15 +209,15 @@ export const ImagePreview = React.memo(function ImagePreview({
             navigator.clipboard.writeText(image.prompt)
                 .then(() => {
                     setCopySuccess(true);
-                    toast.success('提示词已复制到剪贴板');
+                    toast.success(t('toast.copyPromptSuccess'));
 
                     copySuccessTimerRef.current = setTimeout(() => {
                         setCopySuccess(false);
                     }, 2000);
                 })
                 .catch((err) => {
-                    console.error('复制失败:', err);
-                    toast.error('复制失败，请手动复制');
+                    console.error('Copy failed:', err);
+                    toast.error(t('toast.copyFailedManual'));
                 });
         }
     }, [image?.prompt]);
@@ -377,7 +379,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                     <div className="flex-1 flex flex-col min-h-0 p-8 pb-4">
                         {/* 标题和按钮行 */}
                         <div className="flex items-center justify-between mb-6 flex-shrink-0 gap-4">
-                            <h2 className="text-xl font-black text-slate-900 leading-none">生成详情</h2>
+                            <h2 className="text-xl font-black text-slate-900 leading-none">{t('preview.title')}</h2>
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 {/* 删除按钮 */}
                                 <button
@@ -393,24 +395,24 @@ export const ImagePreview = React.memo(function ImagePreview({
                                         active:scale-95
                                         ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}
                                     `}
-                                    title={showDeleteConfirm ? '再次点击确认删除' : '删除图片'}
+                                    title={showDeleteConfirm ? t('preview.delete.confirmTitle') : t('preview.delete.title')}
                                 >
                                     {isDeleting ? (
                                         <>
                                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                            删除中...
+                                            {t('preview.delete.deleting')}
                                         </>
                                     ) : showDeleteConfirm ? (
                                         <>
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                             </svg>
-                                            确认?
+                                            {t('preview.delete.confirmLabel')}
                                         </>
                                     ) : (
                                         <>
                                             <Trash2 className="w-4 h-4" />
-                                            删除
+                                            {t('preview.delete.action')}
                                         </>
                                     )}
                                 </button>
@@ -419,9 +421,9 @@ export const ImagePreview = React.memo(function ImagePreview({
                                     <button
                                         onClick={handleCancelDelete}
                                         className="inline-flex items-center justify-center rounded-2xl font-bold transition-all duration-200 px-4 py-2 text-sm leading-none bg-slate-100 text-slate-700 hover:bg-slate-200 shadow-sm active:scale-95"
-                                        title="取消"
+                                        title={t('common.cancel')}
                                     >
-                                        取消
+                                        {t('common.cancel')}
                                     </button>
                                 )}
                                 {/* 关闭按钮 */}
@@ -432,7 +434,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                         </div>
                         <div className="flex-1 flex flex-col min-h-0">
                             <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">提示词 (Prompt)</h3>
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('preview.prompt.label')}</h3>
                                 <button
                                     onClick={handleCopyPrompt}
                                     disabled={!image.prompt}
@@ -448,17 +450,17 @@ export const ImagePreview = React.memo(function ImagePreview({
                                 >
                                     {copySuccess ? (
                                         <>
-                                            <Check className="w-3.5 h-3.5" /> 已复制
+                                            <Check className="w-3.5 h-3.5" /> {t('preview.prompt.copied')}
                                         </>
                                     ) : (
                                         <>
-                                            <Copy className="w-3.5 h-3.5" /> 复制
+                                            <Copy className="w-3.5 h-3.5" /> {t('common.copy')}
                                         </>
                                     )}
                                 </button>
                             </div>
                             <div className="flex-1 bg-slate-50 p-5 rounded-2xl border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap overflow-y-auto scrollbar-thin">
-                                {image.prompt || "暂无提示词"}
+                                {image.prompt || t('preview.prompt.empty')}
                             </div>
                         </div>
                     </div>
@@ -466,21 +468,21 @@ export const ImagePreview = React.memo(function ImagePreview({
                     <div className="flex-shrink-0">
                         <div className="px-8 py-5 space-y-4 border-t border-slate-50 bg-white">
                             <div className="flex items-center justify-between text-sm">
-                                <span className="text-slate-400 font-medium flex items-center gap-2.5"><Box className="w-4 h-4" /> 模型</span>
-                                <span className="font-bold text-slate-900 truncate max-w-[200px]">{image.model || "未知"}</span>
+                                <span className="text-slate-400 font-medium flex items-center gap-2.5"><Box className="w-4 h-4" /> {t('preview.meta.model')}</span>
+                                <span className="font-bold text-slate-900 truncate max-w-[200px]">{image.model || t('preview.meta.unknown')}</span>
                             </div>
                             <div className="flex items-center justify-between text-sm">
-                                <span className="text-slate-400 font-medium flex items-center gap-2.5"><Maximize2 className="w-4 h-4" /> 尺寸</span>
+                                <span className="text-slate-400 font-medium flex items-center gap-2.5"><Maximize2 className="w-4 h-4" /> {t('preview.meta.size')}</span>
                                 <span className="font-bold text-slate-900 font-mono">{image.width || 0} × {image.height || 0}</span>
                             </div>
                             <div className="flex items-center justify-between text-sm">
-                                <span className="text-slate-400 font-medium flex items-center gap-2.5"><Calendar className="w-4 h-4" /> 时间</span>
+                                <span className="text-slate-400 font-medium flex items-center gap-2.5"><Calendar className="w-4 h-4" /> {t('preview.meta.time')}</span>
                                 <span className="font-bold text-slate-900">{formatDateTime(image.createdAt || '')}</span>
                             </div>
                         </div>
                         <div className="p-8 pt-3">
                             <Button className="w-full h-14 bg-slate-900 hover:bg-black text-white" onClick={() => window.location.href = getImageDownloadUrl(image.id)}>
-                                <Download className="w-5 h-5 mr-3" /> 下载高清原图
+                                <Download className="w-5 h-5 mr-3" /> {t('preview.downloadOriginal')}
                             </Button>
                         </div>
                     </div>

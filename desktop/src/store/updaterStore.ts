@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { toast } from './toastStore';
+import i18n from '../i18n';
 
 type UpdaterStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'installing' | 'installed' | 'error';
 
@@ -90,7 +91,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
 
         if (!update) {
           set({ status: 'idle', update: null, progress: null });
-          if (!silent) toast.success('已是最新版本');
+          if (!silent) toast.success(i18n.t('settings.update.latest'));
           return;
         }
 
@@ -98,15 +99,15 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         if (openIfAvailable) set({ isOpen: true });
       } catch (err) {
         console.error('[updater] check failed:', err);
-        const rawMessage = err instanceof Error ? err.message : '检查更新失败';
+        const rawMessage = err instanceof Error ? err.message : i18n.t('updater.toast.checkFailed');
         const message = (() => {
           const text = String(rawMessage || '').trim();
           const lower = text.toLowerCase();
           if ((lower.includes('404') || lower.includes('not found')) && lower.includes('latest.json')) {
-            return '检查更新失败：未找到更新清单（latest.json）。请确认已发布带 Updater 产物的 Release。';
+            return i18n.t('updater.toast.checkFailedManifest');
           }
           if (lower.includes('pubkey') || lower.includes('public key')) {
-            return '检查更新失败：Updater 公钥未配置或与签名不匹配。';
+            return i18n.t('updater.toast.checkFailedPubkey');
           }
           if (
             lower.includes('failed to connect') ||
@@ -114,15 +115,15 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
             lower.includes('timeout') ||
             lower.includes('connection refused')
           ) {
-            return '检查更新失败：网络连接失败，请稍后重试。';
+            return i18n.t('updater.toast.checkFailedNetwork');
           }
-          return text || '检查更新失败';
+          return text || i18n.t('updater.toast.checkFailed');
         })();
 
         set({ status: 'error', error: rawMessage });
         if (!silent) {
           // 常见：pubkey 未配置 / latest.json 不存在 / 网络问题
-          toast.error(message || '检查更新失败');
+          toast.error(message || i18n.t('updater.toast.checkFailed'));
         }
       } finally {
         inFlightCheck = null;
@@ -174,12 +175,12 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         });
 
         set({ status: 'downloaded', progress: { downloaded, total } });
-        toast.success('更新已下载，可稍后安装');
+        toast.success(i18n.t('updater.toast.downloaded'));
       } catch (err) {
         console.error('[updater] download failed:', err);
-        const message = err instanceof Error ? err.message : '下载更新失败';
+        const message = err instanceof Error ? err.message : i18n.t('updater.toast.downloadFailed');
         set({ status: 'error', error: message });
-        toast.error(message || '下载更新失败');
+        toast.error(message || i18n.t('updater.toast.downloadFailed'));
       } finally {
         inFlightDownload = null;
       }
@@ -200,20 +201,20 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
       try {
         await update.install();
         set({ status: 'installed' });
-        toast.success('更新已安装，正在重启...');
+        toast.success(i18n.t('updater.toast.installed'));
 
         try {
           const { relaunch } = await import('@tauri-apps/plugin-process');
           await relaunch();
         } catch (err) {
           console.warn('[updater] relaunch failed:', err);
-          toast.info('更新已安装，请手动重启应用');
+          toast.info(i18n.t('updater.toast.installManual'));
         }
       } catch (err) {
         console.error('[updater] install failed:', err);
-        const message = err instanceof Error ? err.message : '安装更新失败';
+        const message = err instanceof Error ? err.message : i18n.t('updater.toast.installFailed');
         set({ status: 'error', error: message });
-        toast.error(message || '安装更新失败');
+        toast.error(message || i18n.t('updater.toast.installFailed'));
       } finally {
         inFlightInstall = null;
       }

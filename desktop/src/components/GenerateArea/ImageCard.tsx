@@ -7,6 +7,8 @@ import { useGenerateStore } from '../../store/generateStore';
 import { useHistoryStore } from '../../store/historyStore';
 import { toast } from '../../store/toastStore';
 import { useInternalDragStore } from '../../store/internalDragStore';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 
 interface ImageCardProps {
   image: GeneratedImage;
@@ -21,6 +23,7 @@ export const ImageCard = React.memo(function ImageCard({
   onSelect,
   onClick
 }: ImageCardProps) {
+  const { t } = useTranslation();
   const isFailed = image.status === 'failed';
   const isPending = !isFailed && (image.status === 'pending' || !image.url);
   const isSuccess = image.status === 'success' && Boolean(image.url);
@@ -96,14 +99,14 @@ export const ImageCard = React.memo(function ImageCard({
         if (!isTemp && image.taskId) {
           await useHistoryStore.getState().deleteImage(image.id, image.taskId);
         } else {
-          toast.success('已从生成列表移除');
+          toast.success(t('generate.card.removeSuccess'));
         }
 
         useGenerateStore.getState().removeImage(image.id);
         setIsDeleting(false);
         setShowConfirm(false);
       } catch (error) {
-        console.error('删除图片失败:', error);
+        console.error('Delete image failed:', error);
         setIsDeleting(false);
       }
     } else {
@@ -181,7 +184,7 @@ export const ImageCard = React.memo(function ImageCard({
       try {
         const d = new Date(image.createdAt);
         if (Number.isNaN(d.getTime())) return '—';
-        return d.toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return d.toLocaleTimeString(i18n.language, { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
       } catch {
         return '—';
       }
@@ -295,7 +298,7 @@ export const ImageCard = React.memo(function ImageCard({
                 "rounded-full flex items-center justify-center shadow-lg transition-all duration-200 bg-red-500 hover:bg-red-600 text-white w-7 h-7 sm:w-8 sm:h-8 pointer-events-auto",
                 isDeleting ? "opacity-50 cursor-not-allowed" : ""
               )}
-              title="删除图片"
+              title={t('generate.card.deleteTitle')}
             >
               {isDeleting ? (
                 <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -312,7 +315,7 @@ export const ImageCard = React.memo(function ImageCard({
             <button
               onClick={handleCancelConfirm}
               className="bg-slate-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-600 transition-colors shadow-lg pointer-events-auto"
-              title="取消"
+              title={t('common.cancel')}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -325,12 +328,12 @@ export const ImageCard = React.memo(function ImageCard({
                 "rounded-full flex items-center justify-center shadow-lg transition-all duration-200 bg-red-600 text-white w-auto px-3 h-8 pointer-events-auto",
                 isDeleting ? "opacity-50 cursor-not-allowed" : ""
               )}
-              title="再次点击确认删除"
+              title={t('generate.card.confirmDeleteTitle')}
             >
               {isDeleting ? (
                 <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                <span className="text-xs font-bold">确认?</span>
+                <span className="text-xs font-bold">{t('generate.card.confirmLabel')}</span>
               )}
             </button>
           </div>
@@ -353,7 +356,7 @@ export const ImageCard = React.memo(function ImageCard({
                   <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
                   <div className="w-1 h-1 bg-blue-600 rounded-full animate-bounce" />
                 </div>
-                <span className="text-sm font-bold text-blue-600 tracking-tight">生成中</span>
+                <span className="text-sm font-bold text-blue-600 tracking-tight">{t('generate.card.generating')}</span>
               </div>
               <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-100/50 rounded-full border border-blue-200/50">
                 <span className="text-[10px] font-bold font-mono text-blue-500 tabular-nums">
@@ -387,7 +390,7 @@ export const ImageCard = React.memo(function ImageCard({
             <img
               ref={imgRef}
               src={image.thumbnailUrl || image.url}
-              alt={image.prompt || '图片'}
+              alt={image.prompt || t('generate.card.imageAlt')}
               className="w-full h-full object-cover"
               loading="lazy"
               decoding="async"
@@ -426,7 +429,7 @@ export const ImageCard = React.memo(function ImageCard({
               <div className="absolute inset-0 bg-red-500/10 rounded-full animate-pulse" />
               <XCircle className="w-10 h-10 text-red-400 relative z-10" />
             </div>
-            <span className="text-sm font-bold text-red-500 tracking-tight">生成失败</span>
+            <span className="text-sm font-bold text-red-500 tracking-tight">{t('generate.card.failed')}</span>
           </div>
         )}
       </div>
@@ -434,7 +437,7 @@ export const ImageCard = React.memo(function ImageCard({
       {/* 信息区域 - 保持与历史区一致的样式 */}
       <div className="p-2 sm:p-3 flex flex-col gap-1.5 sm:gap-2 flex-shrink-0 bg-white">
         <p className="text-[10px] sm:text-xs text-gray-800 line-clamp-2 font-medium leading-relaxed h-8 sm:h-9" title={image.prompt}>
-          {image.prompt || '无提示词'}
+          {image.prompt || t('generate.card.emptyPrompt')}
         </p>
 
         <div className="flex items-center justify-between text-[8px] sm:text-[9px] text-gray-400 pt-1 border-t border-gray-50 mt-auto">

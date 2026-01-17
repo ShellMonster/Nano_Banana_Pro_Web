@@ -2,14 +2,16 @@ import React from 'react';
 import { Button } from '../common/Button';
 import { useHistoryStore } from '../../store/historyStore';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export function LoadMore() {
+  const { t } = useTranslation();
   const { loading, hasMore, loadMore } = useHistoryStore();
 
   if (!hasMore) {
       return (
           <div className="text-center py-4 text-xs text-gray-400">
-              没有更多了
+              {t('history.loadMore.noMore')}
           </div>
       );
   }
@@ -26,10 +28,10 @@ export function LoadMore() {
         {loading ? (
             <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                加载中...
+                {t('history.loadMore.loading')}
             </>
         ) : (
-            '加载更多'
+            t('history.loadMore.action')
         )}
       </Button>
     </div>

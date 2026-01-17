@@ -50,7 +50,7 @@ export function useWebSocket(taskId: string | null) {
       // 如果 3 秒内连接未完成，强制关闭
       closeTimeoutRef.current = setTimeout(() => {
         if (ws.readyState === WebSocket.CONNECTING) {
-          console.warn('[WebSocket] 连接超时，强制关闭');
+          console.warn('[WebSocket] connection timeout, force close');
           ws.close();
         }
         closeTimeoutRef.current = null;
@@ -153,7 +153,7 @@ export function useWebSocket(taskId: string | null) {
             ws.close();
           }
         } else {
-          console.log('[竞态条件防护] WebSocket 消息被忽略，更新源已切换');
+          console.log('[race guard] WebSocket message ignored, source switched');
         }
       } catch (e) {
         console.error('WebSocket message parse error:', e);
@@ -188,11 +188,11 @@ export function useWebSocket(taskId: string | null) {
 
         if (isRapidDisconnect) {
           disconnectCountRef.current++;
-          console.log(`检测到快速断开 (${disconnectCountRef.current}/3)`);
+          console.log(`Rapid disconnect detected (${disconnectCountRef.current}/3)`);
 
           // 如果3次快速断开，直接切换到轮询模式并延迟重试
           if (disconnectCountRef.current >= 3) {
-            console.warn('检测到WebSocket连接不稳定，切换到轮询模式');
+            console.warn('WebSocket unstable, switching to polling mode');
             disconnectCountRef.current = 0;
             storeRef.current.setConnectionMode('polling');
             return;

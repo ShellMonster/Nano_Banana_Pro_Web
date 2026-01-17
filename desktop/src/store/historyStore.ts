@@ -5,6 +5,7 @@ import { getHistory, searchHistory, deleteHistory, deleteBatchHistory, deleteIma
 import { mapBackendHistoryResponse, mapBackendTaskToFrontend } from '../utils/mapping';
 import { useGenerateStore } from './generateStore';
 import { toast } from './toastStore';
+import i18n from '../i18n';
 
 interface HistoryState {
   items: HistoryItem[];
@@ -184,7 +185,7 @@ export const useHistoryStore = create<HistoryState>()(
             if (reset && !options?.silent) {
                 const currentTab = useGenerateStore.getState().currentTab;
                 if (currentTab === 'history') {
-                  toast.success('历史记录已更新');
+                  toast.success(i18n.t('history.toast.updated'));
                 }
             }
         } catch (error) {
@@ -195,7 +196,7 @@ export const useHistoryStore = create<HistoryState>()(
 
             console.error('Failed to load history:', error);
             if (!options?.silent) {
-              const errorMessage = error instanceof Error ? error.message : '加载历史记录失败';
+              const errorMessage = error instanceof Error ? error.message : i18n.t('history.toast.loadFailed');
               toast.error(errorMessage);
             }
             set({ loading: false });
@@ -222,10 +223,10 @@ export const useHistoryStore = create<HistoryState>()(
                 items: state.items.filter(item => item.id !== id),
                 total: state.total - 1
             }));
-            toast.success('记录已删除');
+            toast.success(i18n.t('history.toast.deleted'));
         } catch (error) {
             console.error('Failed to delete history item:', error);
-            const errorMessage = error instanceof Error ? error.message : '删除记录失败';
+            const errorMessage = error instanceof Error ? error.message : i18n.t('history.toast.deleteFailed');
             toast.error(errorMessage);
         }
       },
@@ -238,10 +239,10 @@ export const useHistoryStore = create<HistoryState>()(
                   items: state.items.filter(item => !idSet.has(item.id)),
                   total: state.total - ids.length
               }));
-              toast.success(`已删除 ${ids.length} 条记录`);
+              toast.success(i18n.t('history.toast.batchDeleted', { count: ids.length }));
           } catch (error) {
               console.error('Failed to delete history items:', error);
-              const errorMessage = error instanceof Error ? error.message : '批量删除失败';
+              const errorMessage = error instanceof Error ? error.message : i18n.t('history.toast.batchDeleteFailed');
               toast.error(errorMessage);
           }
       },
@@ -283,13 +284,13 @@ export const useHistoryStore = create<HistoryState>()(
                   };
               });
 
-              toast.success('图片已删除');
+              toast.success(i18n.t('history.toast.imageDeleted'));
 
               // 后台轻量同步（不重置分页，避免滚动跳顶）
               get().loadHistory(false, { silent: true });
           } catch (error) {
               console.error('Failed to delete image:', error);
-              const errorMessage = error instanceof Error ? error.message : '删除图片失败';
+              const errorMessage = error instanceof Error ? error.message : i18n.t('history.toast.imageDeleteFailed');
               toast.error(errorMessage);
               throw error;
           }
@@ -399,7 +400,7 @@ function syncWithGenerateStore(historyItems: HistoryItem[]) {
   if (historyStatus !== 'processing' && currentStatus === 'processing') {
     console.log(`Task status mismatch: local=${currentStatus}, history=${historyStatus}, clearing local state`);
 
-    if (historyStatus === 'completed') {
+      if (historyStatus === 'completed') {
       // 任务已完成：同步最后结果并结束生成态（避免生成区“卡在生成中”）
       if (currentTaskInHistory.images.length > 0) {
         generateStore.updateProgressBatch(currentTaskInHistory.completedCount, currentTaskInHistory.images);
@@ -410,8 +411,8 @@ function syncWithGenerateStore(historyItems: HistoryItem[]) {
       // 不显示 toast，避免打扰
     } else if (historyStatus === 'failed') {
       // 任务失败：结束生成态并提示
-      generateStore.failTask(currentTaskInHistory.errorMessage || '生成任务失败');
-      toast.error(`生成任务失败：${currentTaskInHistory.errorMessage || '未知错误'}`);
+      generateStore.failTask(currentTaskInHistory.errorMessage || i18n.t('generate.toast.failed'));
+      toast.error(i18n.t('generate.toast.failedWith', { message: currentTaskInHistory.errorMessage || i18n.t('common.unknownError') }));
     } else if (historyStatus === 'partial') {
       // 部分完成：同步已生成的结果并结束生成态
       if (currentTaskInHistory.images.length > 0) {
@@ -420,7 +421,7 @@ function syncWithGenerateStore(historyItems: HistoryItem[]) {
         generateStore.updateProgress(currentTaskInHistory.completedCount, null);
       }
       generateStore.completeTask();
-      toast.info('生成任务部分完成，请查看历史记录');
+      toast.info(i18n.t('generate.toast.partial'));
     } else {
       generateStore.clearTaskState();
     }

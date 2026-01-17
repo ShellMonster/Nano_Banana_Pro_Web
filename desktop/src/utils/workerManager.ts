@@ -61,19 +61,19 @@ class ImageCompressorWorker {
             height: data.height
           });
         } else {
-          request.reject(new Error(error || '压缩失败'));
+          request.reject(new Error(error || 'Compression failed'));
         }
       };
 
       this.worker.onerror = (e) => {
         // 拒绝所有待处理的请求
         this.pendingRequests.forEach(({ reject }) => {
-          reject(new Error('Worker 线程错误'));
+          reject(new Error('Worker thread error'));
         });
         this.pendingRequests.clear();
       };
     } catch (error) {
-      console.error('[WorkerManager] Worker 初始化失败:', error);
+      console.error('[WorkerManager] worker init failed:', error);
     }
   }
 
@@ -89,10 +89,10 @@ class ImageCompressorWorker {
     if (!this.worker) {
       // 清理所有待处理的请求
       this.pendingRequests.forEach(({ reject }) => {
-        reject(new Error('Worker 未初始化'));
+        reject(new Error('Worker not initialized'));
       });
       this.pendingRequests.clear();
-      throw new Error('Worker 未初始化');
+      throw new Error('Worker not initialized');
     }
 
     return new Promise((resolve, reject) => {
@@ -100,7 +100,7 @@ class ImageCompressorWorker {
       const reader = new FileReader();
       reader.onload = () => {
         if (!reader.result) {
-          reject(new Error('文件读取失败：结果为空'));
+          reject(new Error('File read failed: empty result'));
           return;
         }
 
@@ -122,7 +122,7 @@ class ImageCompressorWorker {
       };
 
       reader.onerror = () => {
-        reject(new Error('文件读取失败'));
+        reject(new Error('File read failed'));
       };
 
       reader.readAsArrayBuffer(file);

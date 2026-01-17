@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useGenerateStore } from '../store/generateStore';
 import { getTaskStatus } from '../services/generateApi';
 import { toast } from '../store/toastStore';
+import i18n from '../i18n';
 
 // 任务超时时间：10 分钟（防止恢复过期任务）
 const TASK_TIMEOUT = 10 * 60 * 1000;
@@ -63,7 +64,7 @@ export function useTaskRecovery() {
             completedCount: taskData.completedCount,
             images: taskData.images || []
           });
-          toast.info('检测到未完成的生成任务，已恢复进度');
+          toast.info(i18n.t('generate.toast.recovered'));
           break;
 
         case 'completed':
@@ -77,14 +78,16 @@ export function useTaskRecovery() {
           // 任务失败
           console.log('Task failed');
           clearTaskState();
-          toast.error(`上次的生成任务失败：${taskData.errorMessage || '未知错误'}`);
+          toast.error(i18n.t('generate.toast.failedWith', {
+            message: taskData.errorMessage || i18n.t('common.unknownError')
+          }));
           break;
 
         case 'partial':
           // 部分完成，也当作完成处理
           console.log('Task was partially completed');
           clearTaskState();
-          toast.info('上次的生成任务部分完成，请查看历史记录');
+          toast.info(i18n.t('generate.toast.partial'));
           break;
 
         default:

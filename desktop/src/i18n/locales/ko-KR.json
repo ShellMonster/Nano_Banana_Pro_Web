@@ -1,0 +1,581 @@
+{
+  "app": {
+    "title": "Banana AI",
+    "headerTitle": "Banana 이미지 생성기"
+  },
+  "nav": {
+    "generate": "생성",
+    "history": "기록",
+    "settings": "설정",
+    "generateArea": "생성",
+    "historyArea": "기록"
+  },
+  "language": {
+    "label": "언어",
+    "system": "시스템 언어 따르기",
+    "zhCN": "中文",
+    "enUS": "English",
+    "jaJP": "日本語",
+    "koKR": "한국어"
+  },
+  "common": {
+    "copy": "복사",
+    "copied": "복사됨",
+    "close": "닫기",
+    "cancel": "취소",
+    "confirm": "확인",
+    "open": "열기",
+    "save": "저장",
+    "loading": "로딩 중...",
+    "confirmShort": "확인",
+    "unknownTime": "알 수 없는 시간",
+    "invalidDate": "잘못된 날짜",
+    "parseFailed": "시간 파싱 실패",
+    "unknownError": "알 수 없는 오류"
+  },
+  "toast": {
+    "copyImageSuccess": "이미지를 클립보드에 복사했습니다",
+    "copyImageUnsupported": "이 환경에서는 이미지 복사를 지원하지 않습니다. 이미지 링크를 복사했습니다.",
+    "copyImageFallback": "이미지 복사에 실패했습니다. 이미지 링크를 복사했습니다.",
+    "copyImageFailed": "이미지 복사에 실패했습니다. 우클릭으로 저장해 주세요.",
+    "copyPromptSuccess": "프롬프트를 클립보드에 복사했습니다",
+    "copyFailedManual": "복사에 실패했습니다. 수동으로 복사해 주세요.",
+    "imagePathEmpty": "이미지 경로가 비어 있습니다",
+    "noLocalPath": "이 이미지에 로컬 경로가 없습니다",
+    "imagePathCopied": "이미지 경로를 복사했습니다",
+    "copyFailed": "복사 실패",
+    "deleteFailed": "삭제 실패",
+    "imageSrcEmpty": "이미지 소스가 비어 있습니다",
+    "imageFetchFailed": "이미지 가져오기 실패: {{status}}"
+  },
+  "preview": {
+    "copyImage": "이미지 복사",
+    "imageLoadFailed": "이미지 로드 실패",
+    "menu": {
+      "label": "이미지 작업",
+      "copyImage": "이미지 복사",
+      "copyImagePath": "이미지 경로 복사",
+      "downloadOriginal": "원본 다운로드",
+      "resetZoom": "줌/위치 초기화"
+    },
+    "title": "생성 상세",
+    "delete": {
+      "title": "이미지 삭제",
+      "confirmTitle": "다시 클릭하여 삭제를 확인",
+      "deleting": "삭제 중...",
+      "confirmLabel": "확인?",
+      "action": "삭제"
+    },
+    "prompt": {
+      "label": "프롬프트",
+      "copied": "복사됨",
+      "empty": "프롬프트 없음"
+    },
+    "meta": {
+      "model": "모델",
+      "unknown": "알 수 없음",
+      "size": "크기",
+      "time": "시간"
+    },
+    "downloadOriginal": "원본 다운로드"
+  },
+  "prompt": {
+    "label": "프롬프트",
+    "optimize": "프롬프트 최적화",
+    "optimizeJson": "JSON 프롬프트",
+    "undo": "실행 취소",
+    "redo": "다시 실행",
+    "placeholder": "생성할 이미지를 설명해 주세요...",
+    "toast": {
+      "empty": "프롬프트를 입력해 주세요",
+      "chatConfig": "먼저 설정에서 채팅 모델을 설정해 주세요",
+      "chatConfigChanged": "채팅 모델 설정이 변경되었습니다. 설정에서 동기화해 주세요.",
+      "optimizeEmpty": "최적화 결과가 비어 있습니다",
+      "optimizeFailed": "최적화에 실패했습니다",
+      "syncChatConfig": "설정에서 채팅 모델 설정을 동기화해 주세요",
+      "chatModelMissing": "채팅 모델을 설정하고 설정에서 동기화해 주세요",
+      "optimizeCheckConfig": "최적화에 실패했습니다. 채팅 모델 설정을 확인해 주세요.",
+      "apiKeyInvalid": "API 키가 유효하지 않거나 권한이 없습니다",
+      "baseUrlInvalid": "Base URL이 유효하지 않거나 엔드포인트를 사용할 수 없습니다",
+      "timeout": "요청 시간이 초과되었습니다. 나중에 다시 시도해 주세요.",
+      "optimizeRetry": "최적화에 실패했습니다. 나중에 다시 시도해 주세요."
+    }
+  },
+  "refImage": {
+    "title": "스타일 참고 이미지 ({{count}}/10)",
+    "toggleCollapse": "참고 이미지 접기",
+    "toggleExpand": "참고 이미지 펼치기",
+    "dropHint": "놓아서 이미지 추가",
+    "modeActive": "이미지-투-이미지 모드 활성화",
+    "collapsedHint": "클릭하여 펼친 뒤 참고 이미지를 업로드하세요",
+    "add": "참고 이미지 추가",
+    "addMore": "더 추가",
+    "supportHint": "(다중 선택 또는 드래그 앤 드롭 지원)",
+    "toast": {
+      "full": "참고 이미지가 가득 찼습니다",
+      "exists": "이미지가 이미 존재합니다",
+      "addedOne": "참고 이미지를 1장 추가했습니다",
+      "fetchFailed": "이미지 가져오기 실패",
+      "fetchFailedDetail": "이미지 가져오기 실패: {{message}}",
+      "noImage": "추가할 이미지가 없습니다",
+      "busy": "현재 작업이 끝날 때까지 기다려 주세요",
+      "unknown": "알 수 없는 오류",
+      "addFailed": "참고 이미지 추가 실패: {{message}}",
+      "remainingSlots": "최대 10장. {{count}}장 더 추가할 수 있습니다",
+      "notImage": "{{name}} 은(는) 이미지 파일이 아닙니다",
+      "fileTooLarge": "{{name}} 은(는) 5MB를 초과합니다",
+      "addedCompressed": "{{count}}장 추가 ({{compressed}}장 압축)",
+      "addedCount": "참고 이미지를 {{count}}장 추가했습니다",
+      "allExists": "모든 이미지가 이미 존재합니다",
+      "tooLarge": "이미지가 5MB를 초과합니다",
+      "adding": "이미지 추가 중...",
+      "pasteFailed": "붙여넣기 실패: {{message}}",
+      "deduped": "중복 이미지를 제거했습니다",
+      "timeout": "작업 시간이 초과되었습니다 ({{seconds}}초)"
+    },
+    "compressReason": {
+      "fileTooLarge": "파일 크기가 너무 큽니다 ({{size}}MB)",
+      "dimensions": "해상도가 너무 큽니다 ({{width}}x{{height}})"
+    }
+  },
+  "settings": {
+    "title": "설정",
+    "tabs": {
+      "image": "이미지 모델",
+      "chat": "채팅 모델"
+    },
+    "language": {
+      "label": "언어",
+      "hint": "변경 사항이 즉시 적용됩니다"
+    },
+    "provider": {
+      "label": "프로바이더",
+      "recommended": "추천:",
+      "yunwu": "Yunwu API",
+      "openaiImageLimit": "OpenAI 프로바이더는 현재 1K 이미지만 지원합니다"
+    },
+    "model": {
+      "default": "기본 모델",
+      "chat": "채팅 모델"
+    },
+    "update": {
+      "title": "업데이트",
+      "check": "업데이트 확인",
+      "checking": "업데이트 확인 중...",
+      "checkingShort": "확인 중...",
+      "view": "업데이트 보기",
+      "latest": "최신 버전입니다",
+      "available": "새 버전 v{{version}} 사용 가능",
+      "failed": "확인 실패",
+      "failedWith": "확인 실패: {{error}}",
+      "desktopOnly": "데스크톱 전용",
+      "autoNote": "앱이 자동으로 업데이트를 확인합니다. 새 버전이 있으면 다운로드 및 설치 안내가 표시됩니다."
+    },
+    "logs": {
+      "title": "진단",
+      "openDir": "로그 폴더 열기",
+      "copyDirTitle": "로그 폴더 경로 복사",
+      "verboseLabel": "상세 로그 활성화(더 많은 진단 정보)",
+      "help": "문제가 발생하면 app.log와 server.log를 개발자에게 보내 주세요(로그에 프롬프트가 포함될 수 있음)."
+    },
+    "save": "동기화 및 저장",
+    "toast": {
+      "fetchFailed": "백엔드 설정 가져오기 실패",
+      "imageConfigIncomplete": "이미지 모델 설정을 완료해 주세요",
+      "chatConfigIncomplete": "채팅 모델 설정을 완료해 주세요",
+      "openaiGeminiUnsupported": "OpenAI Base URL은 Gemini 모델을 지원하지 않습니다. 호환되는 엔드포인트를 사용해 주세요.",
+      "saveSuccess": "설정을 서버와 동기화했습니다",
+      "saveFailed": "저장 실패: {{msg}}",
+      "checkNetwork": "네트워크를 확인해 주세요",
+      "logDirDesktopOnly": "로그 폴더는 데스크톱에서만 사용할 수 있습니다",
+      "logDirOpenFailed": "로그 폴더 열기 실패",
+      "logDirCopied": "로그 경로를 복사했습니다",
+      "logDirCopyFailedManual": "복사에 실패했습니다. 수동으로 로그 폴더를 열어 주세요.",
+      "logDirCopyFailed": "로그 경로 복사 실패",
+      "verboseEnabled": "상세 로그가 활성화되었습니다",
+      "verboseDisabled": "상세 로그가 비활성화되었습니다",
+      "openLinkFailed": "링크 열기 실패"
+    }
+  },
+  "versionBadge": {
+    "downloading": "다운로드 중 {{percent}}%",
+    "installing": "업데이트 설치 중...",
+    "downloaded": "업데이트를 다운로드했습니다. 클릭하여 설치하세요.",
+    "available": "새 버전 v{{version}} 사용 가능. 클릭하여 보기/설치.",
+    "check": "업데이트 확인",
+    "checking": "확인 중...",
+    "latest": "최신 버전입니다",
+    "error": "확인 실패",
+    "availableShort": "업데이트 있음",
+    "desktopOnly": "데스크톱 전용",
+    "updateProgress": "업데이트 {{percent}}%",
+    "installingShort": "설치 중",
+    "pendingInstall": "설치 준비 완료",
+    "version": "v{{version}}",
+    "repoMissing": "GitHub 저장소 URL이 설정되지 않았습니다"
+  },
+  "updater": {
+    "dismiss": {
+      "background": "백그라운드에서 다운로드",
+      "later": "나중에"
+    },
+    "title": {
+      "checking": "업데이트 확인 중...",
+      "downloading": "업데이트 다운로드 중...",
+      "downloaded": "업데이트를 다운로드했습니다",
+      "installing": "업데이트 설치 중...",
+      "installed": "업데이트 설치 완료",
+      "error": "업데이트 실패",
+      "available": "새 버전 사용 가능"
+    },
+    "newVersion": "새 버전",
+    "progress": "다운로드 진행률",
+    "downloadHint": "이 창을 닫아도 백그라운드에서 다운로드가 계속됩니다.",
+    "downloadedHint": "업데이트 패키지가 준비되었습니다. \"설치 및 재시작\"을 클릭하세요.",
+    "installingHint": "설치 중입니다. 앱을 열어 둔 채로 기다려 주세요.",
+    "errorFallback": "업데이트에 실패했습니다. 나중에 다시 시도해 주세요.",
+    "errorExtra": "Updater를 막 통합한 경우 `desktop/src-tauri/tauri.conf.json`에 `plugins.updater.pubkey`를 설정하고 CI에서 `TAURI_SIGNING_PRIVATE_KEY`를 구성하세요.",
+    "actions": {
+      "download": "업데이트 다운로드",
+      "install": "설치 및 재시작",
+      "retry": "다시 확인"
+    },
+    "toast": {
+      "checkFailed": "업데이트 확인 실패",
+      "checkFailedManifest": "업데이트 확인 실패: latest.json을 찾을 수 없음",
+      "checkFailedPubkey": "업데이트 확인 실패: 서명 공개 키 누락",
+      "checkFailedNetwork": "업데이트 확인 실패: 네트워크 오류",
+      "downloadFailed": "업데이트 다운로드 실패",
+      "downloaded": "업데이트 다운로드 완료",
+      "installFailed": "업데이트 설치 실패",
+      "installManual": "업데이트가 설치되었습니다. 앱을 재시작해 주세요.",
+      "installed": "업데이트 설치 완료"
+    }
+  },
+  "generate": {
+    "batch": {
+      "clearSuccess": "생성 목록을 비웠습니다",
+      "readError": "오류 응답을 읽지 못했습니다",
+      "exportFailed": "내보내기 실패",
+      "exportFailedServer": "내보내기 실패: 서버 오류",
+      "exported": "{{count}}장의 이미지를 내보냈습니다",
+      "exportFailedRetry": "내보내기 실패. 나중에 다시 시도해 주세요.",
+      "networkError": "네트워크 오류입니다. 연결을 확인해 주세요.",
+      "timeout": "요청 시간이 초과되었습니다. 나중에 다시 시도해 주세요.",
+      "serviceUnavailable": "내보내기 서비스가 사용 불가합니다",
+      "serverError": "서버 오류입니다. 나중에 다시 시도해 주세요.",
+      "clearSelection": "선택 해제",
+      "selectAll": "전체 선택",
+      "selectedCount": "{{count}}개 선택됨",
+      "exporting": "패키징 중...",
+      "exportSelected": "선택 항목 내보내기",
+      "clearConfirm": "정말 비울까요?",
+      "clearList": "목록 비우기"
+    },
+    "card": {
+      "removeSuccess": "생성 목록에서 제거했습니다",
+      "deleteTitle": "이미지 삭제",
+      "confirmDeleteTitle": "다시 클릭하여 삭제를 확인",
+      "confirmLabel": "확인?",
+      "generating": "생성 중",
+      "failed": "생성 실패",
+      "imageAlt": "이미지",
+      "emptyPrompt": "프롬프트 없음"
+    },
+    "error": {
+      "title": "생성 실패",
+      "collapse": "접기",
+      "expand": "펼치기"
+    },
+    "empty": {
+      "title": "이미지 생성을 시작해 보세요",
+      "subtitle": "왼쪽에서 프롬프트를 입력하거나 참고 이미지를 업로드해 이미지-투-이미지를 생성하세요.",
+      "textToImage": "텍스트-투-이미지",
+      "textToImageDesc": "텍스트에서 이미지 생성",
+      "imageToImage": "이미지-투-이미지",
+      "imageToImageDesc": "참고 이미지로 생성"
+    },
+    "grid": {
+      "empty": "아직 생성된 이미지가 없습니다. 왼쪽에서 설정하고 생성을 시작하세요.",
+      "limitNotice": "총 {{total}}장 중 처음 {{max}}장을 표시합니다",
+      "limitHint": "팁: 성능을 위해 배치 생성 또는 기록 삭제를 권장합니다."
+    },
+    "submitting": {
+      "title": "생성 작업을 시작하는 중",
+      "subtitle": "AI 모델에 연결 중입니다. 잠시만 기다려 주세요..."
+    },
+    "start": "생성 시작",
+    "startImg2Img": "이미지-투-이미지 시작",
+    "progress": {
+      "generating": "생성 중",
+      "connection": {
+        "websocket": "라이브",
+        "polling": "폴링",
+        "initializing": "연결 중..."
+      }
+    },
+    "toast": {
+      "countMismatch": "반환된 이미지 수가 일치하지 않습니다 ({{returned}}/{{total}})",
+      "pollFailed": "작업 상태 동기화 실패",
+      "missingApiKey": "이미지 API 키를 설정해 주세요",
+      "taskIdMissing": "작업 ID가 없습니다",
+      "startFailed": "생성 시작 실패",
+      "failed": "생성 실패",
+      "failedWith": "생성 실패: {{message}}",
+      "partial": "작업이 일부 완료되었습니다",
+      "recovered": "생성 진행 상황을 복원했습니다"
+    }
+  },
+  "config": {
+    "batch": {
+      "title": "생성 설정",
+      "count": "수량 (1-10)",
+      "resolution": "해상도",
+      "resolution1k": "1K (1024px)",
+      "resolution2k": "2K (2048px)",
+      "resolution4k": "4K (3840px)",
+      "aspectRatio": "종횡비",
+      "ratio": {
+        "1_1": "1:1 (정사각형)",
+        "2_3": "2:3 (세로 2:3)",
+        "3_2": "3:2 (가로 3:2)",
+        "3_4": "3:4 (세로 3:4)",
+        "4_3": "4:3 (표준 4:3)",
+        "4_5": "4:5 (세로 4:5)",
+        "5_4": "5:4 (가로 5:4)",
+        "9_16": "9:16 (모바일)",
+        "16_9": "16:9 (와이드)",
+        "21_9": "21:9 (울트라 와이드)"
+      }
+    },
+    "apiKeyHint": "먼저 오른쪽 상단 설정에서 이미지 API 키를 구성해 주세요"
+  },
+  "errors": {
+    "fileReadEmpty": "파일 읽기 결과가 비어 있습니다",
+    "fileReadFailed": "파일 읽기 실패",
+    "canvasContextFailed": "캔버스 컨텍스트를 가져오지 못했습니다",
+    "compressAttemptsExceeded": "이미지 압축 시도 횟수를 초과했습니다",
+    "compressBlobFailed": "압축된 Blob 생성 실패",
+    "imageLoadFailed": "이미지 로드 실패",
+    "responseStreamMissing": "응답 스트림을 사용할 수 없습니다"
+  },
+  "layout": {
+    "loadingModule": "모듈 로딩 중...",
+    "backendBanner": "백엔드가 준비되지 않았습니다. 일부 기능을 사용할 수 없을 수 있습니다.",
+    "toast": {
+      "backendUnavailable": "백엔드를 사용할 수 없습니다. 나중에 다시 시도해 주세요."
+    },
+    "generateConfigTitle": "생성 설정"
+  },
+  "history": {
+    "searchPlaceholder": "프롬프트 또는 모델 검색",
+    "empty": "기록이 없습니다",
+    "noImage": "이미지 없음",
+    "prompt": {
+      "empty": "프롬프트 없음"
+    },
+    "loadMore": {
+      "noMore": "더 이상 없습니다",
+      "loading": "로딩 중...",
+      "action": "더 불러오기"
+    },
+    "actions": {
+      "deleteImage": "이미지 삭제",
+      "deleteTask": "작업 삭제",
+      "deleteRecord": "기록 삭제",
+      "confirmDeleteTitle": "다시 클릭하여 삭제를 확인"
+    },
+    "status": {
+      "pending": {
+        "title": "대기 중",
+        "description": "작업이 대기 중입니다"
+      },
+      "processing": {
+        "title": "생성 중",
+        "description": "이미지 {{index}} 생성 중"
+      },
+      "failed": {
+        "title": "실패",
+        "description": "작업 실패"
+      },
+      "partial": {
+        "title": "부분 완료",
+        "description": "{{completed}}/{{total}} 완료"
+      },
+      "completed": {
+        "title": "완료",
+        "description": "작업 완료"
+      },
+      "unknown": {
+        "title": "알 수 없음",
+        "description": "알 수 없는 작업 상태"
+      }
+    },
+    "toast": {
+      "updated": "기록이 업데이트되었습니다",
+      "loadFailed": "기록 불러오기 실패",
+      "deleted": "기록이 삭제되었습니다",
+      "deleteFailed": "삭제 실패",
+      "batchDeleted": "{{count}}건의 기록을 삭제했습니다",
+      "batchDeleteFailed": "일괄 삭제 실패",
+      "imageDeleted": "이미지가 삭제되었습니다",
+      "imageDeleteFailed": "이미지 삭제 실패"
+    }
+  },
+  "templateMarket": {
+    "title": "템플릿 마켓",
+    "searchPlaceholder": "템플릿 검색",
+    "toggle": {
+      "title": "템플릿 마켓 열기",
+      "label": "템플릿"
+    },
+    "actions": {
+      "backToGenerate": "생성으로 돌아가기",
+      "clearFilters": "필터 초기화"
+    },
+    "loading": {
+      "fetching": "템플릿 가져오는 중..."
+    },
+    "activeFilters": {
+      "title": "활성 필터",
+      "empty": "필터 없음"
+    },
+    "active": {
+      "search": "검색: {{keyword}}",
+      "channel": "채널: {{label}}",
+      "material": "소재: {{label}}",
+      "industry": "업종: {{label}}",
+      "ratio": "비율: {{label}}"
+    },
+    "filters": {
+      "channel": "채널",
+      "material": "소재",
+      "industry": "업종",
+      "ratio": "비율"
+    },
+    "list": {
+      "count": "템플릿 {{count}}개",
+      "loading": "로딩 중...",
+      "empty": "템플릿이 없습니다"
+    },
+    "card": {
+      "view": "보기",
+      "use": "사용",
+      "applying": "적용 중...",
+      "loading": "로딩 중...",
+      "imageFailed": "이미지 실패",
+      "imageEmpty": "미리보기 없음"
+    },
+    "preview": {
+      "title": "템플릿 미리보기",
+      "infoTitle": "템플릿 정보",
+      "source": "출처",
+      "tips": "사용 팁",
+      "requirements": "참고 요구사항",
+      "prompt": "템플릿 프롬프트",
+      "copyImage": "이미지 복사",
+      "copyImageDisabled": "복사할 이미지가 없습니다",
+      "imageFailed": "이미지 로드 실패",
+      "imageFailedHint": "이미지 로드에 실패했습니다. 템플릿 정보는 계속 볼 수 있습니다.",
+      "noImage": "이미지 없음",
+      "menuLabel": "이미지 작업",
+      "menu": {
+        "copyImage": "이미지 복사",
+        "copyImagePath": "이미지 URL 복사",
+        "downloadOriginal": "원본 다운로드",
+        "resetZoom": "줌/위치 초기화"
+      },
+      "applying": "적용 중...",
+      "use": "템플릿 사용"
+    },
+    "placeholder": {
+      "noImage": "이미지 없음"
+    },
+    "toast": {
+      "refreshed": "템플릿을 새로고침했습니다",
+      "refreshFailed": "새로고침 실패",
+      "invalidData": "템플릿 데이터가 유효하지 않습니다",
+      "emptyData": "템플릿 데이터가 비어 있습니다",
+      "fetchFailed": "템플릿 가져오기 실패",
+      "fetchFallback": "가져오기 실패로 내장 템플릿을 사용합니다",
+      "imageLinkCopied": "이미지 URL을 복사했습니다",
+      "promptCopied": "프롬프트를 복사했습니다",
+      "tipsCopied": "팁을 복사했습니다",
+      "requirementsCopied": "요구사항을 복사했습니다",
+      "noCopyContent": "복사할 내용이 없습니다",
+      "noDownload": "다운로드할 이미지가 없습니다",
+      "downloadStarted": "다운로드를 시작했습니다",
+      "downloadFailed": "다운로드 실패",
+      "applied": "템플릿이 적용되었습니다",
+      "applyFailed": "템플릿 적용 실패",
+      "moreRefsNeeded": "참고 이미지를 추가해 주세요"
+    },
+    "labels": {
+      "all": "전체",
+      "ecommerce": "전자상거래",
+      "wechat": "위챗/공식 계정",
+      "community": "커뮤니티",
+      "life": "라이프스타일",
+      "entertainment": "엔터테인먼트",
+      "xhs": "샤오홍슈",
+      "shortVideo": "숏폼",
+      "education": "교육",
+      "marketing": "마케팅",
+      "productDesign": "제품 디자인",
+      "filmProduction": "영상 제작",
+      "print": "인쇄",
+      "offlineEcommerce": "오프라인 커머스",
+      "poster": "포스터",
+      "wechatCover": "위챗 커버",
+      "wechatSecondary": "위챗 보조",
+      "longImage": "긴 이미지",
+      "courseware": "강의자료",
+      "productShowcase": "제품 쇼케이스",
+      "xhsCover": "샤오홍슈 커버",
+      "xhsImage": "샤오홍슈 이미지",
+      "fullPoster": "전체 포스터",
+      "ecomVerticalPoster": "전자상거래 세로 포스터",
+      "productMain": "제품 메인",
+      "detailPage": "상세 페이지",
+      "adGraphic": "광고 그래픽",
+      "sticker": "스티커",
+      "moviePoster": "영화 포스터",
+      "infographic": "인포그래픽",
+      "studyCard": "학습 카드",
+      "comic": "만화",
+      "historyScene": "역사 장면",
+      "architectureDesign": "건축 디자인",
+      "gridPortrait": "그리드 초상",
+      "portrait": "초상",
+      "general": "일반",
+      "finance": "금융·보험",
+      "retail": "소매",
+      "enterprise": "기업 관리",
+      "government": "정부/미디어",
+      "beauty": "뷰티",
+      "foodFresh": "식품·신선",
+      "fashion": "패션",
+      "lifeService": "생활 서비스",
+      "travel": "여행",
+      "motherBaby": "엄마·아기",
+      "tech": "테크·디지털",
+      "fitness": "피트니스",
+      "home": "홈&데코",
+      "auto": "자동차",
+      "jewelry": "주얼리",
+      "pet": "반려동물",
+      "art": "예술",
+      "dining": "식음",
+      "photography": "사진",
+      "music": "음악·예술",
+      "architecture": "건축",
+      "film": "영화",
+      "ratio1_1": "1:1",
+      "ratio3_4": "3:4",
+      "ratio4_5": "4:5",
+      "ratio9_16": "9:16",
+      "ratio16_9": "16:9",
+      "ratio2_3": "2:3"
+    }
+  }
+}

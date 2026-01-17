@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpCircle, Github, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useUpdaterStore } from '../../store/updaterStore';
 import { useGenerateStore } from '../../store/generateStore';
 import { cn } from './Button';
 
 export function VersionBadge() {
+  const { t } = useTranslation();
   const [version, setVersion] = useState<string>('');
   const [manualHint, setManualHint] = useState<'checking' | 'latest' | 'error' | 'available' | 'not-tauri' | null>(null);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -62,29 +64,29 @@ export function VersionBadge() {
   }, [progress?.downloaded, progress?.total, isDownloaded]);
 
   const title = useMemo(() => {
-    if (isDownloading) return `下载中 ${percent}%`;
-    if (isInstalling) return '正在安装更新...';
-    if (isDownloaded) return '更新已下载，点击安装';
-    if (hasUpdate) return `发现新版本 v${update?.version || ''}，点击查看/安装`;
-    return '点击检查更新';
-  }, [hasUpdate, isDownloaded, isDownloading, isInstalling, percent, update?.version]);
+    if (isDownloading) return t('versionBadge.downloading', { percent });
+    if (isInstalling) return t('versionBadge.installing');
+    if (isDownloaded) return t('versionBadge.downloaded');
+    if (hasUpdate) return t('versionBadge.available', { version: update?.version || '' });
+    return t('versionBadge.check');
+  }, [hasUpdate, isDownloaded, isDownloading, isInstalling, percent, t, update?.version]);
 
   const hintText = useMemo(() => {
     switch (manualHint) {
       case 'checking':
-        return '检查中...';
+        return t('versionBadge.checking');
       case 'latest':
-        return '已是最新';
+        return t('versionBadge.latest');
       case 'error':
-        return '检查失败';
+        return t('versionBadge.error');
       case 'available':
-        return '发现更新';
+        return t('versionBadge.availableShort');
       case 'not-tauri':
-        return '仅桌面端';
+        return t('versionBadge.desktopOnly');
       default:
         return '';
     }
-  }, [manualHint]);
+  }, [manualHint, t]);
 
   const setHintWithAutoClear = (next: typeof manualHint, durationMs = 2000) => {
     setManualHint(next);
@@ -148,12 +150,12 @@ export function VersionBadge() {
   };
 
   const displayText = useMemo(() => {
-    if (isDownloading) return `更新 ${percent}%`;
-    if (isInstalling) return '安装中';
-    if (isDownloaded) return '待安装';
+    if (isDownloading) return t('versionBadge.updateProgress', { percent });
+    if (isInstalling) return t('versionBadge.installingShort');
+    if (isDownloaded) return t('versionBadge.pendingInstall');
     if (manualHint) return hintText;
-    return `v${version || '—'}`;
-  }, [hintText, isDownloaded, isDownloading, isInstalling, manualHint, percent, version]);
+    return t('versionBadge.version', { version: version || '—' });
+  }, [hintText, isDownloaded, isDownloading, isInstalling, manualHint, percent, t, version]);
 
   const showSpinner = manualHint === 'checking' || isDownloading || isInstalling;
   const showUpdateIcon = !showSpinner && (hasUpdate || isDownloaded);
@@ -170,7 +172,7 @@ export function VersionBadge() {
       <button
         type="button"
         onClick={handleOpenRepo}
-        title={repoUrl || '未配置 GitHub 仓库地址'}
+        title={repoUrl || t('versionBadge.repoMissing')}
         className={cn(
           'inline-flex items-center justify-center p-2 rounded-xl',
           'bg-white/70 backdrop-blur-md border border-slate-200/60 shadow-sm',

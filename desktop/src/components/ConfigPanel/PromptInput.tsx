@@ -5,8 +5,17 @@ import { usePromptHistoryStore } from '../../store/promptHistoryStore';
 import { optimizePrompt } from '../../services/promptApi';
 import { toast } from '../../store/toastStore';
 import { useGenerateStore } from '../../store/generateStore';
+import { useTranslation } from 'react-i18next';
+
+const BACKEND_ERROR_MATCHES = {
+  providerMissing: '\u672a\u627e\u5230\u6307\u5b9a\u7684 Provider',
+  providerKeyMissing: 'Provider API Key \u672a\u914d\u7f6e',
+  modelMissing: '\u672a\u627e\u5230\u53ef\u7528\u7684\u6a21\u578b',
+  promptEmpty: 'prompt \u4e0d\u80fd\u4e3a\u7a7a'
+};
 
 export function PromptInput() {
+  const { t } = useTranslation();
   const { prompt, setPrompt, chatProvider, chatApiBaseUrl, chatApiKey, chatModel, chatSyncedConfig } = useConfigStore();
   const { history, index, record, undo, redo, reset } = usePromptHistoryStore();
   const status = useGenerateStore((s) => s.status);
@@ -82,21 +91,21 @@ export function PromptInput() {
   const runOptimize = async (mode: 'normal' | 'json') => {
     const raw = prompt.trim();
     if (!raw) {
-      toast.error('请输入提示词');
+      toast.error(t('prompt.toast.empty'));
       return;
     }
     const chatBase = chatApiBaseUrl.trim();
     const chatKey = chatApiKey.trim();
     const chatModelValue = chatModel.trim();
     if (!chatBase || !chatKey || !chatModelValue) {
-      toast.error('请先在设置中配置对话模型');
+      toast.error(t('prompt.toast.chatConfig'));
       return;
     }
     if (chatSyncedConfig) {
       const currentSignature = chatSignature(chatBase, chatKey, chatModelValue);
       const syncedSignature = chatSignature(chatSyncedConfig.apiBaseUrl, chatSyncedConfig.apiKey, chatSyncedConfig.model);
       if (currentSignature !== syncedSignature) {
-        toast.error('对话模型配置已修改，请先在设置中同步保存');
+        toast.error(t('prompt.toast.chatConfigChanged'));
         return;
       }
     }
@@ -117,7 +126,7 @@ export function PromptInput() {
       });
       let nextPrompt = String(res?.prompt || '').trim();
       if (!nextPrompt) {
-        toast.error('优化失败，未返回内容');
+        toast.error(t('prompt.toast.optimizeEmpty'));
         return;
       }
       if (mode === 'json') {
@@ -133,25 +142,25 @@ export function PromptInput() {
       const rawMessage = backendMessage || fallbackMessage;
       const isAxiosStatusMessage = rawMessage.startsWith('Request failed with status code');
 
-      let message = rawMessage || '优化失败';
+      let message = rawMessage || t('prompt.toast.optimizeFailed');
       if (status === 400) {
-        if (message.includes('未找到指定的 Provider') || message.includes('Provider API Key 未配置')) {
-          message = '请先在设置中同步保存对话模型配置';
-        } else if (message.includes('未找到可用的模型')) {
-          message = '请先在设置中填写对话模型并同步保存';
-        } else if (message.includes('prompt 不能为空')) {
-          message = '请输入提示词';
+        if (message.includes(BACKEND_ERROR_MATCHES.providerMissing) || message.includes(BACKEND_ERROR_MATCHES.providerKeyMissing)) {
+          message = t('prompt.toast.syncChatConfig');
+        } else if (message.includes(BACKEND_ERROR_MATCHES.modelMissing)) {
+          message = t('prompt.toast.chatModelMissing');
+        } else if (message.includes(BACKEND_ERROR_MATCHES.promptEmpty)) {
+          message = t('prompt.toast.empty');
         } else if (isAxiosStatusMessage) {
-          message = '优化失败，请检查对话模型配置';
+          message = t('prompt.toast.optimizeCheckConfig');
         }
       } else if (status === 401 || status === 403) {
-        message = 'API Key 无效或权限不足';
+        message = t('prompt.toast.apiKeyInvalid');
       } else if (status === 404) {
-        message = 'Base URL 不正确或接口未开启';
+        message = t('prompt.toast.baseUrlInvalid');
       } else if (rawMessage.includes('timeout') || rawMessage.includes('context deadline exceeded')) {
-        message = '请求超时，请稍后重试';
+        message = t('prompt.toast.timeout');
       } else if (isAxiosStatusMessage) {
-        message = '优化失败，请稍后重试';
+        message = t('prompt.toast.optimizeRetry');
       }
 
       toast.error(message);
@@ -166,14 +175,14 @@ export function PromptInput() {
       <div className="flex items-center justify-between gap-3 flex-shrink-0">
         <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
           <MessageSquare className="w-4 h-4" />
-          提示词 (Prompt)
+          {t('prompt.label')}
         </label>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => runOptimize('normal')}
             disabled={isGenerating || isOptimizing}
-            title="优化提示词"
+            title={t('prompt.optimize')}
             className={`p-1.5 rounded-lg transition-all ${
               isGenerating || isOptimizing
                 ? 'opacity-50 cursor-not-allowed bg-slate-100'
@@ -190,7 +199,7 @@ export function PromptInput() {
             type="button"
             onClick={() => runOptimize('json')}
             disabled={isGenerating || isOptimizing}
-            title="JSON提示词"
+            title={t('prompt.optimizeJson')}
             className={`p-1.5 rounded-lg transition-all ${
               isGenerating || isOptimizing
                 ? 'opacity-50 cursor-not-allowed bg-slate-100'
@@ -209,7 +218,7 @@ export function PromptInput() {
                 type="button"
                 onClick={handleUndo}
                 disabled={!canUndo || isOptimizing}
-                title="撤销"
+                title={t('prompt.undo')}
                 className={`p-1.5 rounded-lg transition-all ${
                   canUndo && !isOptimizing
                     ? 'bg-slate-100 text-slate-700 hover:bg-white'
@@ -222,7 +231,7 @@ export function PromptInput() {
                 type="button"
                 onClick={handleRedo}
                 disabled={!canRedo || isOptimizing}
-                title="重做"
+                title={t('prompt.redo')}
                 className={`p-1.5 rounded-lg transition-all ${
                   canRedo && !isOptimizing
                     ? 'bg-slate-100 text-slate-700 hover:bg-white'
@@ -239,7 +248,7 @@ export function PromptInput() {
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="描述你想要生成的图片..."
+          placeholder={t('prompt.placeholder')}
           className="w-full h-full rounded-2xl border-none bg-slate-100 px-4 py-3 pt-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all duration-200 resize-none min-h-[80px]"
         />
       </div>

@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search } from 'lucide-react';
 import { Input } from '../common/Input';
 import { useHistoryStore } from '../../store/historyStore';
+import { useTranslation } from 'react-i18next';
 
 export function SearchBar() {
+  const { t } = useTranslation();
   const setSearchKeyword = useHistoryStore(s => s.setSearchKeyword);
   const globalKeyword = useHistoryStore(s => s.searchKeyword);
   const [localValue, setLocalValue] = useState(globalKeyword);
@@ -37,7 +39,7 @@ export function SearchBar() {
       <Input
         value={localValue}
         onChange={(e) => setLocalValue(e.target.value)}
-        placeholder="搜索生成记录..."
+        placeholder={t('history.searchPlaceholder')}
         className="pl-11 bg-slate-50 border-none rounded-2xl h-12 focus:bg-white transition-all shadow-sm"
       />
     </div>

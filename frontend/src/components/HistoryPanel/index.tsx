@@ -17,7 +17,7 @@ export default function HistoryPanel({ isActive }: HistoryPanelProps) {
 
   useEffect(() => {
     const itemsLength = useHistoryStore.getState().items.length;
-    console.log('[HistoryPanel] useEffect 触发:', {
+    console.log('[HistoryPanel] useEffect triggered:', {
       isActive,
       prevIsActive: prevIsActiveRef.current,
       isLoading: isLoadingRef.current,
@@ -37,38 +37,38 @@ export default function HistoryPanel({ isActive }: HistoryPanelProps) {
 
     // 只在刚激活时考虑加载
     if (!justActivated) {
-      console.log('[HistoryPanel] 不是刚激活，跳过');
+      console.log('[HistoryPanel] not newly active, skip');
       return;
     }
 
     // 如果已经加载过，跳过
     if (hasLoadedRef.current) {
-      console.log('[HistoryPanel] 已经加载过，跳过');
+      console.log('[HistoryPanel] already loaded, skip');
       return;
     }
 
     // 如果已经有数据，标记为已加载并跳过
     if (itemsLength > 0) {
-      console.log('[HistoryPanel] 已有数据，标记为已加载:', itemsLength);
+      console.log('[HistoryPanel] data exists, mark loaded:', itemsLength);
       hasLoadedRef.current = true;
       return;
     }
 
     if (isLoadingRef.current) {
-      console.log('[HistoryPanel] 正在加载中，跳过');
+      console.log('[HistoryPanel] loading in progress, skip');
       return;
     }
 
-    console.log('[HistoryPanel] 🔥 开始加载历史记录');
+    console.log('[HistoryPanel] start loading history');
     isLoadingRef.current = true;
 
     loadHistory(true)
       .then(() => {
-        console.log('[HistoryPanel] ✅ 加载成功');
+        console.log('[HistoryPanel] load success');
         hasLoadedRef.current = true;
       })
       .catch((error) => {
-        console.error('[HistoryPanel] ❌ 加载失败:', error);
+        console.error('[HistoryPanel] load failed:', error);
       })
       .finally(() => {
         isLoadingRef.current = false;

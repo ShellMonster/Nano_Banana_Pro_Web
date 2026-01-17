@@ -1,6 +1,7 @@
 import SparkMD5 from 'spark-md5';
 import { ExtendedFile } from '../types';
 import { getCompressorWorker, type CompressOptions } from './workerManager';
+import i18n from '../i18n';
 
 /**
  * 计算文件的 MD5 哈希值
@@ -22,7 +23,7 @@ export function calculateMd5(file: File): Promise<string> {
 
     reader.onload = (e) => {
       if (!e.target?.result) {
-        reject(new Error('文件读取失败：结果为空'));
+        reject(new Error(i18n.t('errors.fileReadEmpty')));
         return;
       }
       spark.append(e.target.result as ArrayBuffer);
@@ -37,7 +38,7 @@ export function calculateMd5(file: File): Promise<string> {
     };
 
     reader.onerror = () => {
-      reject(new Error('文件读取失败'));
+      reject(new Error(i18n.t('errors.fileReadFailed')));
     };
 
     loadNextChunk();
@@ -74,7 +75,7 @@ export async function compressImage(file: File, maxSizeMB: number = 1): Promise<
 
     return compressedFile;
   } catch (error) {
-    console.error('[Worker压缩] 失败，使用回退方案:', error);
+    console.error('[Worker compress] failed, fallback:', error);
     // Worker 失败，使用回退方案（在主线程压缩）
     return compressImageFallback(file, maxSizeMB);
   }
@@ -114,7 +115,7 @@ function compressImageFallback(file: File, maxSizeMB: number = 1): Promise<Exten
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          reject(new Error('无法创建 canvas 上下文'));
+          reject(new Error(i18n.t('errors.canvasContextFailed')));
           return;
         }
 
@@ -130,14 +131,14 @@ function compressImageFallback(file: File, maxSizeMB: number = 1): Promise<Exten
           attempts++;
 
           if (attempts > maxAttempts) {
-            reject(new Error('压缩失败：超过最大尝试次数'));
+            reject(new Error(i18n.t('errors.compressAttemptsExceeded')));
             return;
           }
 
           canvas.toBlob(
             (blob) => {
               if (!blob) {
-                reject(new Error('压缩失败：无法生成 Blob'));
+                reject(new Error(i18n.t('errors.compressBlobFailed')));
                 return;
               }
 
@@ -167,9 +168,9 @@ function compressImageFallback(file: File, maxSizeMB: number = 1): Promise<Exten
 
         tryCompress();
       };
-      img.onerror = () => reject(new Error('图片加载失败'));
+      img.onerror = () => reject(new Error(i18n.t('errors.imageLoadFailed')));
     };
-    reader.onerror = () => reject(new Error('文件读取失败'));
+    reader.onerror = () => reject(new Error(i18n.t('errors.fileReadFailed')));
   });
 }
 
@@ -188,7 +189,7 @@ export async function fetchFileWithMd5(url: string): Promise<{ blob: Blob; md5: 
 
     const reader = response.body?.getReader();
     if (!reader) {
-      throw new Error('无法获取响应流');
+      throw new Error(i18n.t('errors.responseStreamMissing'));
     }
 
     const spark = new SparkMD5.ArrayBuffer();

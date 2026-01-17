@@ -12,6 +12,7 @@
     "fs:default",
     "fs:allow-appdata-read-recursive",
     "fs:allow-appdata-write-recursive",
+    "os:default",
     "updater:default",
     {
       "identifier": "shell:allow-execute",

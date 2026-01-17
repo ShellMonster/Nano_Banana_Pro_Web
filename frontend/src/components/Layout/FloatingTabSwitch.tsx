@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { LayoutGrid, History } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '../common/Button';
 import { useGenerateStore } from '../../store/generateStore';
 
@@ -66,6 +67,7 @@ function savePosition(top: string) {
 }
 
 export function FloatingTabSwitch() {
+  const { t } = useTranslation();
   const currentTab = useGenerateStore((s) => s.currentTab);
   const setTab = useGenerateStore((s) => s.setTab);
 
@@ -201,7 +203,7 @@ export function FloatingTabSwitch() {
       )}>
         <TabButton
           icon={<LayoutGrid className="w-4 h-4" />}
-          label="生成区域"
+          label={t('nav.generateArea')}
           active={currentTab === 'generate'}
           isExpanded={isExpanded}
           onClick={() => handleTabChange('generate')}
@@ -209,7 +211,7 @@ export function FloatingTabSwitch() {
         />
         <TabButton
           icon={<History className="w-4 h-4" />}
-          label="历史记录"
+          label={t('nav.historyArea')}
           active={currentTab === 'history'}
           isExpanded={isExpanded}
           onClick={() => handleTabChange('history')}

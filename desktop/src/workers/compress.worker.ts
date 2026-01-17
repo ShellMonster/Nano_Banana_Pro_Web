@@ -61,7 +61,7 @@ self.onmessage = async (e: MessageEvent<CompressRequest>) => {
     const ctx = canvas.getContext('2d');
 
     if (!ctx) {
-      throw new Error('无法创建 Canvas 上下文');
+      throw new Error('Failed to create canvas context');
     }
 
     // 绘制图片
@@ -82,7 +82,7 @@ self.onmessage = async (e: MessageEvent<CompressRequest>) => {
       });
 
       if (!compressedBlob) {
-        throw new Error('压缩失败：无法生成 Blob');
+        throw new Error('Compression failed: cannot create blob');
       }
 
       // 满足大小要求或质量已到最低
@@ -95,7 +95,7 @@ self.onmessage = async (e: MessageEvent<CompressRequest>) => {
 
     // 确保 compressedBlob 不为 null
     if (!compressedBlob) {
-      throw new Error('压缩失败：无法生成最终 Blob');
+      throw new Error('Compression failed: cannot create final blob');
     }
 
     // 6. 转换为 ArrayBuffer 返回
@@ -127,7 +127,7 @@ self.onmessage = async (e: MessageEvent<CompressRequest>) => {
     const response: CompressResponse = {
       __requestId,
       success: false,
-      error: error instanceof Error ? error.message : '未知错误'
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
     self.postMessage(response);
   }

@@ -1,0 +1,581 @@
+{
+  "app": {
+    "title": "Banana AI",
+    "headerTitle": "Banana 画像生成ツール"
+  },
+  "nav": {
+    "generate": "生成",
+    "history": "履歴",
+    "settings": "設定",
+    "generateArea": "生成",
+    "historyArea": "履歴"
+  },
+  "language": {
+    "label": "言語",
+    "system": "システムに従う",
+    "zhCN": "中文",
+    "enUS": "English",
+    "jaJP": "日本語",
+    "koKR": "한국어"
+  },
+  "common": {
+    "copy": "コピー",
+    "copied": "コピーしました",
+    "close": "閉じる",
+    "cancel": "キャンセル",
+    "confirm": "確認",
+    "open": "開く",
+    "save": "保存",
+    "loading": "読み込み中...",
+    "confirmShort": "確認",
+    "unknownTime": "不明な時間",
+    "invalidDate": "無効な日時",
+    "parseFailed": "日時の解析に失敗しました",
+    "unknownError": "不明なエラー"
+  },
+  "toast": {
+    "copyImageSuccess": "画像をクリップボードにコピーしました",
+    "copyImageUnsupported": "この環境では画像コピーに対応していません。画像リンクをコピーしました。",
+    "copyImageFallback": "画像のコピーに失敗しました。画像リンクをコピーしました。",
+    "copyImageFailed": "画像のコピーに失敗しました。右クリックで保存してください。",
+    "copyPromptSuccess": "プロンプトをクリップボードにコピーしました",
+    "copyFailedManual": "コピーに失敗しました。手動でコピーしてください。",
+    "imagePathEmpty": "画像パスが空です",
+    "noLocalPath": "この画像にローカルパスがありません",
+    "imagePathCopied": "画像パスをコピーしました",
+    "copyFailed": "コピーに失敗しました",
+    "deleteFailed": "削除に失敗しました",
+    "imageSrcEmpty": "画像ソースが空です",
+    "imageFetchFailed": "画像の取得に失敗しました: {{status}}"
+  },
+  "preview": {
+    "copyImage": "画像をコピー",
+    "imageLoadFailed": "画像の読み込みに失敗しました",
+    "menu": {
+      "label": "画像操作",
+      "copyImage": "画像をコピー",
+      "copyImagePath": "画像パスをコピー",
+      "downloadOriginal": "元画像をダウンロード",
+      "resetZoom": "ズーム/位置をリセット"
+    },
+    "title": "生成詳細",
+    "delete": {
+      "title": "画像を削除",
+      "confirmTitle": "もう一度クリックして削除を確定",
+      "deleting": "削除中...",
+      "confirmLabel": "確認?",
+      "action": "削除"
+    },
+    "prompt": {
+      "label": "プロンプト",
+      "copied": "コピーしました",
+      "empty": "プロンプトなし"
+    },
+    "meta": {
+      "model": "モデル",
+      "unknown": "不明",
+      "size": "サイズ",
+      "time": "時間"
+    },
+    "downloadOriginal": "元画像をダウンロード"
+  },
+  "prompt": {
+    "label": "プロンプト",
+    "optimize": "プロンプト最適化",
+    "optimizeJson": "JSONプロンプト",
+    "undo": "元に戻す",
+    "redo": "やり直し",
+    "placeholder": "生成したい画像を説明してください...",
+    "toast": {
+      "empty": "プロンプトを入力してください",
+      "chatConfig": "先に設定でチャットモデルを設定してください",
+      "chatConfigChanged": "チャットモデル設定が変更されました。設定で同期してください。",
+      "optimizeEmpty": "最適化結果が空です",
+      "optimizeFailed": "最適化に失敗しました",
+      "syncChatConfig": "設定でチャットモデル設定を同期してください",
+      "chatModelMissing": "チャットモデルを設定し、設定で同期してください",
+      "optimizeCheckConfig": "最適化に失敗しました。チャットモデル設定を確認してください。",
+      "apiKeyInvalid": "API キーが無効、または権限がありません",
+      "baseUrlInvalid": "Base URL が無効、またはエンドポイントが利用できません",
+      "timeout": "リクエストがタイムアウトしました。後でもう一度お試しください。",
+      "optimizeRetry": "最適化に失敗しました。後でもう一度お試しください。"
+    }
+  },
+  "refImage": {
+    "title": "スタイル参照画像（{{count}}/10）",
+    "toggleCollapse": "参照画像を折りたたむ",
+    "toggleExpand": "参照画像を展開",
+    "dropHint": "放して画像を追加",
+    "modeActive": "画像から画像モードが有効",
+    "collapsedHint": "クリックして展開し、参照画像をアップロードしてください",
+    "add": "参照画像を追加",
+    "addMore": "さらに追加",
+    "supportHint": "（複数選択またはドラッグ＆ドロップ対応）",
+    "toast": {
+      "full": "参照画像は上限に達しました",
+      "exists": "画像は既に存在します",
+      "addedOne": "参照画像を1枚追加しました",
+      "fetchFailed": "画像の取得に失敗しました",
+      "fetchFailedDetail": "画像の取得に失敗しました: {{message}}",
+      "noImage": "追加できる画像が見つかりません",
+      "busy": "現在の操作が完了するまでお待ちください",
+      "unknown": "不明なエラー",
+      "addFailed": "参照画像の追加に失敗しました: {{message}}",
+      "remainingSlots": "最大10枚。あと{{count}}枚追加できます",
+      "notImage": "{{name}} は画像ファイルではありません",
+      "fileTooLarge": "{{name}} は 5MB を超えています",
+      "addedCompressed": "{{count}}枚追加（{{compressed}}枚を圧縮）",
+      "addedCount": "参照画像を{{count}}枚追加しました",
+      "allExists": "すべての画像が既に存在します",
+      "tooLarge": "画像が 5MB を超えています",
+      "adding": "画像を追加中...",
+      "pasteFailed": "貼り付けに失敗しました: {{message}}",
+      "deduped": "重複画像を除外しました",
+      "timeout": "操作がタイムアウトしました（{{seconds}}秒）"
+    },
+    "compressReason": {
+      "fileTooLarge": "ファイルサイズが大きすぎます（{{size}}MB）",
+      "dimensions": "解像度が大きすぎます（{{width}}x{{height}}）"
+    }
+  },
+  "settings": {
+    "title": "設定",
+    "tabs": {
+      "image": "画像モデル",
+      "chat": "チャットモデル"
+    },
+    "language": {
+      "label": "言語",
+      "hint": "変更は即時反映されます"
+    },
+    "provider": {
+      "label": "プロバイダー",
+      "recommended": "推奨:",
+      "yunwu": "Yunwu API",
+      "openaiImageLimit": "OpenAI プロバイダーは現在 1K 画像のみ対応しています"
+    },
+    "model": {
+      "default": "デフォルトモデル",
+      "chat": "チャットモデル"
+    },
+    "update": {
+      "title": "更新",
+      "check": "更新を確認",
+      "checking": "更新を確認中...",
+      "checkingShort": "確認中...",
+      "view": "更新内容を確認",
+      "latest": "最新です",
+      "available": "新しいバージョン v{{version}} が利用可能",
+      "failed": "確認に失敗しました",
+      "failedWith": "確認に失敗しました: {{error}}",
+      "desktopOnly": "デスクトップのみ",
+      "autoNote": "アプリは自動的に更新を確認します。新しいバージョンがある場合、ダウンロードとインストールの案内が表示されます。"
+    },
+    "logs": {
+      "title": "診断",
+      "openDir": "ログフォルダを開く",
+      "copyDirTitle": "ログフォルダのパスをコピー",
+      "verboseLabel": "詳細ログを有効化（診断情報が増えます）",
+      "help": "問題が発生した場合は app.log と server.log を開発者に送ってください（ログにプロンプトが含まれる場合があります）。"
+    },
+    "save": "同期して保存",
+    "toast": {
+      "fetchFailed": "バックエンド設定の取得に失敗しました",
+      "imageConfigIncomplete": "画像モデル設定を完了してください",
+      "chatConfigIncomplete": "チャットモデル設定を完了してください",
+      "openaiGeminiUnsupported": "OpenAI の Base URL は Gemini モデルに対応していません。対応エンドポイントを使用してください。",
+      "saveSuccess": "設定をサーバーに同期しました",
+      "saveFailed": "保存に失敗しました: {{msg}}",
+      "checkNetwork": "ネットワークを確認してください",
+      "logDirDesktopOnly": "ログフォルダはデスクトップのみ利用可能です",
+      "logDirOpenFailed": "ログフォルダを開けませんでした",
+      "logDirCopied": "ログパスをコピーしました",
+      "logDirCopyFailedManual": "コピーに失敗しました。手動でログフォルダを開いてください。",
+      "logDirCopyFailed": "ログパスのコピーに失敗しました",
+      "verboseEnabled": "詳細ログを有効にしました",
+      "verboseDisabled": "詳細ログを無効にしました",
+      "openLinkFailed": "リンクを開けませんでした"
+    }
+  },
+  "versionBadge": {
+    "downloading": "ダウンロード中 {{percent}}%",
+    "installing": "更新をインストール中...",
+    "downloaded": "更新をダウンロードしました。クリックしてインストール。",
+    "available": "新しいバージョン v{{version}} が利用可能。クリックして確認/インストール。",
+    "check": "更新を確認",
+    "checking": "確認中...",
+    "latest": "最新です",
+    "error": "確認に失敗しました",
+    "availableShort": "更新あり",
+    "desktopOnly": "デスクトップのみ",
+    "updateProgress": "更新 {{percent}}%",
+    "installingShort": "インストール中",
+    "pendingInstall": "インストール準備完了",
+    "version": "v{{version}}",
+    "repoMissing": "GitHub リポジトリ URL が設定されていません"
+  },
+  "updater": {
+    "dismiss": {
+      "background": "バックグラウンドでダウンロード",
+      "later": "後で"
+    },
+    "title": {
+      "checking": "更新を確認中...",
+      "downloading": "更新をダウンロード中...",
+      "downloaded": "更新をダウンロードしました",
+      "installing": "更新をインストール中...",
+      "installed": "更新をインストールしました",
+      "error": "更新に失敗しました",
+      "available": "新しいバージョンがあります"
+    },
+    "newVersion": "新しいバージョン",
+    "progress": "ダウンロード進捗",
+    "downloadHint": "このウィンドウを閉じてもダウンロードはバックグラウンドで継続されます。",
+    "downloadedHint": "更新パッケージの準備ができました。「インストールして再起動」をクリックしてください。",
+    "installingHint": "インストール中です。アプリを開いたままにしてください。",
+    "errorFallback": "更新に失敗しました。後でもう一度お試しください。",
+    "errorExtra": "Updater を導入したばかりの場合は、`desktop/src-tauri/tauri.conf.json` に `plugins.updater.pubkey` を設定し、CI で `TAURI_SIGNING_PRIVATE_KEY` を設定してください。",
+    "actions": {
+      "download": "更新をダウンロード",
+      "install": "インストールして再起動",
+      "retry": "再確認"
+    },
+    "toast": {
+      "checkFailed": "更新確認に失敗しました",
+      "checkFailedManifest": "更新確認に失敗しました: latest.json が見つかりません",
+      "checkFailedPubkey": "更新確認に失敗しました: 署名公開鍵が不足しています",
+      "checkFailedNetwork": "更新確認に失敗しました: ネットワークエラー",
+      "downloadFailed": "更新のダウンロードに失敗しました",
+      "downloaded": "更新をダウンロードしました",
+      "installFailed": "更新のインストールに失敗しました",
+      "installManual": "更新をインストールしました。アプリを再起動してください。",
+      "installed": "更新をインストールしました"
+    }
+  },
+  "generate": {
+    "batch": {
+      "clearSuccess": "生成リストをクリアしました",
+      "readError": "エラー応答の読み取りに失敗しました",
+      "exportFailed": "エクスポートに失敗しました",
+      "exportFailedServer": "エクスポートに失敗しました: サーバーがエラーを返しました",
+      "exported": "{{count}}枚の画像をエクスポートしました",
+      "exportFailedRetry": "エクスポートに失敗しました。後でもう一度お試しください。",
+      "networkError": "ネットワークエラーです。接続を確認してください。",
+      "timeout": "リクエストがタイムアウトしました。後でもう一度お試しください。",
+      "serviceUnavailable": "エクスポートサービスが利用できません",
+      "serverError": "サーバーエラーです。後でもう一度お試しください。",
+      "clearSelection": "選択を解除",
+      "selectAll": "すべて選択",
+      "selectedCount": "{{count}}件選択中",
+      "exporting": "パッケージング中...",
+      "exportSelected": "選択したものをエクスポート",
+      "clearConfirm": "クリアしますか?",
+      "clearList": "リストをクリア"
+    },
+    "card": {
+      "removeSuccess": "生成リストから削除しました",
+      "deleteTitle": "画像を削除",
+      "confirmDeleteTitle": "もう一度クリックして削除を確定",
+      "confirmLabel": "確認?",
+      "generating": "生成中",
+      "failed": "生成に失敗しました",
+      "imageAlt": "画像",
+      "emptyPrompt": "プロンプトなし"
+    },
+    "error": {
+      "title": "生成に失敗しました",
+      "collapse": "折りたたむ",
+      "expand": "展開"
+    },
+    "empty": {
+      "title": "画像生成を始めましょう",
+      "subtitle": "左側でプロンプトを入力するか、参照画像をアップロードして画像から画像を生成します。",
+      "textToImage": "テキストから画像",
+      "textToImageDesc": "テキストから画像を生成",
+      "imageToImage": "画像から画像",
+      "imageToImageDesc": "参照画像から生成"
+    },
+    "grid": {
+      "empty": "まだ生成画像はありません。左側で設定して生成を開始してください。",
+      "limitNotice": "{{total}}枚中、最初の{{max}}枚を表示しています",
+      "limitHint": "ヒント: パフォーマンス向上のため、バッチ生成や履歴のクリアを推奨します。"
+    },
+    "submitting": {
+      "title": "生成タスクを開始中",
+      "subtitle": "AI モデルに接続中です。しばらくお待ちください..."
+    },
+    "start": "生成を開始",
+    "startImg2Img": "画像から画像を開始",
+    "progress": {
+      "generating": "生成中",
+      "connection": {
+        "websocket": "ライブ",
+        "polling": "ポーリング",
+        "initializing": "接続中..."
+      }
+    },
+    "toast": {
+      "countMismatch": "返却画像数が一致しません（{{returned}}/{{total}}）",
+      "pollFailed": "タスク状態の同期に失敗しました",
+      "missingApiKey": "画像 API キーを設定してください",
+      "taskIdMissing": "タスク ID がありません",
+      "startFailed": "生成の開始に失敗しました",
+      "failed": "生成に失敗しました",
+      "failedWith": "生成に失敗しました: {{message}}",
+      "partial": "タスクが一部完了しました",
+      "recovered": "生成進捗を復元しました"
+    }
+  },
+  "config": {
+    "batch": {
+      "title": "生成設定",
+      "count": "枚数 (1-10)",
+      "resolution": "解像度",
+      "resolution1k": "1K (1024px)",
+      "resolution2k": "2K (2048px)",
+      "resolution4k": "4K (3840px)",
+      "aspectRatio": "アスペクト比",
+      "ratio": {
+        "1_1": "1:1（正方形）",
+        "2_3": "2:3（縦 2:3）",
+        "3_2": "3:2（横 3:2）",
+        "3_4": "3:4（縦 3:4）",
+        "4_3": "4:3（標準 4:3）",
+        "4_5": "4:5（縦 4:5）",
+        "5_4": "5:4（横 5:4）",
+        "9_16": "9:16（モバイル）",
+        "16_9": "16:9（ワイド）",
+        "21_9": "21:9（超ワイド）"
+      }
+    },
+    "apiKeyHint": "先に右上の設定で画像 API キーを設定してください"
+  },
+  "errors": {
+    "fileReadEmpty": "ファイル読み込み結果が空です",
+    "fileReadFailed": "ファイルの読み込みに失敗しました",
+    "canvasContextFailed": "キャンバスコンテキストの取得に失敗しました",
+    "compressAttemptsExceeded": "画像圧縮の試行回数を超えました",
+    "compressBlobFailed": "圧縮 Blob の作成に失敗しました",
+    "imageLoadFailed": "画像の読み込みに失敗しました",
+    "responseStreamMissing": "レスポンスストリームが利用できません"
+  },
+  "layout": {
+    "loadingModule": "モジュールを読み込み中...",
+    "backendBanner": "バックエンドの準備ができていません。一部機能が利用できない可能性があります。",
+    "toast": {
+      "backendUnavailable": "バックエンドが利用できません。後でもう一度お試しください。"
+    },
+    "generateConfigTitle": "生成設定"
+  },
+  "history": {
+    "searchPlaceholder": "プロンプトまたはモデルを検索",
+    "empty": "履歴がありません",
+    "noImage": "画像なし",
+    "prompt": {
+      "empty": "プロンプトなし"
+    },
+    "loadMore": {
+      "noMore": "これ以上ありません",
+      "loading": "読み込み中...",
+      "action": "さらに読み込む"
+    },
+    "actions": {
+      "deleteImage": "画像を削除",
+      "deleteTask": "タスクを削除",
+      "deleteRecord": "記録を削除",
+      "confirmDeleteTitle": "もう一度クリックして削除を確定"
+    },
+    "status": {
+      "pending": {
+        "title": "待機中",
+        "description": "タスクは待機中です"
+      },
+      "processing": {
+        "title": "生成中",
+        "description": "画像 {{index}} を生成中"
+      },
+      "failed": {
+        "title": "失敗",
+        "description": "タスクが失敗しました"
+      },
+      "partial": {
+        "title": "一部完了",
+        "description": "{{completed}}/{{total}} 完了"
+      },
+      "completed": {
+        "title": "完了",
+        "description": "タスクが完了しました"
+      },
+      "unknown": {
+        "title": "不明",
+        "description": "不明なタスク状態"
+      }
+    },
+    "toast": {
+      "updated": "履歴を更新しました",
+      "loadFailed": "履歴の読み込みに失敗しました",
+      "deleted": "記録を削除しました",
+      "deleteFailed": "削除に失敗しました",
+      "batchDeleted": "{{count}}件の記録を削除しました",
+      "batchDeleteFailed": "一括削除に失敗しました",
+      "imageDeleted": "画像を削除しました",
+      "imageDeleteFailed": "画像の削除に失敗しました"
+    }
+  },
+  "templateMarket": {
+    "title": "テンプレートマーケット",
+    "searchPlaceholder": "テンプレートを検索",
+    "toggle": {
+      "title": "テンプレートマーケットを開く",
+      "label": "テンプレート"
+    },
+    "actions": {
+      "backToGenerate": "生成に戻る",
+      "clearFilters": "フィルターをクリア"
+    },
+    "loading": {
+      "fetching": "テンプレートを取得中..."
+    },
+    "activeFilters": {
+      "title": "有効なフィルター",
+      "empty": "フィルターなし"
+    },
+    "active": {
+      "search": "検索: {{keyword}}",
+      "channel": "チャネル: {{label}}",
+      "material": "素材: {{label}}",
+      "industry": "業界: {{label}}",
+      "ratio": "比率: {{label}}"
+    },
+    "filters": {
+      "channel": "チャネル",
+      "material": "素材",
+      "industry": "業界",
+      "ratio": "比率"
+    },
+    "list": {
+      "count": "{{count}}件のテンプレート",
+      "loading": "読み込み中...",
+      "empty": "テンプレートが見つかりません"
+    },
+    "card": {
+      "view": "表示",
+      "use": "使用",
+      "applying": "適用中...",
+      "loading": "読み込み中...",
+      "imageFailed": "画像エラー",
+      "imageEmpty": "プレビューなし"
+    },
+    "preview": {
+      "title": "テンプレートプレビュー",
+      "infoTitle": "テンプレート情報",
+      "source": "ソース",
+      "tips": "使用ヒント",
+      "requirements": "参照要件",
+      "prompt": "テンプレートプロンプト",
+      "copyImage": "画像をコピー",
+      "copyImageDisabled": "コピーする画像がありません",
+      "imageFailed": "画像の読み込みに失敗しました",
+      "imageFailedHint": "画像の読み込みに失敗しました。テンプレート情報は引き続き確認できます。",
+      "noImage": "画像なし",
+      "menuLabel": "画像操作",
+      "menu": {
+        "copyImage": "画像をコピー",
+        "copyImagePath": "画像 URL をコピー",
+        "downloadOriginal": "元画像をダウンロード",
+        "resetZoom": "ズーム/位置をリセット"
+      },
+      "applying": "適用中...",
+      "use": "テンプレートを使用"
+    },
+    "placeholder": {
+      "noImage": "画像なし"
+    },
+    "toast": {
+      "refreshed": "テンプレートを更新しました",
+      "refreshFailed": "更新に失敗しました",
+      "invalidData": "テンプレートデータが無効です",
+      "emptyData": "テンプレートデータが空です",
+      "fetchFailed": "テンプレートの取得に失敗しました",
+      "fetchFallback": "取得に失敗したため内蔵テンプレートを使用します",
+      "imageLinkCopied": "画像 URL をコピーしました",
+      "promptCopied": "プロンプトをコピーしました",
+      "tipsCopied": "ヒントをコピーしました",
+      "requirementsCopied": "要件をコピーしました",
+      "noCopyContent": "コピーする内容がありません",
+      "noDownload": "ダウンロードできる画像がありません",
+      "downloadStarted": "ダウンロードを開始しました",
+      "downloadFailed": "ダウンロードに失敗しました",
+      "applied": "テンプレートを適用しました",
+      "applyFailed": "テンプレートの適用に失敗しました",
+      "moreRefsNeeded": "参照画像を追加してください"
+    },
+    "labels": {
+      "all": "すべて",
+      "ecommerce": "EC",
+      "wechat": "WeChat/公式アカウント",
+      "community": "コミュニティ",
+      "life": "ライフスタイル",
+      "entertainment": "エンタメ",
+      "xhs": "小紅書",
+      "shortVideo": "ショート動画",
+      "education": "教育",
+      "marketing": "マーケティング",
+      "productDesign": "プロダクトデザイン",
+      "filmProduction": "映像制作",
+      "print": "印刷",
+      "offlineEcommerce": "実店舗EC",
+      "poster": "ポスター",
+      "wechatCover": "WeChat カバー",
+      "wechatSecondary": "WeChat サブ",
+      "longImage": "長尺画像",
+      "courseware": "教材",
+      "productShowcase": "商品展示",
+      "xhsCover": "小紅書カバー",
+      "xhsImage": "小紅書画像",
+      "fullPoster": "フルポスター",
+      "ecomVerticalPoster": "EC 縦長ポスター",
+      "productMain": "商品メイン",
+      "detailPage": "詳細ページ",
+      "adGraphic": "広告グラフィック",
+      "sticker": "ステッカー",
+      "moviePoster": "映画ポスター",
+      "infographic": "インフォグラフィック",
+      "studyCard": "学習カード",
+      "comic": "コミック",
+      "historyScene": "歴史シーン",
+      "architectureDesign": "建築デザイン",
+      "gridPortrait": "グリッド肖像",
+      "portrait": "ポートレート",
+      "general": "一般",
+      "finance": "金融・保険",
+      "retail": "小売",
+      "enterprise": "企業管理",
+      "government": "政務・メディア",
+      "beauty": "美容",
+      "foodFresh": "食品・生鮮",
+      "fashion": "ファッション",
+      "lifeService": "生活サービス",
+      "travel": "旅行",
+      "motherBaby": "母子",
+      "tech": "テック・デジタル",
+      "fitness": "フィットネス",
+      "home": "ホーム・インテリア",
+      "auto": "自動車",
+      "jewelry": "ジュエリー",
+      "pet": "ペット",
+      "art": "アート",
+      "dining": "飲食",
+      "photography": "写真",
+      "music": "音楽・芸術",
+      "architecture": "建築",
+      "film": "映画",
+      "ratio1_1": "1:1",
+      "ratio3_4": "3:4",
+      "ratio4_5": "4:5",
+      "ratio9_16": "9:16",
+      "ratio16_9": "16:9",
+      "ratio2_3": "2:3"
+    }
+  }
+}

@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { HistoryItem as HistoryItemType } from '../../types';
 import { Trash2 } from 'lucide-react';
 import { getImageUrl } from '../../services/api';
+import { formatDateTime } from '../../utils/date';
 
 interface HistoryItemProps {
   item: HistoryItemType;
@@ -9,6 +11,7 @@ interface HistoryItemProps {
 }
 
 export function HistoryItem({ item, onDelete }: HistoryItemProps) {
+  const { t } = useTranslation();
   // 获取第一张图片用于展示
   const firstImage = item.images && item.images.length > 0 ? item.images[0] : null;
   const imageUrl = firstImage ? getImageUrl(firstImage.id) : '';
@@ -26,7 +29,7 @@ export function HistoryItem({ item, onDelete }: HistoryItemProps) {
             />
         ) : (
             <div className="w-full h-full flex items-center justify-center text-xs text-gray-400 bg-gray-50">
-                无图片
+                {t('history.noImage')}
             </div>
         )}
         <div className="absolute bottom-0 right-0 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded-tl-md">
@@ -39,15 +42,15 @@ export function HistoryItem({ item, onDelete }: HistoryItemProps) {
             <div className="flex items-center gap-3 text-xs text-gray-500">
                 <span>{item.model}</span>
                 <span>•</span>
-                <span>{new Date(item.createdAt).toLocaleString()}</span>
+                <span>{formatDateTime(item.createdAt)}</span>
             </div>
         </div>
         
         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-             <button 
+            <button 
                 onClick={() => onDelete(item.id)}
                 className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                title="删除任务"
+                title={t('history.actions.deleteTask')}
             >
                 <Trash2 className="w-4 h-4" />
              </button>

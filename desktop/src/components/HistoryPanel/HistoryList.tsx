@@ -1,4 +1,5 @@
 import React, { useCallback, useLayoutEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AutoSizer } from 'react-virtualized-auto-sizer';
 import { Grid, type CellComponentProps, type GridImperativeAPI } from 'react-window';
 import { useHistoryStore } from '../../store/historyStore';
@@ -71,6 +72,7 @@ const isEmptyTask = (task: GenerationTask): boolean => {
 };
 
 export function HistoryList() {
+  const { t } = useTranslation();
   const { items, loading, hasMore, loadMore } = useHistoryStore(
     useShallow((s) => ({
       items: s.items,
@@ -232,7 +234,7 @@ export function HistoryList() {
   if (items.length === 0) {
       return (
           <div className="text-center py-12 text-gray-500 text-sm">
-              暂无历史记录
+              {t('history.empty')}
           </div>
       );
   }

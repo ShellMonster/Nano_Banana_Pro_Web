@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Trash2, AlertCircle, XCircle, Loader2 } from 'lucide-react';
 import { GenerationTask } from '../../types';
 import { formatDateTime } from '../../utils/date';
@@ -13,6 +14,7 @@ interface FailedTaskCardProps {
 
 // 使用 React.memo 防止不必要的重渲染
 export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick }: FailedTaskCardProps) {
+    const { t } = useTranslation();
     const loadHistory = useHistoryStore(s => s.loadHistory);
     const loadHistoryRef = useRef(loadHistory);
 
@@ -51,12 +53,12 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
             setIsDeleting(true);
             try {
                 await deleteHistory(task.id);
-                toast.success('记录已删除');
+                toast.success(t('history.toast.deleted'));
                 // 刷新历史记录列表
                 loadHistoryRef.current(true);
             } catch (error) {
-                console.error('删除记录失败:', error);
-                const errorMessage = error instanceof Error ? error.message : '删除失败';
+                console.error('Delete record failed:', error);
+                const errorMessage = error instanceof Error ? error.message : t('history.toast.deleteFailed');
                 toast.error(errorMessage);
             } finally {
                 setIsDeleting(false);
@@ -77,53 +79,53 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
             case 'failed':
                 return {
                     icon: <XCircle className="w-8 h-8 text-red-500" />,
-                    title: '生成失败',
-                    description: task.errorMessage || '未知错误',
+                    title: t('history.status.failed.title'),
+                    description: task.errorMessage || t('history.status.failed.description'),
                     bgColor: 'bg-red-50',
                     borderColor: 'border-red-200'
                 };
             case 'pending':
                 return {
                     icon: <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />,
-                    title: '等待中',
-                    description: '任务排队中...',
+                    title: t('history.status.pending.title'),
+                    description: t('history.status.pending.description'),
                     bgColor: 'bg-blue-50',
                     borderColor: 'border-blue-200'
                 };
             case 'processing':
                 return {
                     icon: <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />,
-                    title: '生成中',
-                    description: `生成中：第${task.completedCount + 1}张图片`,
+                    title: t('history.status.processing.title'),
+                    description: t('history.status.processing.description', { index: task.completedCount + 1 }),
                     bgColor: 'bg-blue-50',
                     borderColor: 'border-blue-200'
                 };
             case 'partial':
                 return {
                     icon: <AlertCircle className="w-8 h-8 text-orange-500" />,
-                    title: '部分完成',
-                    description: `仅 ${task.completedCount}/${task.totalCount} 张成功`,
+                    title: t('history.status.partial.title'),
+                    description: t('history.status.partial.description', { completed: task.completedCount, total: task.totalCount }),
                     bgColor: 'bg-orange-50',
                     borderColor: 'border-orange-200'
                 };
             case 'completed':
                 return {
                     icon: <AlertCircle className="w-8 h-8 text-gray-400" />,
-                    title: '无图片数据',
-                    description: '任务已完成但未找到图片',
+                    title: t('history.status.completed.title'),
+                    description: t('history.status.completed.description'),
                     bgColor: 'bg-gray-50',
                     borderColor: 'border-gray-200'
                 };
             default:
                 return {
                     icon: <AlertCircle className="w-8 h-8 text-gray-400" />,
-                    title: '状态未知',
-                    description: '暂无生成的图片',
+                    title: t('history.status.unknown.title'),
+                    description: t('history.status.unknown.description'),
                     bgColor: 'bg-gray-50',
                     borderColor: 'border-gray-200'
                 };
         }
-    }, [task.status, task.errorMessage, task.completedCount, task.totalCount]);
+    }, [task.status, task.errorMessage, task.completedCount, task.totalCount, t]);
 
     return (
         <div
@@ -156,7 +158,7 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
                             ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}
                             pointer-events-auto
                         `}
-                        title="删除记录"
+                        title={t('history.actions.deleteRecord')}
                     >
                         {isDeleting ? (
                             <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -180,12 +182,12 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
                             ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}
                             pointer-events-auto
                         `}
-                        title="再次点击确认删除"
+                        title={t('history.actions.confirmDeleteTitle')}
                     >
                         {isDeleting ? (
                             <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         ) : (
-                            <span className="text-xs font-bold">确认?</span>
+                            <span className="text-xs font-bold">{t('common.confirmShort')}</span>
                         )}
                     </button>
                 </div>
@@ -197,7 +199,7 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
                     <button
                         onClick={handleCancelConfirm}
                         className="bg-slate-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-600 transition-colors shadow-lg opacity-100 pointer-events-auto"
-                        title="取消"
+                        title={t('common.cancel')}
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -238,7 +240,7 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
                 {/* 任务信息 */}
                 <div className="w-full min-h-0">
                     <p className="text-xs text-gray-800 line-clamp-2 font-medium leading-relaxed mb-3" title={task.prompt}>
-                        {task.prompt || '无提示词'}
+                        {task.prompt || t('history.prompt.empty')}
                     </p>
 
                     <div className="flex items-center justify-between text-[9px] text-gray-400 pt-1">

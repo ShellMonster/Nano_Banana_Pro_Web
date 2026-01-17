@@ -7,6 +7,7 @@ import { setUpdateSource, getUpdateSource, clearUpdateSource } from '../store/up
 import { toast } from '../store/toastStore';
 import { usePromptHistoryStore } from '../store/promptHistoryStore';
 import { useHistoryStore } from '../store/historyStore';
+import i18n from '../i18n';
 
 // WebSocket 超时时间（毫秒）- 超过此时间无消息则启动轮询
 const WS_TIMEOUT = 15000;
@@ -77,7 +78,7 @@ export function useGenerate() {
 
     // 竞态条件修复：检查是否有其他更新源正在运行
     if (getUpdateSource() === 'websocket') {
-      console.log('[竞态条件防护] WebSocket 仍在活跃，等待其完成');
+      console.log('[race guard] WebSocket still active, waiting');
       return;
     }
 
@@ -99,7 +100,7 @@ export function useGenerate() {
       try {
         // 竞态条件修复：再次检查当前更新源
         if (getUpdateSource() !== 'polling') {
-          console.log('[竞态条件防护] 轮询被中断，更新源已切换');
+          console.log('[race guard] polling interrupted, source switched');
           return;
         }
 
@@ -138,7 +139,7 @@ export function useGenerate() {
         if (pollRetryCountRef.current >= MAX_POLL_RETRIES) {
           console.error('Polling max retries reached, giving up');
           stopPolling();
-          storeRef.current.failTask('轮询失败，请检查网络连接后刷新页面');
+          storeRef.current.failTask(i18n.t('generate.toast.pollFailed'));
           return;
         }
 
@@ -193,7 +194,7 @@ export function useGenerate() {
 
   const generate = async () => {
     if (!config.imageApiKey) {
-      toast.error('请先在设置中配置生图 API Key');
+      toast.error(i18n.t('generate.toast.missingApiKey'));
       return;
     }
 
@@ -244,10 +245,10 @@ export function useGenerate() {
       const newTaskId = task.id || task.task_id;
 
       if (!newTaskId) {
-        throw new Error('获取任务ID失败');
+        throw new Error(i18n.t('generate.toast.taskIdMissing'));
       }
 
-      console.log('[useGenerate] 启动生成任务:', { newTaskId, count: config.count });
+      console.log('[useGenerate] start generation task:', { newTaskId, count: config.count });
 
       // 启动任务
       startTask(newTaskId, config.count, {
@@ -291,7 +292,7 @@ export function useGenerate() {
 
     } catch (error) {
       console.error('Failed to start generation:', error);
-      const errorMessage = error instanceof Error ? error.message : '启动任务失败';
+      const errorMessage = error instanceof Error ? error.message : i18n.t('generate.toast.startFailed');
       toast.error(errorMessage);
       failTask(errorMessage);
       expectedTaskIdRef.current = null; // 清理任务ID

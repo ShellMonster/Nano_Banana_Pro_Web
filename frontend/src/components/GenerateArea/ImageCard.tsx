@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, AlertCircle, Loader2, XCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { GeneratedImage } from '../../types';
 import { cn } from '../common/Button';
 
@@ -16,6 +17,7 @@ export const ImageCard = React.memo(function ImageCard({
   onSelect,
   onClick
 }: ImageCardProps) {
+  const { t } = useTranslation();
   const isPending = image.status === 'pending' || !image.url;
   const isSuccess = !isPending && image.status !== 'failed';
   const imgRef = useRef<HTMLImageElement>(null);
@@ -183,7 +185,7 @@ export const ImageCard = React.memo(function ImageCard({
                   <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
                   <div className="w-1 h-1 bg-blue-600 rounded-full animate-bounce" />
                 </div>
-                <span className="text-sm font-bold text-blue-600 tracking-tight">正在生成</span>
+                <span className="text-sm font-bold text-blue-600 tracking-tight">{t('generate.card.generating')}</span>
               </div>
               <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-100/50 rounded-full border border-blue-200/50">
                 <span className="text-[10px] font-bold font-mono text-blue-500 tabular-nums">
@@ -215,7 +217,7 @@ export const ImageCard = React.memo(function ImageCard({
             <img
               ref={imgRef}
               src={image.thumbnailUrl || image.url}
-              alt={image.prompt || '图片'}
+              alt={image.prompt || t('generate.card.imageAlt')}
               className="w-full h-full object-cover"
               loading="lazy"
               decoding="async"
@@ -251,7 +253,7 @@ export const ImageCard = React.memo(function ImageCard({
               <div className="absolute inset-0 bg-red-500/10 rounded-full animate-pulse" />
               <XCircle className="w-10 h-10 text-red-400 relative z-10" />
             </div>
-            <span className="text-sm font-bold text-red-500 tracking-tight">生成失败</span>
+            <span className="text-sm font-bold text-red-500 tracking-tight">{t('generate.card.failed')}</span>
           </div>
         )}
       </div>
@@ -259,7 +261,7 @@ export const ImageCard = React.memo(function ImageCard({
       {/* 信息区域 - 保持与历史区一致的样式 */}
       <div className="p-2 sm:p-3 flex flex-col gap-1.5 sm:gap-2 flex-shrink-0 bg-white">
         <p className="text-[10px] sm:text-xs text-gray-800 line-clamp-2 font-medium leading-relaxed h-8 sm:h-9" title={image.prompt}>
-          {image.prompt || '无提示词'}
+          {image.prompt || t('generate.card.emptyPrompt')}
         </p>
 
         <div className="flex items-center justify-between text-[8px] sm:text-[9px] text-gray-400 pt-1 border-t border-gray-50 mt-auto">

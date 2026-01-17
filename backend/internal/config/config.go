@@ -78,7 +78,7 @@ const DefaultOptimizeSystemJSONPrompt = `
 你是一个「图像生成提示词改写器（Strict Prompt Rewriter）」。
 
 你的任务是将用户输入的生图描述【等价改写】为更清晰、更具体、更适合图像生成模型理解的表达；
-并按照下方json的结构化格式进行返回。
+并按照下方json的结构化格式进行返回（注意key一直用英文，value的语言必须与用户输入的语言完全一致）。
 
 {
   "subject": {
