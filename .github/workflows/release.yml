@@ -93,7 +93,8 @@ jobs:
           PREV_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || git rev-list --max-parents=0 HEAD)
           echo "Previous tag: $PREV_TAG"
           
-          # 提取 commit 记录
+          # 提取 commit 记录，并进行初步的 shell 转义处理
+          # 使用 raw 格式提取，避免特殊的字符干扰
           LOGS=$(git log $PREV_TAG..${{ github.ref_name }} --pretty=format:"%s")
           
           # 初始化分类内容
@@ -104,27 +105,35 @@ jobs:
           
           # 按前缀归类
           while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            
+            # 清理可能导致 Markdown 渲染问题的特殊字符（如反斜杠、反引号等）
+            # 这里简单处理，保证基础展示正常
+            clean_line=$(echo "$line" | sed 's/\\/\\\\/g; s/`/\\`/g')
+            
             if [[ $line =~ ^feat ]]; then
-              FEATS="$FEATS\n- ${line#feat: }"
+              FEATS="$FEATS\n- ${clean_line#feat: }"
             elif [[ $line =~ ^fix ]]; then
-              FIXES="$FIXES\n- ${line#fix: }"
+              FIXES="$FIXES\n- ${clean_line#fix: }"
             elif [[ $line =~ ^docs ]]; then
-              DOCS="$DOCS\n- ${line#docs: }"
+              DOCS="$DOCS\n- ${clean_line#docs: }"
             elif [[ $line =~ ^refactor ]] || [[ $line =~ ^perf ]]; then
-              FIXES="$FIXES\n- ${line}"
+              FIXES="$FIXES\n- ${clean_line}"
             elif [[ $line =~ ^bump ]]; then
-              OTHERS="$OTHERS\n- ${line}"
+              OTHERS="$OTHERS\n- ${clean_line}"
             else
-              OTHERS="$OTHERS\n- ${line}"
+              OTHERS="$OTHERS\n- ${clean_line}"
             fi
           done <<< "$LOGS"
           
           # 组合最终正文
           BODY=""
-          if [ -n "$FEATS" ]; then BODY="$BODY\n### 🚀 新功能 (Features)$FEATS\n"; fi
-          if [ -n "$FIXES" ]; then BODY="$BODY\n### 🔧 修复与优化 (Bug Fixes & Refactor)$FIXES\n"; fi
-          if [ -n "$DOCS" ]; then BODY="$BODY\n### 📝 文档更新 (Documentation)$DOCS\n"; fi
-          if [ -n "$OTHERS" ]; then BODY="$BODY\n### 📦 其他改动 (Others)$OTHERS\n"; fi
+          [ -n "$FEATS" ] && BODY="$BODY\n### 🚀 新功能 (Features)$FEATS\n"
+          [ -n "$FIXES" ] && BODY="$BODY\n### 🔧 修复与优化 (Bug Fixes & Refactor)$FIXES\n"
+          [ -n "$DOCS" ] && BODY="$BODY\n### 📝 文档更新 (Documentation)$DOCS\n"
+          [ -n "$OTHERS" ] && BODY="$BODY\n### 📦 其他改动 (Others)$OTHERS\n"
+          
+          [ -z "$BODY" ] && BODY="本次发布包含内部优化与稳定性提升。"
           
           # 处理换行符并存入环境变量（使用多行模式）
           {
