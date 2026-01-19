@@ -82,6 +82,22 @@ jobs:
           go-version: '1.21'
           cache-dependency-path: './backend/go.sum'
 
+      - name: 生成 Release Notes
+        id: release_notes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              const response = await github.rest.repos.generateReleaseNotes({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: context.payload.ref.replace('refs/tags/', ''),
+              });
+              core.setOutput('body', response.data.body);
+            } catch (error) {
+              core.setFailed(`Failed to generate release notes: ${error.message}`);
+            }
+
       - name: 准备 Go 边车程序
         shell: bash
         run: |
@@ -159,7 +175,7 @@ jobs:
             ## 🎨 大香蕉 AI - 创作从未如此简单
 
             ### 🚀 本次更新
-            ${{ github.event.head_commit.message }}
+            ${{ steps.release_notes.outputs.body }}
 
             ### 📦 包含组件
             - 桌面客户端 (Tauri)
@@ -186,7 +202,7 @@ jobs:
             ## 🎨 大香蕉 AI - 创作从未如此简单
 
             ### 🚀 本次更新
-            ${{ github.event.head_commit.message }}
+            ${{ steps.release_notes.outputs.body }}
 
             ### 📦 包含组件
             - 桌面客户端 (Tauri)
@@ -282,7 +298,7 @@ jobs:
             ## 🎨 大香蕉 AI - 创作从未如此简单
 
             ### 🚀 本次更新
-            ${{ github.event.head_commit.message }}
+            ${{ steps.release_notes.outputs.body }}
 
             ### 📦 包含组件
             - 桌面客户端 (Tauri)
