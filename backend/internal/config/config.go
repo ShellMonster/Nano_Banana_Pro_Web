@@ -9,7 +9,8 @@ import (
 
 type Config struct {
 	Server struct {
-		Port int `mapstructure:"port"`
+		Host string `mapstructure:"host"`
+		Port int    `mapstructure:"port"`
 	} `mapstructure:"server"`
 	Database struct {
 		Path string `mapstructure:"path"`
@@ -194,6 +195,7 @@ func InitConfig() {
 	// 设置默认值
 	viper.SetDefault("database.path", "data.db")
 	viper.SetDefault("storage.local_dir", "storage")
+	viper.SetDefault("server.host", "127.0.0.1")
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("prompts.optimize_system", DefaultOptimizeSystemPrompt)
 	viper.SetDefault("prompts.optimize_system_json", DefaultOptimizeSystemJSONPrompt)

@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -126,16 +127,23 @@ func main() {
 	}).Static("", "storage")
 
 	// 6. 端口探测与启动
-	port := 8080
+	port := config.GlobalConfig.Server.Port
+	if port <= 0 {
+		port = 8080
+	}
+	host := strings.TrimSpace(config.GlobalConfig.Server.Host)
+	if host == "" {
+		host = "127.0.0.1"
+	}
 	var ln net.Listener
 	var err error
 
-	log.Printf("Starting port discovery from %d...", port)
+	log.Printf("Starting port discovery from %s:%d...", host, port)
 
 	// 尝试从 8080 开始寻找可用端口
-	// 强制绑定到 127.0.0.1 避免 macOS 沙盒拦截 0.0.0.0
+	// 默认绑定到 127.0.0.1 避免 macOS 沙盒拦截 0.0.0.0
 	for i := 0; i < 100; i++ {
-		addr := "127.0.0.1:" + strconv.Itoa(port+i)
+		addr := net.JoinHostPort(host, strconv.Itoa(port+i))
 		ln, err = net.Listen("tcp", addr)
 		if err == nil {
 			port = port + i
@@ -148,7 +156,7 @@ func main() {
 		log.Fatalf("Fatal: Could not find any available port: %v", err)
 	}
 
-	log.Printf("Successfully bound to 127.0.0.1:%d", port)
+	log.Printf("Successfully bound to %s:%d", host, port)
 
 	// 如果是在 Tauri 边车模式下，将实际监听的端口打印到标准输出，方便前端发现
 	fmt.Printf("SERVER_PORT=%d\n", port)
@@ -171,7 +179,7 @@ func main() {
 	}()
 
 	srv := &http.Server{
-		Addr:    ":" + strconv.Itoa(port),
+		Addr:    net.JoinHostPort(host, strconv.Itoa(port)),
 		Handler: r,
 	}
 
