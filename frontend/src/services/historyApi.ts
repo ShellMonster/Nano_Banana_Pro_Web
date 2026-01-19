@@ -1,5 +1,10 @@
-import api from './api';
+import api, { ApiRequestConfig } from './api';
 import { HistoryQueryParams, HistoryListResponse, GenerationTask } from '../types';
+
+export interface ExportImagesResult {
+  blob: Blob;
+  partial: boolean;
+}
 
 // 健康检查接口
 export interface HealthCheckResponse {
@@ -37,11 +42,15 @@ export const deleteImage = (id: string) =>
 
 // 批量导出图片 (返回 Blob)
 // 注意：成功时返回 ZIP 文件，失败时返回纯文本错误消息（非JSON）
-export const exportImages = async (imageIds: string[]): Promise<Blob> => {
-  const response = await api.post('/images/export', { imageIds }, { responseType: 'blob' });
-  // api 拦截器在 blob 模式下会直接返回 Blob，不会解包
-  // 因此这里 response 应该就是 Blob 类型
-  return response as unknown as Blob;
+export const exportImages = async (imageIds: string[]): Promise<ExportImagesResult> => {
+  const response = await api.post(
+    '/images/export',
+    { imageIds },
+    { responseType: 'blob', __returnResponse: true } as ApiRequestConfig
+  );
+  const blob = (response as any).data as Blob;
+  const partial = (response as any).headers?.['x-export-partial'] === 'true';
+  return { blob, partial };
 };
 
 // 健康检查

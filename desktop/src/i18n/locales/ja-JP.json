@@ -259,6 +259,7 @@
       "exportFailed": "エクスポートに失敗しました",
       "exportFailedServer": "エクスポートに失敗しました: サーバーがエラーを返しました",
       "exported": "{{count}}枚の画像をエクスポートしました",
+      "exportPartial": "一部のファイルが欠落しています（zip 内の missing.txt を確認してください）",
       "exportFailedRetry": "エクスポートに失敗しました。後でもう一度お試しください。",
       "networkError": "ネットワークエラーです。接続を確認してください。",
       "timeout": "リクエストがタイムアウトしました。後でもう一度お試しください。",

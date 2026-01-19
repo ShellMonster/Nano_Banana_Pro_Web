@@ -259,6 +259,7 @@
       "exportFailed": "导出失败",
       "exportFailedServer": "导出失败：服务器返回错误",
       "exported": "已导出 {{count}} 张图片",
+      "exportPartial": "已导出，部分文件缺失（见压缩包内 missing.txt）",
       "exportFailedRetry": "导出失败，请稍后重试",
       "networkError": "网络错误，请检查连接",
       "timeout": "请求超时，请稍后重试",

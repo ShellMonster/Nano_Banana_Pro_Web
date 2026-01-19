@@ -55,7 +55,7 @@ export function BatchActions() {
       if (selectedIds.size === 0) return;
       setIsExporting(true);
       try {
-          const blob = await exportImages(Array.from(selectedIds));
+          const { blob, partial } = await exportImages(Array.from(selectedIds));
 
           // 检查响应类型
           if (blob.type === 'application/json' || blob.type === 'text/plain') {
@@ -94,7 +94,11 @@ export function BatchActions() {
           document.body.removeChild(a);
 
           // 添加成功提示
-          toast.success(t('generate.batch.exported', { count: selectedIds.size }));
+          if (partial) {
+              toast.info(t('generate.batch.exportPartial'));
+          } else {
+              toast.success(t('generate.batch.exported', { count: selectedIds.size }));
+          }
       } catch (error) {
           console.error('Export failed:', error);
 

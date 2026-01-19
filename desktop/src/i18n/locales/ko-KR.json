@@ -259,6 +259,7 @@
       "exportFailed": "내보내기 실패",
       "exportFailedServer": "내보내기 실패: 서버 오류",
       "exported": "{{count}}장의 이미지를 내보냈습니다",
+      "exportPartial": "일부 파일이 누락되었습니다(압축 파일의 missing.txt 확인)",
       "exportFailedRetry": "내보내기 실패. 나중에 다시 시도해 주세요.",
       "networkError": "네트워크 오류입니다. 연결을 확인해 주세요.",
       "timeout": "요청 시간이 초과되었습니다. 나중에 다시 시도해 주세요.",

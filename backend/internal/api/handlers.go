@@ -470,7 +470,19 @@ func GetTaskHandler(c *gin.Context) {
 // ListImagesHandler 获取图片列表（含搜索）
 func ListImagesHandler(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	pageSizeStr := strings.TrimSpace(c.Query("page_size"))
+	if pageSizeStr == "" {
+		pageSizeStr = strings.TrimSpace(c.Query("pageSize"))
+	}
+	if pageSizeStr == "" {
+		pageSizeStr = "20"
+	}
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	if pageSize <= 0 {
+		pageSize = 20
+	} else if pageSize > 100 {
+		pageSize = 100
+	}
 	keyword := c.Query("keyword")
 
 	var tasks []model.Task

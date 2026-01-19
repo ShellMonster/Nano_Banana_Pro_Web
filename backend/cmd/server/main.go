@@ -104,11 +104,12 @@ func main() {
 	v1 := r.Group("/api/v1")
 	{
 		v1.GET("/health", func(c *gin.Context) {
-			api.Success(c, gin.H{"status": "ok"})
+			api.Success(c, gin.H{"status": "ok", "message": "ok"})
 		})
 		v1.GET("/templates", api.ListTemplatesHandler)
 		v1.GET("/template-image", api.TemplateImageProxyHandler)
 		v1.GET("/providers", api.ListProvidersHandler)
+		v1.GET("/providers/config", api.ListProviderConfigsHandler)
 		v1.POST("/providers/config", api.UpdateProviderConfigHandler)
 		v1.POST("/prompts/optimize", api.OptimizePromptHandler)
 		v1.POST("/tasks/generate", api.GenerateHandler)
@@ -116,6 +117,7 @@ func main() {
 		v1.GET("/tasks/:task_id", api.GetTaskHandler)
 		v1.GET("/tasks/:task_id/stream", api.StreamTaskHandler)
 		v1.GET("/images", api.ListImagesHandler)
+		v1.POST("/images/export", api.ExportImagesHandler)
 		v1.DELETE("/images/:id", api.DeleteImageHandler)
 		v1.GET("/images/:id/download", api.DownloadImageHandler)
 	}

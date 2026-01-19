@@ -1,5 +1,9 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { ApiResponse } from '../types';
+
+export interface ApiRequestConfig extends AxiosRequestConfig {
+  __returnResponse?: boolean;
+}
 
 // 根据 API 文档，后端地址默认为 http://localhost:8080
 // 在生产环境中，这通常是相对路径 /api/v1
@@ -16,7 +20,11 @@ api.interceptors.response.use(
   (response) => {
     // 特殊响应（如 responseType: 'blob'）不走统一 ApiResponse 解包
     const data = response.data as unknown;
-    if (data instanceof Blob) return data;
+    if (data instanceof Blob) {
+      const config = response.config as ApiRequestConfig;
+      if (config.__returnResponse) return response;
+      return data;
+    }
 
     // 统一 JSON 响应格式解包：{ code, message, data }
     if (data && typeof data === 'object' && 'code' in data) {

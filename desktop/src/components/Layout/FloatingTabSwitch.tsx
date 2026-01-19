@@ -134,7 +134,7 @@ export function FloatingTabSwitch() {
       const now = Date.now();
       const shouldReload = !historyState.lastLoadedAt || now - historyState.lastLoadedAt > 15000;
       if (shouldReload && !historyState.loading) {
-        historyState.loadHistory(true, { silent: true })
+        historyState.loadHistory(true)
           .catch(err => {
             console.error('Failed to reload history on tab switch:', err);
           });

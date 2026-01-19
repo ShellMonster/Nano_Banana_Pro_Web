@@ -259,6 +259,7 @@
       "exportFailed": "Export failed",
       "exportFailedServer": "Export failed: server returned an error",
       "exported": "Exported {{count}} images",
+      "exportPartial": "Exported with missing files (see missing.txt in the zip)",
       "exportFailedRetry": "Export failed. Please try again later.",
       "networkError": "Network error. Please check your connection.",
       "timeout": "Request timed out. Please try again later.",
