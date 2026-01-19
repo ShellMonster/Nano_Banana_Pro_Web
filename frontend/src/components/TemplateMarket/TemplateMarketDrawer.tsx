@@ -152,8 +152,6 @@ const isIconUrl = (value?: string) => {
     trimmed.startsWith('http://') ||
     trimmed.startsWith('https://') ||
     trimmed.startsWith('data:') ||
-    trimmed.startsWith('asset:') ||
-    trimmed.startsWith('tauri:') ||
     trimmed.startsWith('blob:')
   );
 };
@@ -178,15 +176,6 @@ const formatSourceName = (name: string) => (name.startsWith('@') ? name : `@${na
 
 const openExternalUrl = async (url: string) => {
   if (!url) return;
-  if ((window as any).__TAURI_INTERNALS__) {
-    try {
-      const { openUrl } = await import('@tauri-apps/plugin-opener');
-      await openUrl(url);
-      return;
-    } catch (err) {
-      console.warn('openUrl failed:', err);
-    }
-  }
   window.open(url, '_blank', 'noopener,noreferrer');
 };
 
@@ -380,26 +369,6 @@ const TemplatePreviewModal = ({
         throw new Error('copy failed');
       }
       const blob = await response.blob();
-
-      const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
-      if (isTauri) {
-        try {
-          const { invoke } = await import('@tauri-apps/api/core');
-          const { writeFile, mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs');
-          const dir = 'template_clipboard';
-          await mkdir(dir, { recursive: true, baseDir: BaseDirectory.AppData });
-          const hash = await hashString(rawImageSrc);
-          const ext = mimeToExtension(blob.type);
-          const relativePath = `${dir}/${hash}.${ext}`;
-          const bytes = new Uint8Array(await blob.arrayBuffer());
-          await writeFile(relativePath, bytes, { baseDir: BaseDirectory.AppData });
-          await invoke('copy_image_to_clipboard', { path: relativePath });
-          toast.success(t('toast.copyImageSuccess'));
-          return;
-        } catch (err) {
-          console.warn('template copy (tauri) failed, fallback to web clipboard:', err);
-        }
-      }
 
       const ClipboardItemCtor = (window as any).ClipboardItem as typeof ClipboardItem | undefined;
       if (ClipboardItemCtor && navigator.clipboard?.write) {

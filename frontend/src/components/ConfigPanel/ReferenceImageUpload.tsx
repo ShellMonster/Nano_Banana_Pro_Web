@@ -659,12 +659,8 @@ export function ReferenceImageUpload() {
               trimmed &&
               (trimmed.startsWith('http://') ||
                 trimmed.startsWith('https://') ||
-                trimmed.startsWith('asset:') ||
-                trimmed.startsWith('tauri:') ||
-                trimmed.startsWith('ipc:') ||
                 trimmed.startsWith('blob:') ||
-                trimmed.startsWith('data:') ||
-                trimmed.startsWith('http://asset.localhost'))
+                trimmed.startsWith('data:'))
             ) {
               imageUrl = trimmed;
               if (!imageName) imageName = 'ref-image.jpg';

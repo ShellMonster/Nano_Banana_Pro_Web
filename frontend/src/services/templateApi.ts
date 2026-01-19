@@ -3,7 +3,8 @@ import { TemplateListResponse } from '../types';
 
 export const getTemplates = async (options?: { refresh?: boolean }): Promise<TemplateListResponse> => {
   const params = options?.refresh ? { refresh: 1 } : undefined;
-  return api.get<TemplateListResponse>('/templates', { params });
+  const response = await api.get<TemplateListResponse>('/templates', { params });
+  return response.data;
 };
 
 export const getTemplateImageProxyUrl = (source: string): string => {
