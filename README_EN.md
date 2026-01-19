@@ -11,6 +11,9 @@
 
 **Banana Pro AI** is a high-performance image generation platform designed for creative professionals. It integrates Gemini and OpenAI standard API capabilities, supporting high-resolution (up to 4K) text-to-image and image-to-image generation, available in both Desktop and Web formats.
 
+> [!NOTE]
+> **The application supports English internally and allows language switching in the settings.**
+
 <p align="center">
   <img src="assets/preview1.png" alt="Banana Pro Web Preview 1" width="800">
   <br>
