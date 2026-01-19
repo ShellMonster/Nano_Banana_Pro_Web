@@ -2,16 +2,16 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useConfigStore } from '../store/configStore';
 import { useGenerateStore } from '../store/generateStore';
 import { generateBatch, generateBatchWithImages, getTaskStatus } from '../services/generateApi';
-import { useWebSocket } from './useWebSocket';
+import { useTaskStream } from './useTaskStream';
 import { setUpdateSource, getUpdateSource, clearUpdateSource } from '../store/updateSourceStore';
 import { toast } from '../store/toastStore';
 import { usePromptHistoryStore } from '../store/promptHistoryStore';
 import { useHistoryStore } from '../store/historyStore';
 import i18n from '../i18n';
 
-// WebSocket 超时时间（毫秒）- 超过此时间无消息则启动轮询
+// 流式连接建立超时时间（毫秒）- 超过此时间未建立连接则启动轮询
 // 本地后端通常不会推实时进度，过长会导致用户“卡住”的观感
-const WS_TIMEOUT = 3000;
+const STREAM_OPEN_TIMEOUT = 3000;
 // 轮询间隔（毫秒）
 const POLL_INTERVAL = 3000;
 // 最大轮询重试次数（降低到 6 次，避免用户等待过久）
@@ -46,8 +46,8 @@ export function useGenerate() {
   });
   storeRef.current = { failTask, updateProgress, updateProgressBatch, completeTask, setConnectionMode };
 
-  // 启用 WebSocket 监听当前任务
-  useWebSocket(status === 'processing' ? taskId : null);
+  // 启用 SSE 监听当前任务
+  useTaskStream(status === 'processing' ? taskId : null);
 
   // 停止轮询
   const stopPolling = useCallback(() => {
@@ -285,15 +285,12 @@ export function useGenerate() {
         updatedAt: new Date().toISOString()
       });
 
-      // 竞态条件修复：设置初始更新源为 websocket
-      setUpdateSource('websocket');
-
       // 记录当前任务ID，供超时回调验证
       expectedTaskIdRef.current = newTaskId;
 
       // 保留参考图，让用户手动清空
 
-      // 启动 WebSocket 超时检测（如果15秒内没有消息，切换到轮询）
+      // 启动流式连接超时检测（若未建立连接，切换到轮询）
       timeoutTimerRef.current = setTimeout(() => {
         // 检查最新状态和任务ID是否匹配（防止闭包陷阱）
         const currentState = useGenerateStore.getState();
@@ -301,15 +298,13 @@ export function useGenerate() {
           currentState.status === 'processing' &&
           currentState.connectionMode === 'websocket' &&
           currentState.taskId === expectedTaskIdRef.current && // 验证任务ID
-          getUpdateSource() === 'websocket' // 竞态条件修复：确认 WebSocket 仍是活跃源
+          getUpdateSource() !== 'websocket' // 仍未建立流式连接
         ) {
-          console.log('WebSocket timeout, switching to polling mode');
-          // 竞态条件修复：清理 WebSocket 标记后再切换
-          setUpdateSource(null);
+          console.log('Stream open timeout, switching to polling mode');
           setConnectionMode('polling');
           // 不需要手动调用 startPolling，useEffect 会自动检测并启动
         }
-      }, WS_TIMEOUT);
+      }, STREAM_OPEN_TIMEOUT);
 
     } catch (error) {
       console.error('Failed to start generation:', error);

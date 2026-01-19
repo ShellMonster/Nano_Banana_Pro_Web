@@ -233,12 +233,14 @@ export default function MainLayout() {
   // 典型场景：移动端抽屉关闭导致 ConfigPanel 卸载，useGenerate 内的轮询随之停止
   const isTaskWatchdogRunningRef = useRef(false);
   const hasWarnedCountMismatchRef = useRef<string | null>(null);
+  const staleCountRef = useRef(0);
   useEffect(() => {
     if (!isHydrated || !isTauriReady) return;
 
     let cancelled = false;
     const POLL_MS = 3000;
     const POLL_ALIVE_THRESHOLD_MS = 4500;
+    const STALE_LIMIT = 3;
 
     const tick = async () => {
       if (cancelled) return;
@@ -256,12 +258,31 @@ export default function MainLayout() {
       const pollingSeemsAlive = source === 'polling' && state.connectionMode === 'polling' && staleMs < POLL_ALIVE_THRESHOLD_MS;
       if (pollingSeemsAlive) return;
 
+      const streamActive = source === 'websocket' && state.connectionMode === 'websocket';
+      let shouldEscalateToPolling = false;
+      if (streamActive) {
+        if (staleMs < POLL_ALIVE_THRESHOLD_MS) {
+          staleCountRef.current = 0;
+          return;
+        }
+
+        staleCountRef.current += 1;
+        if (staleCountRef.current < STALE_LIMIT) {
+          return;
+        }
+        shouldEscalateToPolling = true;
+      } else {
+        staleCountRef.current = 0;
+      }
+
       if (isTaskWatchdogRunningRef.current) return;
       isTaskWatchdogRunningRef.current = true;
 
       try {
         const taskData = await getTaskStatus(currentTaskId);
         if (cancelled) return;
+
+        staleCountRef.current = 0;
 
         const latest = useGenerateStore.getState();
         if (latest.status !== 'processing' || latest.taskId !== currentTaskId) return;
@@ -301,14 +322,20 @@ export default function MainLayout() {
           return;
         }
 
-        // 仍在 processing：若 WebSocket 模式下长时间无更新，切到 polling 让后续逻辑可接管
-        if (staleMs > POLL_ALIVE_THRESHOLD_MS && latest.connectionMode !== 'polling') {
+        // 仍在 processing：连续多次 stale 才切到 polling
+        if (shouldEscalateToPolling && latest.connectionMode !== 'polling') {
           latest.setConnectionMode('polling');
         }
       } catch (err) {
         // 网络/端口切换短暂失败：不打断用户，仅在需要时切到 polling 以便重试
         const latest = useGenerateStore.getState();
-        if (!cancelled && latest.status === 'processing' && latest.taskId === currentTaskId && latest.connectionMode !== 'polling') {
+        if (
+          !cancelled &&
+          latest.status === 'processing' &&
+          latest.taskId === currentTaskId &&
+          latest.connectionMode !== 'polling' &&
+          (!streamActive || shouldEscalateToPolling)
+        ) {
           latest.setConnectionMode('polling');
         }
       } finally {

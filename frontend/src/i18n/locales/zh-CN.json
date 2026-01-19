@@ -309,7 +309,7 @@
     "progress": {
       "generating": "正在生成",
       "connection": {
-        "websocket": "实时连接",
+        "stream": "实时/SSE",
         "polling": "轮询中",
         "initializing": "连接中..."
       }

@@ -17,7 +17,7 @@ export function ProgressBar() {
         return (
           <span className="flex items-center gap-1.5 text-green-600">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            {t('generate.progress.connection.websocket')}
+            {t('generate.progress.connection.stream')}
           </span>
         );
       case 'polling':

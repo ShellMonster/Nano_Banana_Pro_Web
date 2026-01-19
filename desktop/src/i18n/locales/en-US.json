@@ -309,7 +309,7 @@
     "progress": {
       "generating": "Generating",
       "connection": {
-        "websocket": "Live",
+        "stream": "Realtime (SSE)",
         "polling": "Polling",
         "initializing": "Connecting..."
       }

@@ -166,6 +166,9 @@ export function useWebSocket(taskId: string | null) {
         const currentMode = useGenerateStore.getState().connectionMode;
         if (currentMode !== 'polling') {
           console.log('WebSocket error detected, switching to polling mode');
+          if (getUpdateSource() === 'websocket') {
+            setUpdateSource(null);
+          }
           storeRef.current.setConnectionMode('polling');
         }
       }

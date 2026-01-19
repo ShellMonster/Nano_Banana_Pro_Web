@@ -114,6 +114,7 @@ func main() {
 		v1.POST("/tasks/generate", api.GenerateHandler)
 		v1.POST("/tasks/generate-with-images", api.GenerateWithImagesHandler)
 		v1.GET("/tasks/:task_id", api.GetTaskHandler)
+		v1.GET("/tasks/:task_id/stream", api.StreamTaskHandler)
 		v1.GET("/images", api.ListImagesHandler)
 		v1.DELETE("/images/:id", api.DeleteImageHandler)
 		v1.GET("/images/:id/download", api.DownloadImageHandler)
