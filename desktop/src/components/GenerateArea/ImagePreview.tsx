@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Modal } from '../common/Modal';
 import { GeneratedImage } from '../../types';
 import { Button } from '../common/Button';
@@ -8,7 +8,6 @@ import { getImageDownloadUrl } from '../../services/api';
 import { useHistoryStore } from '../../store/historyStore';
 import { toast } from '../../store/toastStore';
 import { useTranslation } from 'react-i18next';
-import i18n from '../../i18n';
 
 interface ImagePreviewProps {
     image: (GeneratedImage & { model?: string }) | null;
@@ -45,10 +44,15 @@ export const ImagePreview = React.memo(function ImagePreview({
     const hasNotifiedCopyRef = useRef(false); // 标记是否已提示过复制
     const contextMenuRef = useRef<HTMLDivElement>(null);
 
-    // 计算当前索引
-    const currentIndex = image ? images.findIndex(img => img.id === image.id) : -1;
+    const previewableImages = useMemo(
+        () => images.filter((img) => Boolean(img.url || img.thumbnailUrl)),
+        [images]
+    );
+
+    // 计算当前索引（只在可预览图片中切换）
+    const currentIndex = image ? previewableImages.findIndex(img => img.id === image.id) : -1;
     const hasPrev = currentIndex > 0;
-    const hasNext = currentIndex >= 0 && currentIndex < images.length - 1;
+    const hasNext = currentIndex >= 0 && currentIndex < previewableImages.length - 1;
 
     // 重置缩放
     const handleReset = useCallback(() => {
@@ -59,17 +63,17 @@ export const ImagePreview = React.memo(function ImagePreview({
     // 处理图片切换
     const goToPrev = useCallback(() => {
         if (hasPrev && onImageChange) {
-            onImageChange(images[currentIndex - 1]);
+            onImageChange(previewableImages[currentIndex - 1]);
             handleReset();
         }
-    }, [hasPrev, currentIndex, images, onImageChange, handleReset]);
+    }, [hasPrev, currentIndex, previewableImages, onImageChange, handleReset]);
 
     const goToNext = useCallback(() => {
         if (hasNext && onImageChange) {
-            onImageChange(images[currentIndex + 1]);
+            onImageChange(previewableImages[currentIndex + 1]);
             handleReset();
         }
-    }, [hasNext, currentIndex, images, onImageChange, handleReset]);
+    }, [hasNext, currentIndex, previewableImages, onImageChange, handleReset]);
 
     // 关闭弹窗（用 useCallback 保持引用稳定）
     const handleClose = useCallback(() => {
@@ -147,20 +151,18 @@ export const ImagePreview = React.memo(function ImagePreview({
             // 确认删除
             setIsDeleting(true);
             try {
-                // 使用 store 中的删除方法（先本地移除，再刷新）
-                await useHistoryStore.getState().deleteImage(image.id, image.taskId);
+                const nextImage =
+                    currentIndex >= 0
+                        ? (previewableImages[currentIndex + 1] || previewableImages[currentIndex - 1])
+                        : previewableImages[0];
 
-                // 删除成功后，尝试切换到下一张/上一张图片
-                if (hasNext) {
-                    // 优先切换到下一张
-                    onImageChange?.(images[currentIndex + 1]);
-                    handleReset();
-                } else if (hasPrev) {
-                    // 没有下一张，切换到上一张
-                    onImageChange?.(images[currentIndex - 1]);
+                // 使用 store 中的统一删除入口（先本地移除，再刷新）
+                await useHistoryStore.getState().deleteImage(image, { source: 'preview' });
+
+                if (nextImage) {
+                    onImageChange?.(nextImage);
                     handleReset();
                 } else {
-                    // 只有一张图片，关闭弹窗
                     onClose();
                 }
             } catch (error) {
@@ -185,7 +187,7 @@ export const ImagePreview = React.memo(function ImagePreview({
             // 3秒后自动取消
             deleteConfirmTimerRef.current = setTimeout(() => setShowDeleteConfirm(false), 3000);
         }
-    }, [image, showDeleteConfirm, onClose, hasNext, hasPrev, currentIndex, images, onImageChange, handleReset]);
+    }, [image, showDeleteConfirm, onClose, currentIndex, previewableImages, onImageChange, handleReset]);
 
     // 取消删除确认
     const handleCancelDelete = useCallback(() => {

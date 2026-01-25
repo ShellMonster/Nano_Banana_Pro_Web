@@ -74,6 +74,7 @@ interface GenerateState {
   selectAll: () => void;
   clearSelection: () => void;
   clearImages: () => void;
+  removeImage: (id: string) => void;
   // 新增：切换连接模式和更新消息时间
   setConnectionMode: (mode: 'websocket' | 'polling' | 'none') => void;
   updateLastMessageTime: () => void;
@@ -237,6 +238,14 @@ export const useGenerateStore = create<GenerateState>()(
       })),
       clearSelection: () => set({ selectedIds: new Set() }),
       clearImages: () => set({ images: [], completedCount: 0, totalCount: 0, taskId: null, status: 'idle', startTime: null, connectionMode: 'none', lastMessageTime: null }),
+      removeImage: (id) => set((state) => {
+        const nextSelected = new Set(state.selectedIds);
+        nextSelected.delete(id);
+        return {
+          images: state.images.filter((img) => img.id !== id),
+          selectedIds: nextSelected
+        };
+      }),
 
       // 新增：设置连接模式
       setConnectionMode: (mode) => set({ connectionMode: mode }),

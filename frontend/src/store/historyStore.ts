@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { GeneratedImage, HistoryItem } from '../types';
-import { getHistory, searchHistory, deleteHistory, deleteBatchHistory, deleteImage, getHistoryDetail } from '../services/historyApi';
+import { getHistory, searchHistory, deleteHistory, deleteBatchHistory, deleteImage as deleteImageApi, getHistoryDetail } from '../services/historyApi';
 import { mapBackendHistoryResponse, mapBackendTaskToFrontend } from '../utils/mapping';
 import { useGenerateStore } from './generateStore';
 import { toast } from './toastStore';
@@ -21,7 +21,7 @@ interface HistoryState {
   setSearchKeyword: (keyword: string) => void;
   deleteItem: (id: string) => Promise<void>;
   deleteItems: (ids: string[]) => Promise<void>;
-  deleteImage: (imageId: string, taskId: string) => Promise<void>;
+  deleteImage: (image: GeneratedImage, options?: { source?: 'generate' | 'history' | 'preview' }) => Promise<void>;
   getDetail: (id: string) => Promise<HistoryItem>;
   upsertTask: (task: HistoryTaskUpdate) => void;
 }
@@ -78,6 +78,15 @@ const mergeTask = (existing: HistoryItem | undefined, incoming: HistoryTaskUpdat
     updatedAt: incoming.updatedAt || existing.updatedAt,
     images: mergedImages
   };
+};
+
+const isNotFoundError = (error: unknown) => {
+  const status = (error as any)?.response?.status;
+  if (status === 404) return true;
+  const code = (error as any)?.response?.data?.code;
+  if (code === 404) return true;
+  const message = (error as any)?.message;
+  return typeof message === 'string' && (message.includes('404') || message.includes('不存在'));
 };
 
 export const useHistoryStore = create<HistoryState>()(
@@ -238,11 +247,25 @@ export const useHistoryStore = create<HistoryState>()(
       }
   },
 
-  // 删除单张图片：先本地移除，再刷新列表
-  deleteImage: async (imageId: string, taskId: string) => {
+  // 删除单张图片：统一入口（生成区/历史区/预览弹窗）
+  deleteImage: async (image, options) => {
+      const imageId = image?.id || '';
+      if (!imageId) return;
+      const taskId = image.taskId || imageId;
+      const isTemp = imageId.startsWith('temp-') || !taskId;
+
       try {
-          // 先调用删除 API
-          await deleteImage(imageId);
+          if (!isTemp) {
+              try {
+                  await deleteImageApi(taskId);
+              } catch (error) {
+                  if (!isNotFoundError(error)) {
+                      throw error;
+                  }
+              }
+          }
+
+          useGenerateStore.getState().removeImage(imageId);
 
           // 本地移除图片（立即更新 UI）
           set((state) => {
@@ -271,7 +294,11 @@ export const useHistoryStore = create<HistoryState>()(
               };
           });
 
-          toast.success(i18n.t('history.toast.imageDeleted'));
+          if (isTemp && (options?.source === 'generate' || options?.source === 'preview')) {
+              toast.success(i18n.t('generate.card.removeSuccess'));
+          } else {
+              toast.success(i18n.t('history.toast.imageDeleted'));
+          }
 
           // 后台轻量同步（不重置分页，避免滚动跳顶）
           get().loadHistory(false, { silent: true });

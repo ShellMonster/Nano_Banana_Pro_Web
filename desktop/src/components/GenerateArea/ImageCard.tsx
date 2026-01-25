@@ -3,12 +3,9 @@ import { Check, AlertCircle, Loader2, Trash2, XCircle } from 'lucide-react';
 import { GeneratedImage } from '../../types';
 import { cn } from '../common/Button';
 import { formatDateTime } from '../../utils/date';
-import { useGenerateStore } from '../../store/generateStore';
 import { useHistoryStore } from '../../store/historyStore';
-import { toast } from '../../store/toastStore';
 import { useInternalDragStore } from '../../store/internalDragStore';
 import { useTranslation } from 'react-i18next';
-import i18n from '../../i18n';
 
 interface ImageCardProps {
   image: GeneratedImage;
@@ -95,14 +92,7 @@ export const ImageCard = React.memo(function ImageCard({
     if (showConfirm) {
       setIsDeleting(true);
       try {
-        const isTemp = image.id.startsWith('temp-') || !image.taskId;
-        if (!isTemp && image.taskId) {
-          await useHistoryStore.getState().deleteImage(image.id, image.taskId);
-        } else {
-          toast.success(t('generate.card.removeSuccess'));
-        }
-
-        useGenerateStore.getState().removeImage(image.id);
+        await useHistoryStore.getState().deleteImage(image, { source: 'generate' });
         setIsDeleting(false);
         setShowConfirm(false);
       } catch (error) {

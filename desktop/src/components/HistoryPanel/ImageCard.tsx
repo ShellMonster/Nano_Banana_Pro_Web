@@ -98,7 +98,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
             setIsDeleting(true);
             try {
                 // 使用 store 中的删除方法（先本地移除，再刷新）
-                await useHistoryStore.getState().deleteImage(image.id, image.taskId);
+                await useHistoryStore.getState().deleteImage(image, { source: 'history' });
                 // 成功后重置状态
                 setIsDeleting(false);
                 setShowConfirm(false);
