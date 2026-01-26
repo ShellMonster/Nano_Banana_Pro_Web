@@ -35,5 +35,12 @@ func InitDB(dbPath string) {
 		log.Fatalf("数据库迁移失败: %v", err)
 	}
 
+	// 兼容旧版本默认超时为 60s 的记录，统一升级到新默认值
+	if err := DB.Model(&ProviderConfig{}).
+		Where("timeout_seconds <= 0 OR timeout_seconds = ?", 60).
+		Update("timeout_seconds", 150).Error; err != nil {
+		log.Printf("更新默认超时失败: %v", err)
+	}
+
 	log.Println("数据库初始化成功")
 }

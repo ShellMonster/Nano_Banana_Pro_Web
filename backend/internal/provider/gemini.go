@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"google.golang.org/genai"
 )
@@ -24,9 +25,15 @@ func NewGeminiProvider(config *model.ProviderConfig) (*GeminiProvider, error) {
 
 	log.Printf("[Gemini] 正在初始化 Provider: BaseURL=%s, KeyLen=%d\n", config.APIBase, len(config.APIKey))
 
+	timeout := time.Duration(config.TimeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 150 * time.Second
+	}
+
 	// 配置自定义 HTTP 客户端，完全禁用连接复用
 	// 每次请求都使用新的 TCP 连接，避免 "bad file descriptor" 问题
 	httpClient := &http.Client{
+		Timeout: timeout,
 		Transport: &http.Transport{
 			// 禁用连接复用和 HTTP/2
 			DisableKeepAlives:   true,
@@ -254,7 +261,7 @@ func (p *GeminiProvider) generateWithReferences(ctx context.Context, modelID, pr
 	}
 
 	candidate := resp.Candidates[0]
-	
+
 	// 解析返回的图片数据
 	var images [][]byte
 	for _, part := range candidate.Content.Parts {
@@ -267,7 +274,7 @@ func (p *GeminiProvider) generateWithReferences(ctx context.Context, modelID, pr
 		// 构造详细的错误信息
 		var reason strings.Builder
 		reason.WriteString(fmt.Sprintf("未在响应中找到图片数据 (FinishReason: %s)", candidate.FinishReason))
-		
+
 		for _, part := range candidate.Content.Parts {
 			if part.Text != "" {
 				reason.WriteString(fmt.Sprintf(" | 文本响应: %s", part.Text))

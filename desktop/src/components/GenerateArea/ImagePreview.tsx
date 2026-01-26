@@ -620,7 +620,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                     </div>
 
                     {/* 右上角操作区：复制/关闭/缩放比例（不随图片缩放） */}
-                    <div className="absolute top-4 right-4 z-50 flex flex-col items-end gap-2 pointer-events-auto">
+                    <div className="absolute top-6 right-4 z-50 flex flex-col items-end gap-2 pointer-events-auto">
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -643,12 +643,6 @@ export const ImagePreview = React.memo(function ImagePreview({
                             )}
                             <span className="hidden sm:inline text-[11px] font-black pr-1">{t('preview.copyImage')}</span>
                         </button>
-
-                        {scale !== 1 && (
-                            <div className="bg-black/70 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-full font-bold">
-                                {Math.round(scale * 100)}%
-                            </div>
-                        )}
                     </div>
 
                     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 p-1.5 bg-white/90 backdrop-blur-xl border border-white/50 rounded-2xl shadow-2xl">

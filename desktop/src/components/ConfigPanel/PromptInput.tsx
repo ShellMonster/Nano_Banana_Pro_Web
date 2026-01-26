@@ -181,10 +181,10 @@ export function PromptInput() {
           <button
             type="button"
             onClick={() => runOptimize('normal')}
-            disabled={isGenerating || isOptimizing}
+            disabled={isOptimizing}
             title={t('prompt.optimize')}
             className={`p-1.5 rounded-lg transition-all ${
-              isGenerating || isOptimizing
+              isOptimizing
                 ? 'opacity-50 cursor-not-allowed bg-slate-100'
                 : 'bg-slate-100 text-slate-700 hover:bg-white'
             }`}
@@ -198,10 +198,10 @@ export function PromptInput() {
           <button
             type="button"
             onClick={() => runOptimize('json')}
-            disabled={isGenerating || isOptimizing}
+            disabled={isOptimizing}
             title={t('prompt.optimizeJson')}
             className={`p-1.5 rounded-lg transition-all ${
-              isGenerating || isOptimizing
+              isOptimizing
                 ? 'opacity-50 cursor-not-allowed bg-slate-100'
                 : 'bg-slate-100 text-slate-700 hover:bg-white'
             }`}
@@ -212,36 +212,32 @@ export function PromptInput() {
               <FileJson className="w-4 h-4 text-blue-600" />
             )}
           </button>
-          {!isGenerating && (
-            <>
-              <button
-                type="button"
-                onClick={handleUndo}
-                disabled={!canUndo || isOptimizing}
-                title={t('prompt.undo')}
-                className={`p-1.5 rounded-lg transition-all ${
-                  canUndo && !isOptimizing
-                    ? 'bg-slate-100 text-slate-700 hover:bg-white'
-                    : 'opacity-40 cursor-not-allowed bg-slate-100'
-                }`}
-              >
-                <Undo2 className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={handleRedo}
-                disabled={!canRedo || isOptimizing}
-                title={t('prompt.redo')}
-                className={`p-1.5 rounded-lg transition-all ${
-                  canRedo && !isOptimizing
-                    ? 'bg-slate-100 text-slate-700 hover:bg-white'
-                    : 'opacity-40 cursor-not-allowed bg-slate-100'
-                }`}
-              >
-                <Redo2 className="w-4 h-4" />
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={!canUndo || isOptimizing}
+            title={t('prompt.undo')}
+            className={`p-1.5 rounded-lg transition-all ${
+              canUndo && !isOptimizing
+                ? 'bg-slate-100 text-slate-700 hover:bg-white'
+                : 'opacity-40 cursor-not-allowed bg-slate-100'
+            }`}
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleRedo}
+            disabled={!canRedo || isOptimizing}
+            title={t('prompt.redo')}
+            className={`p-1.5 rounded-lg transition-all ${
+              canRedo && !isOptimizing
+                ? 'bg-slate-100 text-slate-700 hover:bg-white'
+                : 'opacity-40 cursor-not-allowed bg-slate-100'
+            }`}
+          >
+            <Redo2 className="w-4 h-4" />
+          </button>
         </div>
       </div>
       <div className="relative flex-1">
