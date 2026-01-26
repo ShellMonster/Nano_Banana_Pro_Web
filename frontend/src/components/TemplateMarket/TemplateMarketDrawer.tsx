@@ -287,6 +287,8 @@ const TemplatePreviewModal = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const wheelZoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const imageSrc = resolveTemplateImageSrc(rawImageSrc, t('templateMarket.placeholder.noImage'));
   const resolvedImageSrc = useCachedImage(imageSrc);
   const errorText = hasImage ? t('templateMarket.preview.imageFailed') : t('templateMarket.preview.noImage');
@@ -299,6 +301,42 @@ const TemplatePreviewModal = ({
     if (isDragging || isWheelZooming) return position;
     return { x: Math.round(position.x), y: Math.round(position.y) };
   }, [position, isDragging, isWheelZooming]);
+  const baseSize = useMemo(() => {
+    const stageWidth = containerSize.width;
+    const stageHeight = containerSize.height;
+    if (!stageWidth || !stageHeight) return null;
+    const sourceWidth = imageSize?.width || 0;
+    const sourceHeight = imageSize?.height || 0;
+    if (!sourceWidth || !sourceHeight) {
+      return { width: stageWidth, height: stageHeight };
+    }
+    const imageRatio = sourceWidth / sourceHeight;
+    const stageRatio = stageWidth / stageHeight;
+    if (stageRatio > imageRatio) {
+      const height = stageHeight;
+      const width = height * imageRatio;
+      return { width, height };
+    }
+    const width = stageWidth;
+    const height = width / imageRatio;
+    return { width, height };
+  }, [containerSize, imageSize]);
+  const displaySize = useMemo(() => {
+    if (!baseSize) return null;
+    return { width: baseSize.width * scale, height: baseSize.height * scale };
+  }, [baseSize, scale]);
+  const imageBoxStyle = useMemo<React.CSSProperties>(() => {
+    if (!displaySize) return {};
+    const width = displaySize.width;
+    const height = displaySize.height;
+    return {
+      width,
+      height,
+      marginLeft: -width / 2 + displayPosition.x,
+      marginTop: -height / 2 + displayPosition.y,
+      transition: isDragging || isWheelZooming ? 'none' : 'margin 0.12s cubic-bezier(0.2, 0, 0.2, 1)'
+    };
+  }, [displaySize, displayPosition, isDragging, isWheelZooming]);
 
   const handleReset = useCallback(() => {
     setScale(defaultScale);
@@ -337,6 +375,23 @@ const TemplatePreviewModal = ({
       el.removeEventListener('wheel', handleWheel);
     };
   }, [handleWheel, template?.id]);
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      setContainerSize({ width: Math.max(0, rect.width), height: Math.max(0, rect.height) });
+    };
+    update();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', update);
+      return () => window.removeEventListener('resize', update);
+    }
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -529,6 +584,7 @@ const TemplatePreviewModal = ({
     if (!template) return;
     handleReset();
     setContextMenu(null);
+    setImageSize(null);
     if (!hasImage) {
       setPreviewStatus('loaded');
       return;
@@ -619,26 +675,28 @@ const TemplatePreviewModal = ({
             onContextMenu={handleOpenContextMenu}
           >
             {resolvedImageSrc && (
-              <img
-                src={resolvedImageSrc}
-                alt={template.title}
-                className={`w-full h-full max-h-full object-contain transition-opacity duration-300 ${
-                  previewStatus === 'loaded' ? 'opacity-100' : 'opacity-0'
-                }`}
-                style={{
-                  transform: `translate(${displayPosition.x}px, ${displayPosition.y}px) scale(${scale})`,
-                  transition: isDragging || isWheelZooming ? 'none' : 'transform 0.12s cubic-bezier(0.2, 0, 0.2, 1)'
-                }}
-                decoding="async"
-                onLoad={() => {
-                  setPreviewStatus('loaded');
-                  if (hasImage) {
-                    cacheImageResponse(imageSrc);
-                  }
-                }}
-                onError={() => setPreviewStatus('error')}
-                draggable={false}
-              />
+              <div className="absolute left-1/2 top-1/2" style={imageBoxStyle}>
+                <img
+                  src={resolvedImageSrc}
+                  alt={template.title}
+                  className={`w-full h-full object-contain transition-opacity duration-300 ${
+                    previewStatus === 'loaded' ? 'opacity-100' : 'opacity-0'
+                  }`}
+                  decoding="async"
+                  onLoad={(event) => {
+                    const target = event.currentTarget;
+                    if (target.naturalWidth && target.naturalHeight) {
+                      setImageSize({ width: target.naturalWidth, height: target.naturalHeight });
+                    }
+                    setPreviewStatus('loaded');
+                    if (hasImage) {
+                      cacheImageResponse(imageSrc);
+                    }
+                  }}
+                  onError={() => setPreviewStatus('error')}
+                  draggable={false}
+                />
+              </div>
             )}
             {previewStatus !== 'loaded' && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-2xl">

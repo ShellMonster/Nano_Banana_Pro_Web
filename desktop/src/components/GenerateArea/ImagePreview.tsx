@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
 import { Modal } from '../common/Modal';
 import { GeneratedImage } from '../../types';
 import { Button } from '../common/Button';
@@ -37,12 +37,15 @@ export const ImagePreview = React.memo(function ImagePreview({
     const [isWheelZooming, setIsWheelZooming] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; adjusted: boolean } | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const stageRef = useRef<HTMLDivElement>(null);
     const deleteConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const copySuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const wheelZoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const imageRef = useRef<HTMLImageElement>(null);
     const hasNotifiedCopyRef = useRef(false); // 标记是否已提示过复制
     const contextMenuRef = useRef<HTMLDivElement>(null);
+    const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+    const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
 
     const previewableImages = useMemo(
         () => images.filter((img) => Boolean(img.url || img.thumbnailUrl)),
@@ -53,6 +56,45 @@ export const ImagePreview = React.memo(function ImagePreview({
         if (isDragging || isWheelZooming) return position;
         return { x: Math.round(position.x), y: Math.round(position.y) };
     }, [position, isDragging, isWheelZooming]);
+
+    const baseSize = useMemo(() => {
+        const stageWidth = stageSize.width;
+        const stageHeight = stageSize.height;
+        if (!stageWidth || !stageHeight) return null;
+        const sourceWidth = imageSize?.width || 0;
+        const sourceHeight = imageSize?.height || 0;
+        if (!sourceWidth || !sourceHeight) {
+            return { width: stageWidth, height: stageHeight };
+        }
+        const imageRatio = sourceWidth / sourceHeight;
+        const stageRatio = stageWidth / stageHeight;
+        if (stageRatio > imageRatio) {
+            const height = stageHeight;
+            const width = height * imageRatio;
+            return { width, height };
+        }
+        const width = stageWidth;
+        const height = width / imageRatio;
+        return { width, height };
+    }, [stageSize, imageSize]);
+
+    const displaySize = useMemo(() => {
+        if (!baseSize) return null;
+        return { width: baseSize.width * scale, height: baseSize.height * scale };
+    }, [baseSize, scale]);
+
+    const imageBoxStyle = useMemo<React.CSSProperties>(() => {
+        if (!displaySize) return {};
+        const width = displaySize.width;
+        const height = displaySize.height;
+        return {
+            width,
+            height,
+            marginLeft: -width / 2 + displayPosition.x,
+            marginTop: -height / 2 + displayPosition.y,
+            transition: isDragging || isWheelZooming ? 'none' : 'margin 0.15s cubic-bezier(0.2, 0, 0.2, 1)'
+        };
+    }, [displaySize, displayPosition, isDragging, isWheelZooming]);
 
     // 计算当前索引（只在可预览图片中切换）
     const currentIndex = image ? previewableImages.findIndex(img => img.id === image.id) : -1;
@@ -93,6 +135,44 @@ export const ImagePreview = React.memo(function ImagePreview({
         setScale(1);
         setPosition({ x: 0, y: 0 });
     }, [image?.id]);
+
+    useEffect(() => {
+        if (!image) {
+            setImageSize(null);
+            return;
+        }
+        if (image.width && image.height) {
+            setImageSize({ width: image.width, height: image.height });
+            return;
+        }
+        setImageSize(null);
+    }, [image?.id, image?.width, image?.height]);
+
+    useLayoutEffect(() => {
+        const el = stageRef.current;
+        if (!el) return;
+        const update = () => {
+            const rect = el.getBoundingClientRect();
+            let width = rect.width;
+            let height = rect.height;
+            if (typeof window !== 'undefined') {
+                const style = window.getComputedStyle(el);
+                const paddingX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+                const paddingY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+                width = rect.width - paddingX;
+                height = rect.height - paddingY;
+            }
+            setStageSize({ width: Math.max(0, width), height: Math.max(0, height) });
+        };
+        update();
+        if (typeof ResizeObserver === 'undefined') {
+            window.addEventListener('resize', update);
+            return () => window.removeEventListener('resize', update);
+        }
+        const observer = new ResizeObserver(update);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
 
     useEffect(() => {
         if (isDragging || isWheelZooming) return;
@@ -669,56 +749,60 @@ export const ImagePreview = React.memo(function ImagePreview({
                     </div>
 
                     <div
+                        ref={stageRef}
                         className="relative z-10 w-full h-full flex items-center justify-center select-none p-5 md:p-7"
-                        style={{
-                            transform: `translate(${displayPosition.x}px, ${displayPosition.y}px) scale(${scale})`,
-                            transition: isDragging || isWheelZooming ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)',
-                            willChange: isDragging || isWheelZooming ? 'transform' : undefined
-                        }}
                         onContextMenu={handleOpenContextMenu}
                     >
+                        <div className="absolute left-1/2 top-1/2" style={imageBoxStyle}>
+                            <div className="relative w-full h-full">
+                                {/* 缩略图占位 (模糊) */}
+                                {!fullImageLoaded && (
+                                    <img 
+                                        src={image.thumbnailUrl || image.url} 
+                                        alt="" 
+                                        className={`absolute inset-0 w-full h-full object-contain ${
+                                          fullImageError ? 'opacity-100 scale-100' : 'blur-lg scale-95 opacity-50'
+                                        }`} 
+                                        decoding="async"
+                                        draggable={false} 
+                                    />
+                                )}
+                                
+                                {/* 高清大图 */}
+                                <img 
+                                    ref={imageRef} 
+                                    src={image.url} 
+                                    alt={image.prompt} 
+                                    onLoad={(event) => {
+                                        const target = event.currentTarget;
+                                        if (target.naturalWidth && target.naturalHeight) {
+                                            setImageSize({ width: target.naturalWidth, height: target.naturalHeight });
+                                        }
+                                        setFullImageLoaded(true);
+                                    }}
+                                    onError={() => setFullImageError(true)}
+                                    className={`absolute inset-0 w-full h-full object-contain shadow-2xl rounded-lg transition-all duration-500 ${fullImageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+                                    decoding="async"
+                                    draggable={false} 
+                                />
 
+                                {/* 加载指示器 */}
+                                {!fullImageLoaded && !fullImageError && (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin shadow-lg" />
+                                    </div>
+                                )}
 
-                        {/* 缩略图占位 (模糊) */}
-                        {!fullImageLoaded && (
-                            <img 
-                                src={image.thumbnailUrl || image.url} 
-                                alt="" 
-                                className={`max-w-full max-h-full object-contain absolute ${
-                                  fullImageError ? 'opacity-100 scale-100' : 'blur-lg scale-95 opacity-50'
-                                }`} 
-                                decoding="async"
-                                draggable={false} 
-                            />
-                        )}
-                        
-                        {/* 高清大图 */}
-                        <img 
-                            ref={imageRef} 
-                            src={image.url} 
-                            alt={image.prompt} 
-                            onLoad={() => setFullImageLoaded(true)}
-                            onError={() => setFullImageError(true)}
-                            className={`max-w-full max-h-full object-contain shadow-2xl rounded-lg transition-all duration-500 ${fullImageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
-                            decoding="async"
-                            draggable={false} 
-                        />
-
-                        {/* 加载指示器 */}
-                        {!fullImageLoaded && !fullImageError && (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin shadow-lg" />
+                                {/* 加载失败提示 */}
+                                {fullImageError && !fullImageLoaded && (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="px-4 py-2 rounded-xl bg-black/70 text-white text-xs font-bold backdrop-blur-md">
+                                            {t('preview.imageLoadFailed')}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        )}
-
-                        {/* 加载失败提示 */}
-                        {fullImageError && !fullImageLoaded && (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="px-4 py-2 rounded-xl bg-black/70 text-white text-xs font-bold backdrop-blur-md">
-                                    {t('preview.imageLoadFailed')}
-                                </div>
-                            </div>
-                        )}
+                        </div>
                     </div>
 
                     {/* 自定义右键菜单（替代系统英文菜单） */}
