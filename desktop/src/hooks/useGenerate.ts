@@ -204,6 +204,10 @@ export function useGenerate() {
       toast.error(i18n.t('generate.toast.missingApiKey'));
       return;
     }
+    if (!config.prompt.trim()) {
+      toast.error(i18n.t('prompt.toast.empty'));
+      return;
+    }
 
     resetPromptHistory(config.prompt);
 

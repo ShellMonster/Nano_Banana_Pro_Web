@@ -344,12 +344,6 @@ export const ImagePreview = React.memo(function ImagePreview({
                         <div className="absolute inset-0 bg-white/10" />
                     </div>
 
-                    {scale !== 1 && (
-                        <div className="absolute top-6 right-6 z-20 bg-black/70 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-full font-bold">
-                            {Math.round(scale * 100)}%
-                        </div>
-                    )}
-
                     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 p-1.5 bg-white/90 backdrop-blur-xl border border-white/50 rounded-2xl shadow-2xl">
                         <button onClick={() => performZoom(Math.max(0.25, scale - 0.25))} className="p-2.5 hover:bg-white rounded-xl transition-all text-slate-600"><ZoomOut className="w-4 h-4" /></button>
                         <div className="w-px h-4 bg-slate-200 mx-1" />
