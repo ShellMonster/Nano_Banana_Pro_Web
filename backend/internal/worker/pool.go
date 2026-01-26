@@ -3,6 +3,7 @@ package worker
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -107,11 +108,42 @@ func (wp *WorkerPool) processTask(task *Task) {
 		return
 	}
 
-	// 3. 调用 API 生成图片
-	result, err := p.Generate(wp.ctx, task.Params)
-	if err != nil {
-		wp.failTask(task.TaskModel, err)
+	// 3. 调用 API 生成图片（带任务级超时）
+	timeout := fetchProviderTimeout(task.TaskModel.ProviderName)
+	ctx, cancel := context.WithTimeout(wp.ctx, timeout)
+	defer cancel()
+
+	type generateResult struct {
+		result *provider.ProviderResult
+		err    error
+	}
+
+	done := make(chan generateResult, 1)
+	go func() {
+		result, err := p.Generate(ctx, task.Params)
+		done <- generateResult{result: result, err: err}
+	}()
+
+	var result *provider.ProviderResult
+	select {
+	case <-ctx.Done():
+		err := ctx.Err()
+		if errors.Is(err, context.DeadlineExceeded) {
+			wp.failTask(task.TaskModel, fmt.Errorf("生成超时(%s)", timeout))
+		} else {
+			wp.failTask(task.TaskModel, err)
+		}
 		return
+	case out := <-done:
+		if out.err != nil {
+			if errors.Is(out.err, context.DeadlineExceeded) {
+				wp.failTask(task.TaskModel, fmt.Errorf("生成超时(%s)", timeout))
+			} else {
+				wp.failTask(task.TaskModel, out.err)
+			}
+			return
+		}
+		result = out.result
 	}
 
 	// 记录配置快照
@@ -161,4 +193,18 @@ func (wp *WorkerPool) failTask(taskModel *model.Task, err error) {
 		"status":        "failed",
 		"error_message": err.Error(),
 	})
+}
+
+func fetchProviderTimeout(providerName string) time.Duration {
+	if model.DB == nil || providerName == "" {
+		return 150 * time.Second
+	}
+	var cfg model.ProviderConfig
+	if err := model.DB.Select("timeout_seconds").Where("provider_name = ?", providerName).First(&cfg).Error; err != nil {
+		return 150 * time.Second
+	}
+	if cfg.TimeoutSeconds <= 0 {
+		return 150 * time.Second
+	}
+	return time.Duration(cfg.TimeoutSeconds) * time.Second
 }

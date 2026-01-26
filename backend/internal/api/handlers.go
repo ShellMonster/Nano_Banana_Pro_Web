@@ -578,7 +578,7 @@ func getOptimizeSystemPrompt(forceJSON bool) string {
 func callGeminiOptimize(ctx context.Context, cfg *model.ProviderConfig, modelName, prompt string, forceJSON bool) (string, error) {
 	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
 	if timeout <= 0 {
-		timeout = 60 * time.Second
+		timeout = 150 * time.Second
 	}
 
 	httpClient := &http.Client{
@@ -640,7 +640,7 @@ func callGeminiOptimize(ctx context.Context, cfg *model.ProviderConfig, modelNam
 func callOpenAIOptimize(ctx context.Context, cfg *model.ProviderConfig, modelName, prompt string, forceJSON bool) (string, error) {
 	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
 	if timeout <= 0 {
-		timeout = 60 * time.Second
+		timeout = 150 * time.Second
 	}
 	httpClient := &http.Client{Timeout: timeout}
 	apiBase := provider.NormalizeOpenAIBaseURL(cfg.APIBase)
