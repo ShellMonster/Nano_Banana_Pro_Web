@@ -85,6 +85,8 @@ export const ImagePreview = React.memo(function ImagePreview({
         setFullImageLoaded(false);
         setFullImageError(false);
         setContextMenu(null);
+        setScale(1);
+        setPosition({ x: 0, y: 0 });
     }, [image?.id]);
 
     // 键盘监听 - 优化性能

@@ -86,6 +86,12 @@ export const ImagePreview = React.memo(function ImagePreview({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [goToPrev, goToNext, handleClose]);
 
+    // image 变化时重置缩放/位置
+    useEffect(() => {
+        setScale(1);
+        setPosition({ x: 0, y: 0 });
+    }, [image?.id]);
+
     // 监听图片复制事件（image 变化时重新绑定，避免首次挂载 imageRef 为空导致不生效）
     useEffect(() => {
         const img = imageRef.current;
