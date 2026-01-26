@@ -44,6 +44,11 @@ export const ImagePreview = React.memo(function ImagePreview({
         [images]
     );
 
+    const displayPosition = useMemo(() => {
+        if (isDragging || isWheelZooming) return position;
+        return { x: Math.round(position.x), y: Math.round(position.y) };
+    }, [position, isDragging, isWheelZooming]);
+
     // 计算当前索引（只在可预览图片中切换）
     const currentIndex = image ? previewableImages.findIndex(img => img.id === image.id) : -1;
     const hasPrev = currentIndex > 0;
@@ -91,6 +96,14 @@ export const ImagePreview = React.memo(function ImagePreview({
         setScale(1);
         setPosition({ x: 0, y: 0 });
     }, [image?.id]);
+
+    useEffect(() => {
+        if (isDragging || isWheelZooming) return;
+        const nextX = Math.round(position.x);
+        const nextY = Math.round(position.y);
+        if (nextX === position.x && nextY === position.y) return;
+        setPosition({ x: nextX, y: nextY });
+    }, [position, isDragging, isWheelZooming]);
 
     // 监听图片复制事件（image 变化时重新绑定，避免首次挂载 imageRef 为空导致不生效）
     useEffect(() => {
@@ -361,7 +374,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                     <div
                         className="relative z-10 w-full h-full flex items-center justify-center select-none"
                         style={{
-                            transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+                            transform: `translate(${displayPosition.x}px, ${displayPosition.y}px) scale(${scale})`,
                             transition: isDragging || isWheelZooming ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)',
                             willChange: isDragging || isWheelZooming ? 'transform' : undefined
                         }}

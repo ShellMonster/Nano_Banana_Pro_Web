@@ -291,11 +291,13 @@ const TemplatePreviewModal = ({
   const [scale, setScale] = useState(defaultScale);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [isWheelZooming, setIsWheelZooming] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isCopying, setIsCopying] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; adjusted: boolean } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const wheelZoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const imageSrc = resolveTemplateImageSrc(rawImageSrc, t('templateMarket.placeholder.noImage'));
   const resolvedImageSrc = useCachedImage(imageSrc);
   const errorText = hasImage ? t('templateMarket.preview.imageFailed') : t('templateMarket.preview.noImage');
@@ -304,11 +306,20 @@ const TemplatePreviewModal = ({
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex >= 0 && currentIndex < items.length - 1;
   const isZoomed = scale > 1.01;
+  const displayPosition = useMemo(() => {
+    if (isDragging || isWheelZooming) return position;
+    return { x: Math.round(position.x), y: Math.round(position.y) };
+  }, [position, isDragging, isWheelZooming]);
 
   const handleReset = useCallback(() => {
     setScale(defaultScale);
     setPosition({ x: 0, y: 0 });
     setIsDragging(false);
+    setIsWheelZooming(false);
+    if (wheelZoomTimerRef.current) {
+      clearTimeout(wheelZoomTimerRef.current);
+      wheelZoomTimerRef.current = null;
+    }
   }, [defaultScale]);
 
   const performZoom = useCallback((nextScale: number) => {
@@ -320,6 +331,13 @@ const TemplatePreviewModal = ({
     event.stopPropagation();
     const delta = event.deltaY < 0 ? 0.2 : -0.2;
     setScale((prev) => clamp(prev + delta, 0.5, 5));
+    setIsWheelZooming(true);
+    if (wheelZoomTimerRef.current) {
+      clearTimeout(wheelZoomTimerRef.current);
+    }
+    wheelZoomTimerRef.current = setTimeout(() => {
+      setIsWheelZooming(false);
+    }, 120);
   }, []);
 
   useEffect(() => {
@@ -330,6 +348,23 @@ const TemplatePreviewModal = ({
       el.removeEventListener('wheel', handleWheel);
     };
   }, [handleWheel, template?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (wheelZoomTimerRef.current) {
+        clearTimeout(wheelZoomTimerRef.current);
+        wheelZoomTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isDragging || isWheelZooming) return;
+    const nextX = Math.round(position.x);
+    const nextY = Math.round(position.y);
+    if (nextX === position.x && nextY === position.y) return;
+    setPosition({ x: nextX, y: nextY });
+  }, [position, isDragging, isWheelZooming]);
 
   const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -622,8 +657,8 @@ const TemplatePreviewModal = ({
                   previewStatus === 'loaded' ? 'opacity-100' : 'opacity-0'
                 }`}
                 style={{
-                  transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-                  transition: isDragging ? 'none' : 'transform 0.12s cubic-bezier(0.2, 0, 0.2, 1)'
+                  transform: `translate(${displayPosition.x}px, ${displayPosition.y}px) scale(${scale})`,
+                  transition: isDragging || isWheelZooming ? 'none' : 'transform 0.12s cubic-bezier(0.2, 0, 0.2, 1)'
                 }}
                 decoding="async"
                 onLoad={() => {
