@@ -20,7 +20,7 @@ export const ImageCard = React.memo(function ImageCard({
   onSelect,
   onClick
 }: ImageCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isFailed = image.status === 'failed';
   const isPending = !isFailed && (image.status === 'pending' || !image.url);
   const isSuccess = image.status === 'success' && Boolean(image.url);
@@ -181,7 +181,7 @@ export const ImageCard = React.memo(function ImageCard({
     })();
 
     return { resolutionLabel, aspectRatioLabel, timeLabel };
-  }, [image.width, image.height, image.createdAt, image.options]);
+  }, [image.width, image.height, image.createdAt, image.options, i18n.language]);
 
   // 使用 useMemo 优化规格信息解析
   const specs = useMemo(() => {
