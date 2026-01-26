@@ -158,6 +158,10 @@
       "default": "Default Model",
       "chat": "Chat Model"
     },
+    "timeout": {
+      "image": "Image timeout (s)",
+      "chat": "Text timeout (s)"
+    },
     "update": {
       "title": "Updates",
       "check": "Check for updates",

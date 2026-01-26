@@ -42,6 +42,7 @@ const isTauri = () => typeof window !== 'undefined' && Boolean((window as any)._
 let inFlightCheck: Promise<void> | null = null;
 let inFlightDownload: Promise<void> | null = null;
 let inFlightInstall: Promise<void> | null = null;
+let checkSequence = 0;
 
 export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   isOpen: false,
@@ -62,6 +63,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     const silent = Boolean(options?.silent);
     const openIfAvailable = options?.openIfAvailable !== false;
 
+    const currentCheckId = ++checkSequence;
     inFlightCheck = (async () => {
       set({ status: 'checking', error: null, progress: null });
       try {
@@ -75,11 +77,27 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
           ? [undefined, 'macos-universal', 'darwin-universal', 'universal-apple-darwin']
           : [undefined];
 
+        const CHECK_TIMEOUT_MS = 12000;
         let update: UpdateLike | null = null;
         let lastErr: unknown = null;
+
+        const runCheckWithTimeout = async (target: string | undefined) => {
+          let timer: ReturnType<typeof setTimeout> | null = null;
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+              reject(new Error('update check timeout'));
+            }, CHECK_TIMEOUT_MS);
+          });
+          try {
+            return await Promise.race([check(target ? { target } : undefined), timeoutPromise]) as UpdateLike | null;
+          } finally {
+            if (timer) clearTimeout(timer);
+          }
+        };
+
         for (const target of targets) {
           try {
-            update = (await check(target ? { target } : undefined)) as UpdateLike | null;
+            update = await runCheckWithTimeout(target);
             lastErr = null;
             break;
           } catch (err) {
@@ -88,6 +106,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         }
 
         if (lastErr) throw lastErr;
+        if (currentCheckId !== checkSequence) return;
 
         if (!update) {
           set({ status: 'idle', update: null, progress: null });
@@ -99,6 +118,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         if (openIfAvailable) set({ isOpen: true });
       } catch (err) {
         console.error('[updater] check failed:', err);
+        if (currentCheckId !== checkSequence) return;
         const rawMessage = err instanceof Error ? err.message : i18n.t('updater.toast.checkFailed');
         const message = (() => {
           const text = String(rawMessage || '').trim();

@@ -158,6 +158,10 @@
       "default": "默认模型",
       "chat": "对话模型"
     },
+    "timeout": {
+      "image": "生图超时(秒)",
+      "chat": "生文字超时(秒)"
+    },
     "update": {
       "title": "软件更新",
       "check": "检查更新",

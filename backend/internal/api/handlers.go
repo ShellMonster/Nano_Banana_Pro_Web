@@ -120,6 +120,7 @@ type ProviderConfigRequest struct {
 	APIKey       string `json:"api_key" binding:"required"`
 	Enabled      bool   `json:"enabled"`
 	ModelID      string `json:"model_id"`
+	TimeoutSecs  *int   `json:"timeout_seconds"`
 }
 
 // UpdateProviderConfigHandler 更新 Provider 配置
@@ -155,6 +156,9 @@ func UpdateProviderConfigHandler(c *gin.Context) {
 			Models:       modelsJSON,
 			Enabled:      req.Enabled,
 		}
+		if req.TimeoutSecs != nil {
+			configData.TimeoutSeconds = *req.TimeoutSecs
+		}
 		if err := model.DB.Create(&configData).Error; err != nil {
 			log.Printf("[API] 创建配置失败: %v\n", err)
 			Error(c, http.StatusInternalServerError, 500, "保存配置到数据库失败: "+err.Error())
@@ -173,6 +177,9 @@ func UpdateProviderConfigHandler(c *gin.Context) {
 		}
 		if modelsJSON := buildModelsJSON(req.ProviderName, req.ModelID, configData.Models); modelsJSON != "" {
 			updates["models"] = modelsJSON
+		}
+		if req.TimeoutSecs != nil {
+			updates["timeout_seconds"] = *req.TimeoutSecs
 		}
 		if err := model.DB.Model(&configData).Updates(updates).Error; err != nil {
 			log.Printf("[API] 更新配置失败: %v\n", err)

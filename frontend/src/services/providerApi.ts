@@ -8,6 +8,7 @@ export interface ProviderConfig {
     enabled: boolean;
     model_id?: string;
     models?: string;
+    timeout_seconds?: number;
 }
 
 export const getProviders = async (): Promise<ProviderConfig[]> => {

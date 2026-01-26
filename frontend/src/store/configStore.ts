@@ -8,16 +8,19 @@ interface ConfigState {
   imageApiBaseUrl: string;
   imageApiKey: string;
   imageModel: string;
+  imageTimeoutSeconds: number;
 
   // 对话配置
   chatProvider: string;
   chatApiBaseUrl: string;
   chatApiKey: string;
   chatModel: string;
+  chatTimeoutSeconds: number;
   chatSyncedConfig: {
     apiBaseUrl: string;
     apiKey: string;
     model: string;
+    timeoutSeconds: number;
   } | null;
 
   language: string;
@@ -34,11 +37,13 @@ interface ConfigState {
   setImageApiBaseUrl: (url: string) => void;
   setImageApiKey: (key: string) => void;
   setImageModel: (model: string) => void;
+  setImageTimeoutSeconds: (seconds: number) => void;
   setChatProvider: (provider: string) => void;
   setChatApiBaseUrl: (url: string) => void;
   setChatApiKey: (key: string) => void;
   setChatModel: (model: string) => void;
-  setChatSyncedConfig: (config: { apiBaseUrl: string; apiKey: string; model: string } | null) => void;
+  setChatTimeoutSeconds: (seconds: number) => void;
+  setChatSyncedConfig: (config: { apiBaseUrl: string; apiKey: string; model: string; timeoutSeconds: number } | null) => void;
   setLanguage: (language: string) => void;
   setLanguageResolved: (languageResolved: string | null) => void;
   setPrompt: (prompt: string) => void;
@@ -61,10 +66,12 @@ export const useConfigStore = create<ConfigState>()(
       imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
       imageApiKey: '',
       imageModel: 'gemini-3-pro-image-preview',
+      imageTimeoutSeconds: 150,
       chatProvider: 'openai-chat',
       chatApiBaseUrl: 'https://api.openai.com/v1',
       chatApiKey: '',
       chatModel: 'gemini-3-flash-preview',
+      chatTimeoutSeconds: 150,
       chatSyncedConfig: null,
       language: 'system',
       languageResolved: null,
@@ -79,10 +86,12 @@ export const useConfigStore = create<ConfigState>()(
       setImageApiBaseUrl: (imageApiBaseUrl) => set({ imageApiBaseUrl }),
       setImageApiKey: (imageApiKey) => set({ imageApiKey }),
       setImageModel: (imageModel) => set({ imageModel }),
+      setImageTimeoutSeconds: (imageTimeoutSeconds) => set({ imageTimeoutSeconds }),
       setChatProvider: (chatProvider) => set({ chatProvider }),
       setChatApiBaseUrl: (chatApiBaseUrl) => set({ chatApiBaseUrl }),
       setChatApiKey: (chatApiKey) => set({ chatApiKey }),
       setChatModel: (chatModel) => set({ chatModel }),
+      setChatTimeoutSeconds: (chatTimeoutSeconds) => set({ chatTimeoutSeconds }),
       setChatSyncedConfig: (chatSyncedConfig) => set({ chatSyncedConfig }),
       setLanguage: (language) => set({ language }),
       setLanguageResolved: (languageResolved) => set({ languageResolved }),
@@ -107,9 +116,11 @@ export const useConfigStore = create<ConfigState>()(
       reset: () => set({
         imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
         imageModel: 'gemini-3-pro-image-preview',
+        imageTimeoutSeconds: 150,
         chatProvider: 'openai-chat',
         chatApiBaseUrl: 'https://api.openai.com/v1',
         chatModel: 'gemini-3-flash-preview',
+        chatTimeoutSeconds: 150,
         chatSyncedConfig: null,
         prompt: '',
         count: 1,
@@ -122,7 +133,7 @@ export const useConfigStore = create<ConfigState>()(
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 8,
+      version: 9,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;
@@ -175,6 +186,22 @@ export const useConfigStore = create<ConfigState>()(
             language: rawLanguage ? next.language : 'system',
             languageResolved: next.languageResolved ?? null
           };
+        }
+        if (version < 9) {
+          next = {
+            ...next,
+            imageTimeoutSeconds: next.imageTimeoutSeconds ?? 150,
+            chatTimeoutSeconds: next.chatTimeoutSeconds ?? 150
+          };
+          if (next.chatSyncedConfig && next.chatSyncedConfig.timeoutSeconds == null) {
+            next = {
+              ...next,
+              chatSyncedConfig: {
+                ...next.chatSyncedConfig,
+                timeoutSeconds: next.chatTimeoutSeconds ?? 150
+              }
+            };
+          }
         }
         return next;
       },

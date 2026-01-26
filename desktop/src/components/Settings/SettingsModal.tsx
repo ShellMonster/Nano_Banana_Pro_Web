@@ -67,10 +67,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     imageApiKey, setImageApiKey,
     imageApiBaseUrl, setImageApiBaseUrl,
     imageModel, setImageModel,
+    imageTimeoutSeconds, setImageTimeoutSeconds,
     chatProvider, setChatProvider,
     chatApiBaseUrl, setChatApiBaseUrl,
     chatApiKey, setChatApiKey,
     chatModel, setChatModel,
+    chatTimeoutSeconds, setChatTimeoutSeconds,
     setChatSyncedConfig,
     language,
     languageResolved,
@@ -94,6 +96,15 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [updateHint, setUpdateHint] = useState<{ type: 'checking' | 'latest' | 'available' | 'error'; message: string } | null>(null);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const repoUrl = import.meta.env.VITE_GITHUB_REPO_URL || 'https://github.com/ShellMonster/Nano_Banana_Pro_Web';
+  const normalizeTimeout = (value?: number | null) => {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return 150;
+    return Math.round(value);
+  };
+  const parseTimeoutInput = (value: string, fallback: number) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(5, Math.round(parsed));
+  };
 
   // 当弹窗打开时，从后端获取最新的配置
   useEffect(() => {
@@ -149,6 +160,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         if (modelFromConfig) {
           setImageModel(modelFromConfig);
         }
+        setImageTimeoutSeconds(normalizeTimeout(imageConfig.timeout_seconds));
+      } else {
+        setImageTimeoutSeconds(150);
       }
 
       const chatConfig = data.find((p) => p.provider_name === chatProvider);
@@ -159,15 +173,18 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         if (modelFromConfig) {
           setChatModel(modelFromConfig);
         }
+        setChatTimeoutSeconds(normalizeTimeout(chatConfig.timeout_seconds));
         setChatSyncedConfig({
           apiBaseUrl: chatConfig.api_base || '',
           apiKey: chatConfig.api_key || '',
-          model: modelFromConfig || ''
+          model: modelFromConfig || '',
+          timeoutSeconds: normalizeTimeout(chatConfig.timeout_seconds)
         });
       } else {
         const defaults = getChatProviderDefaults(chatProvider);
         setChatApiBaseUrl(defaults.baseUrl);
         setChatModel(defaults.model);
+        setChatTimeoutSeconds(150);
         setChatSyncedConfig(null);
       }
     } catch (error) {
@@ -182,6 +199,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const imageBase = imageApiBaseUrl.trim();
     const imageKey = imageApiKey.trim();
     const imageModelValue = imageModel.trim();
+    const imageTimeoutValue = normalizeTimeout(imageTimeoutSeconds);
     if (!imageBase || !imageKey || !imageModelValue) {
       toast.error(t('settings.toast.imageConfigIncomplete'));
       return;
@@ -190,6 +208,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const chatBase = chatApiBaseUrl.trim();
     const chatKey = chatApiKey.trim();
     const chatModelValue = chatModel.trim();
+    const chatTimeoutValue = normalizeTimeout(chatTimeoutSeconds);
     const wantsChat = Boolean(chatKey);
     if (wantsChat && (!chatBase || !chatModelValue)) {
       toast.error(t('settings.toast.chatConfigIncomplete'));
@@ -213,7 +232,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         api_base: imageBase,
         api_key: imageKey,
         enabled: true,
-        model_id: imageModelValue
+        model_id: imageModelValue,
+        timeout_seconds: imageTimeoutValue
       });
 
       if (wantsChat) {
@@ -223,9 +243,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           api_base: chatBase,
           api_key: chatKey,
           enabled: false,
-          model_id: chatModelValue
+          model_id: chatModelValue,
+          timeout_seconds: chatTimeoutValue
         });
-        setChatSyncedConfig({ apiBaseUrl: chatBase, apiKey: chatKey, model: chatModelValue });
+        setChatSyncedConfig({ apiBaseUrl: chatBase, apiKey: chatKey, model: chatModelValue, timeoutSeconds: chatTimeoutValue });
       } else {
         setChatSyncedConfig(null);
       }
@@ -254,6 +275,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (modelFromConfig) {
         setImageModel(modelFromConfig);
       }
+      setImageTimeoutSeconds(normalizeTimeout(config.timeout_seconds));
+    } else {
+      setImageTimeoutSeconds(150);
     }
   };
 
@@ -291,16 +315,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (modelFromConfig) {
         setChatModel(modelFromConfig);
       }
+      setChatTimeoutSeconds(normalizeTimeout(config.timeout_seconds));
       setChatSyncedConfig({
         apiBaseUrl: config.api_base || '',
         apiKey: config.api_key || '',
-        model: modelFromConfig || ''
+        model: modelFromConfig || '',
+        timeoutSeconds: normalizeTimeout(config.timeout_seconds)
       });
     } else {
       const defaults = getChatProviderDefaults(newProvider);
       setChatApiBaseUrl(defaults.baseUrl);
       setChatApiKey('');
       setChatModel(defaults.model);
+      setChatTimeoutSeconds(150);
       setChatSyncedConfig(null);
     }
   };
@@ -637,6 +664,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
             </div>
+
+            {/* Timeout */}
+            <div className="space-y-3">
+              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <Box className="w-4 h-4 text-blue-600" />
+                {t('settings.timeout.image')}
+              </label>
+              <Input
+                type="number"
+                min={5}
+                step={1}
+                value={imageTimeoutSeconds}
+                onChange={(e) => setImageTimeoutSeconds(parseTimeoutInput(e.target.value, imageTimeoutSeconds))}
+                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              />
+            </div>
                 </>
               )}
 
@@ -727,6 +770,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 value={chatModel}
                 onChange={(e) => setChatModel(e.target.value)}
                 placeholder="gemini-3-flash-preview"
+                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              />
+            </div>
+
+            {/* Timeout */}
+            <div className="space-y-3">
+              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <Box className="w-4 h-4 text-blue-600" />
+                {t('settings.timeout.chat')}
+              </label>
+              <Input
+                type="number"
+                min={5}
+                step={1}
+                value={chatTimeoutSeconds}
+                onChange={(e) => setChatTimeoutSeconds(parseTimeoutInput(e.target.value, chatTimeoutSeconds))}
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
             </div>

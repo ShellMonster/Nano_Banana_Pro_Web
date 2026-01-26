@@ -16,7 +16,7 @@ const BACKEND_ERROR_MATCHES = {
 
 export function PromptInput() {
   const { t } = useTranslation();
-  const { prompt, setPrompt, chatProvider, chatApiBaseUrl, chatApiKey, chatModel, chatSyncedConfig } = useConfigStore();
+  const { prompt, setPrompt, chatProvider, chatApiBaseUrl, chatApiKey, chatModel, chatTimeoutSeconds, chatSyncedConfig } = useConfigStore();
   const { history, index, record, undo, redo, reset } = usePromptHistoryStore();
   const status = useGenerateStore((s) => s.status);
   const isSubmitting = useGenerateStore((s) => s.isSubmitting);
@@ -29,8 +29,8 @@ export function PromptInput() {
 
   const canUndo = index > 0;
   const canRedo = index >= 0 && index < history.length - 1;
-  const chatSignature = (base: string, key: string, model: string) =>
-    `${base.trim()}::${key.trim()}::${model.trim()}`;
+  const chatSignature = (base: string, key: string, model: string, timeoutSeconds?: number) =>
+    `${base.trim()}::${key.trim()}::${model.trim()}::${timeoutSeconds ?? ''}`;
 
   useEffect(() => {
     if (!initializedRef.current) {
@@ -102,8 +102,13 @@ export function PromptInput() {
       return;
     }
     if (chatSyncedConfig) {
-      const currentSignature = chatSignature(chatBase, chatKey, chatModelValue);
-      const syncedSignature = chatSignature(chatSyncedConfig.apiBaseUrl, chatSyncedConfig.apiKey, chatSyncedConfig.model);
+      const currentSignature = chatSignature(chatBase, chatKey, chatModelValue, chatTimeoutSeconds);
+      const syncedSignature = chatSignature(
+        chatSyncedConfig.apiBaseUrl,
+        chatSyncedConfig.apiKey,
+        chatSyncedConfig.model,
+        chatSyncedConfig.timeoutSeconds
+      );
       if (currentSignature !== syncedSignature) {
         toast.error(t('prompt.toast.chatConfigChanged'));
         return;
