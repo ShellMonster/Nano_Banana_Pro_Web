@@ -41,7 +41,7 @@ export default function ConfigPanel() {
           <Button
             className="w-full h-14 text-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-xl shadow-blue-200/50 border-none transition-all duration-300"
             onClick={generate}
-            disabled={!apiKey || (!prompt && !hasRefImages)}
+            disabled={!apiKey || !prompt.trim()}
           >
             {hasRefImages ? <Sparkles className="w-5 h-5 mr-3" /> : <Wand2 className="w-5 h-5 mr-3" />}
             <span>{hasRefImages ? t('generate.startImg2Img') : t('generate.start')}</span>
