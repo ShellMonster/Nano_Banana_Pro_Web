@@ -12,7 +12,7 @@ services:
         - GO_PROXY=${GO_PROXY:-}
     container_name: banana-pro
     ports:
-      - "8080:80"  # 宿主机8080映射到容器80
+      - "8090:80"  # 宿主机8090映射到容器80
     volumes:
       # 数据持久化：图片存储、数据库
       - ./data/storage:/app/storage

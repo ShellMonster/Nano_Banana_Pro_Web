@@ -34,7 +34,14 @@ RUN npm run build
 # Stage 2: 构建后端
 # ========================================
 ARG DOCKER_REGISTRY=
-FROM ${DOCKER_REGISTRY:-}golang:1.21-alpine AS backend-builder
+FROM ${DOCKER_REGISTRY:-}golang:1.24-alpine AS backend-builder
+
+# 安装构建依赖（SQLite 需要 CGO 和 gcc）
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    sqlite-dev \
+    && rm -rf /var/cache/apk/*
 
 # Go 模块代理配置
 ARG GO_PROXY=
@@ -48,7 +55,8 @@ RUN go mod download
 
 # 复制源码并构建
 COPY backend/ ./
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o server ./cmd/server
+# 启用 CGO 以支持 SQLite
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o server ./cmd/server
 
 # ========================================
 # Stage 3: 最终运行镜像
@@ -56,19 +64,23 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o server ./cmd/server
 ARG DOCKER_REGISTRY=
 FROM ${DOCKER_REGISTRY:-}alpine:3.19
 
-# 安装运行时依赖
+# 安装运行时依赖（包括 SQLite 动态库）
 RUN apk add --no-cache \
     nginx \
     ca-certificates \
     tzdata \
     wget \
+    sqlite-libs \
     && rm -rf /var/cache/apk/*
 
 # 设置时区（可被环境变量覆盖）
 ENV TZ=Asia/Shanghai
 
+# 禁用标准输入监听（Docker/生产环境）
+ENV DISABLE_STDIN_MONITOR=true
+
 # 创建必要的目录
-RUN mkdir -p /app/storage /app/frontend/dist /var/log/nginx /run/nginx
+RUN mkdir -p /app/storage /app/frontend/dist /var/log/nginx /run/nginx /app/storage/local
 
 # 复制后端二进制文件
 COPY --from=backend-builder /backend/server /app/server
@@ -90,7 +102,7 @@ EXPOSE 80
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD wget -q --spider http://localhost:8080/api/v1/health || exit 1
+    CMD wget -q --spider http://localhost:8080/api/v1/health || wget -q --spider http://localhost:80/api/v1/health || exit 1
 
 # 启动脚本：同时运行 Nginx 和后端服务
-CMD sh -c "nginx && cd /app && ./server"
+CMD sh -c "mkdir -p /app/storage/local && nginx && cd /app && ./server"
