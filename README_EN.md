@@ -292,58 +292,31 @@ Integrated Tauri Updater for one-click updates.
 
 Only for **Backend + Web Frontend** deployment.
 
-### 1) Backend (Go)
-```dockerfile
-FROM golang:1.21-alpine AS build
-WORKDIR /app
-COPY . .
-RUN go build -o server cmd/server/main.go
+### Quick Start
 
-FROM alpine:3.19
-WORKDIR /app
-COPY --from=build /app/server /app/server
-EXPOSE 8080
-CMD ["./server"]
+```bash
+# 1. Copy environment template and configure API Key
+cp .env.example .env
+nano .env  # Add your GEMINI_API_KEY or OPENAI_API_KEY
+
+# 2. Start services (must use docker compose)
+docker compose -p banana-pro up -d
+
+# 3. Access the application
+# Browser: http://localhost:8090
 ```
 
-### 2) Frontend (Vite)
-```dockerfile
-FROM node:20-alpine AS build
-ARG VITE_API_URL
-ENV VITE_API_URL=${VITE_API_URL}
-WORKDIR /app
-COPY . .
-RUN npm install && npm run build
+### Detailed Documentation
 
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
-```
+For complete deployment guide, configuration, and troubleshooting, see: **[DOCKER_DEPLOY.md](DOCKER_DEPLOY.md)**
 
-### 3) docker-compose
-```yaml
-version: "3.8"
-services:
-  backend:
-    build: ./backend
-    ports:
-      - "8080:8080"
-    environment:
-      - SERVER_PORT=8080
-    volumes:
-      - ./backend/configs:/app/configs
-      - ./backend/storage:/app/storage
-      - ./backend/data.db:/app/data.db
-  frontend:
-    ports:
-      - "80:80"
-    build:
-      context: ./frontend
-      args:
-        VITE_API_URL: http://backend:8080/api/v1
-    depends_on:
-      - backend
-```
+### Key Features
+
+- 🐳 **Multi-stage Build**: Frontend (Node.js) + Backend (Go) + Runtime (Alpine + Nginx)
+- 🚀 **Environment Auto-Detection**: Backend automatically detects Docker and listens on `0.0.0.0` (Tauri uses `127.0.0.1`)
+- 💾 **Data Persistence**: Images and database automatically mounted to `./data/storage`
+- 🔄 **Health Check**: Built-in health endpoint with automatic restart
+- 🇨🇳 **Mirror Support**: Configurable China mirror sources via Build Args
 
 ---
 

@@ -292,58 +292,31 @@ Tauri 공식 Updater 기능을 통합했습니다.
 
 데스크톱 버전은 Docker에 적합하지 않습니다. 다음은 **백엔드 + 웹 프론트엔드** 배포용입니다.
 
-### 1) 백엔드 (Go)
-```dockerfile
-FROM golang:1.21-alpine AS build
-WORKDIR /app
-COPY . .
-RUN go build -o server cmd/server/main.go
+### 빠른 시작
 
-FROM alpine:3.19
-WORKDIR /app
-COPY --from=build /app/server /app/server
-EXPOSE 8080
-CMD ["./server"]
+```bash
+# 1. 환경변수 템플릿을 복사하고 API Key 설정
+cp .env.example .env
+nano .env  # GEMINI_API_KEY 또는 OPENAI_API_KEY 추가
+
+# 2. 서비스 시작 (docker compose 사용)
+docker compose -p banana-pro up -d
+
+# 3. 애플리케이션 접속
+# 브라우저: http://localhost:8090
 ```
 
-### 2) 프론트엔드 (Vite)
-```dockerfile
-FROM node:20-alpine AS build
-ARG VITE_API_URL
-ENV VITE_API_URL=${VITE_API_URL}
-WORKDIR /app
-COPY . .
-RUN npm install && npm run build
+### 상세 문서
 
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
-```
+전체 배포 가이드, 설정, 문제 해결은: **[DOCKER_DEPLOY.md](DOCKER_DEPLOY.md)**
 
-### 3) docker-compose 예시
-```yaml
-version: "3.8"
-services:
-  backend:
-    build: ./backend
-    ports:
-      - "8080:8080"
-    environment:
-      - SERVER_PORT=8080
-    volumes:
-      - ./backend/configs:/app/configs
-      - ./backend/storage:/app/storage
-      - ./backend/data.db:/app/data.db
-  frontend:
-    ports:
-      - "80:80"
-    build:
-      context: ./frontend
-      args:
-        VITE_API_URL: http://backend:8080/api/v1
-    depends_on:
-      - backend
-```
+### 주요 기능
+
+- 🐳 **멀티스테이지 빌드**: 프론트엔드 (Node.js) + 백엔드 (Go) + 런타임 (Alpine + Nginx)
+- 🚀 **환경 자동 감지**: 백엔드는 Docker를 자동 감지하여 `0.0.0.0`에서 리스닝 (Tauri는 `127.0.0.1`)
+- 💾 **데이터 지속성**: 이미지와 데이터베이스는 자동으로 `./data/storage`에 마운트
+- 🔄 **헬스 체크**: 내장된 헬스 엔드포인트와 자동 재시작
+- 🇨🇳 **미러 지원**: Build Args로 구성 가능한 중국 미러 소스
 
 ---
 

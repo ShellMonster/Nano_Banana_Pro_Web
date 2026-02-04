@@ -292,58 +292,31 @@ Tauri 公式の Updater 機能を統合済みです。
 
 デスクトップ版は Docker に適していません。以下は **バックエンド + Web フロントエンド** のデプロイ用です。
 
-### 1) バックエンド (Go)
-```dockerfile
-FROM golang:1.21-alpine AS build
-WORKDIR /app
-COPY . .
-RUN go build -o server cmd/server/main.go
+### クイックスタート
 
-FROM alpine:3.19
-WORKDIR /app
-COPY --from=build /app/server /app/server
-EXPOSE 8080
-CMD ["./server"]
+```bash
+# 1. 環境変数テンプレートをコピーして API Key を設定
+cp .env.example .env
+nano .env  # GEMINI_API_KEY または OPENAI_API_KEY を追加
+
+# 2. サービスを起動 (docker compose を使用)
+docker compose -p banana-pro up -d
+
+# 3. アプリケーションにアクセス
+# ブラウザ: http://localhost:8090
 ```
 
-### 2) フロントエンド (Vite)
-```dockerfile
-FROM node:20-alpine AS build
-ARG VITE_API_URL
-ENV VITE_API_URL=${VITE_API_URL}
-WORKDIR /app
-COPY . .
-RUN npm install && npm run build
+### 詳細ドキュメント
 
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
-```
+完全なデプロイガイド、設定、トラブルシューティングについては: **[DOCKER_DEPLOY.md](DOCKER_DEPLOY.md)**
 
-### 3) docker-compose 例
-```yaml
-version: "3.8"
-services:
-  backend:
-    build: ./backend
-    ports:
-      - "8080:8080"
-    environment:
-      - SERVER_PORT=8080
-    volumes:
-      - ./backend/configs:/app/configs
-      - ./backend/storage:/app/storage
-      - ./backend/data.db:/app/data.db
-  frontend:
-    ports:
-      - "80:80"
-    build:
-      context: ./frontend
-      args:
-        VITE_API_URL: http://backend:8080/api/v1
-    depends_on:
-      - backend
-```
+### 主な機能
+
+- 🐳 **マルチステージビルド**: フロントエンド (Node.js) + バックエンド (Go) + ランタイム (Alpine + Nginx)
+- 🚀 **環境自動検出**: バックエンドは Docker を自動検出し `0.0.0.0` でリッスン (Tauri は `127.0.0.1`)
+- 💾 **データ永続化**: 画像とデータベースは自動的に `./data/storage` にマウント
+- 🔄 **ヘルスチェック**: 組み込みヘルスエンドポイントと自動再起動
+- 🇨🇳 **ミラーサポート**: Build Args で設定可能な中国ミラーソース
 
 ---
 
