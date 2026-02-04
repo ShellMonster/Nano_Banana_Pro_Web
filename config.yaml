@@ -1,0 +1,34 @@
+server:
+  host: "0.0.0.0"  # Docker 环境必须监听 0.0.0.0
+  port: 8080
+
+database:
+  path: "storage/local/service.db"
+
+storage:
+  local_dir: "storage/local"
+  oss:
+    enabled: false
+    endpoint: "oss-cn-hangzhou.aliyuncs.com"
+    access_key_id: ""
+    access_key_secret: ""
+    bucket_name: ""
+    domain: ""
+
+providers:
+  gemini:
+    enabled: true
+    api_key: "${GEMINI_API_KEY:YOUR_GEMINI_API_KEY}"
+    api_base: "${GEMINI_API_BASE:https://generativelanguage.googleapis.com}"
+  openai:
+    enabled: false
+    api_key: "${OPENAI_API_KEY:YOUR_OPENAI_API_KEY}"
+    api_base: "${OPENAI_API_BASE:https://api.openai.com/v1}"
+
+prompts:
+  optimize_system: null
+  optimize_system_json: null
+
+templates:
+  remote_url: "https://raw.githubusercontent.com/ShellMonster/Nano_Banana_Pro_Web/refs/heads/main/backend/internal/templates/assets/templates.json"
+  fetch_timeout_seconds: 4

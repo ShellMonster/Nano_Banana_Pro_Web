@@ -1,0 +1,60 @@
+# Git
+.git
+.gitignore
+.github
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+
+# 前端构建产物（会重新构建）
+frontend/dist
+frontend/.env.local
+frontend/.env.*.local
+
+# Tauri 桌面端
+desktop/
+desktop/src-tauri/target/
+desktop/src-tauri/bin/
+desktop/node_modules/
+
+# 后端构建产物（会重新构建）
+backend/server
+backend/bin/
+
+# 数据和缓存
+backend/storage/
+backend/*.db
+backend/templates_cache.json
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# 文档
+*.md
+!README.md
+
+# 图片资源（预览图等）
+assets/*.png
+assets/*.jpg
+assets/*.jpeg
+
+# 临时文件
+*.log
+*.tmp
+
+# Docker（避免递归）
+.dockerignore
+Dockerfile*
+docker-compose*.yml
