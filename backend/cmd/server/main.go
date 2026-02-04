@@ -38,6 +38,61 @@ func getWorkDir() string {
 	return "."
 }
 
+// isRunningInDocker 检测是否运行在 Docker 容器中
+// 使用多种检测方式组合，确保可靠性
+func isRunningInDocker() bool {
+	// 方法 1: 检查 /.dockerenv 文件（Docker 自动创建此文件）
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+
+	// 方法 2: 检查 /proc/1/cgroup 内容（Linux 容器标准方法）
+	if data, err := os.ReadFile("/proc/1/cgroup"); err == nil {
+		content := string(data)
+		// 包含以下任一字符串说明在容器中
+		if strings.Contains(content, "docker") ||
+			strings.Contains(content, "kubepods") ||
+			strings.Contains(content, "containerd") {
+			return true
+		}
+	}
+
+	// 方法 3: 检查环境变量（可选，作为辅助验证）
+	// Docker 和 Kubernetes 通常会设置这些环境变量
+	if os.Getenv("DOCKER_CONTAINER") != "" ||
+		os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
+		return true
+	}
+
+	return false
+}
+
+// getDefaultHost 根据环境自动选择合适的监听地址
+// 优先级: 环境变量 > 自动检测 > 默认值
+func getDefaultHost(configuredHost string) string {
+	// 1. 如果配置文件中已指定，直接使用
+	configuredHost = strings.TrimSpace(configuredHost)
+	if configuredHost != "" {
+		return configuredHost
+	}
+
+	// 2. 优先使用环境变量（保持灵活性，可手动覆盖）
+	if envHost := os.Getenv("SERVER_HOST"); envHost != "" {
+		log.Printf("使用环境变量 SERVER_HOST=%s", envHost)
+		return envHost
+	}
+
+	// 3. 自动检测运行环境
+	if isRunningInDocker() {
+		log.Printf("检测到 Docker 容器环境，使用监听地址 0.0.0.0")
+		return "0.0.0.0"
+	}
+
+	// 4. 默认使用 127.0.0.1（Tauri 和本地开发环境）
+	log.Printf("使用默认监听地址 127.0.0.1")
+	return "127.0.0.1"
+}
+
 func main() {
 	workDir := getWorkDir()
 	log.Printf("Working directory: %s", workDir)
@@ -134,10 +189,8 @@ func main() {
 	if port <= 0 {
 		port = 8080
 	}
-	host := strings.TrimSpace(config.GlobalConfig.Server.Host)
-	if host == "" {
-		host = "127.0.0.1"
-	}
+	// 自动检测运行环境并选择合适的监听地址
+	host := getDefaultHost(config.GlobalConfig.Server.Host)
 	var ln net.Listener
 	var err error
 
@@ -165,21 +218,25 @@ func main() {
 	fmt.Printf("SERVER_PORT=%d\n", port)
 	os.Stdout.Sync()
 
-	// 监听标准输入，用于检测父进程是否退出
-	// 当 Tauri 进程退出时，它会自动关闭 sidecar 的 stdin，从而触发这里的 Read 返回
-	go func() {
-		buf := make([]byte, 1)
-		for {
-			_, err := os.Stdin.Read(buf)
-			if err != nil {
-				log.Printf("检测到标准输入关闭或异常 (%v)，正在安全退出...", err)
-				// 发送退出信号
-				p, _ := os.FindProcess(os.Getpid())
-				p.Signal(syscall.SIGTERM)
-				return
+	// 监听标准输入，用于检测父进程是否退出（仅 Tauri 边车模式）
+	// Docker 环境中通过 DISABLE_STDIN_MONITOR 环境变量禁用
+	if os.Getenv("DISABLE_STDIN_MONITOR") == "" {
+		go func() {
+			buf := make([]byte, 1)
+			for {
+				_, err := os.Stdin.Read(buf)
+				if err != nil {
+					log.Printf("检测到标准输入关闭或异常 (%v)，正在安全退出...", err)
+					// 发送退出信号
+					p, _ := os.FindProcess(os.Getpid())
+					p.Signal(syscall.SIGTERM)
+					return
+				}
 			}
-		}
-	}()
+		}()
+	} else {
+		log.Println("标准输入监听已禁用（Docker/生产模式）")
+	}
 
 	srv := &http.Server{
 		Addr:    net.JoinHostPort(host, strconv.Itoa(port)),
