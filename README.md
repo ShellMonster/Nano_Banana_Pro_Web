@@ -354,65 +354,44 @@ cat ~/.tauri/banana-updater.key
 
 桌面版不适合 Docker 运行，以下仅用于 **后端 + Web 前端** 的部署。
 
-### 1) 后端（Go）
-示例 `backend/Dockerfile`：
-```dockerfile
-FROM golang:1.21-alpine AS build
-WORKDIR /app
-COPY . .
-RUN go build -o server cmd/server/main.go
+项目提供完整的 Docker 部署方案，支持一键启动、国内镜像源加速、数据持久化等功能。
 
-FROM alpine:3.19
-WORKDIR /app
-COPY --from=build /app/server /app/server
-EXPOSE 8080
-CMD ["./server"]
+### 快速开始
+
+```bash
+# 1. 复制环境变量模板并配置 API Key
+cp .env.example .env
+nano .env  # 填入你的 GEMINI_API_KEY 或 OPENAI_API_KEY
+
+# 2. 启动服务（必须使用 docker compose）
+docker compose -p banana-pro up -d
+
+# 3. 访问应用
+# 浏览器打开：http://localhost:8090
 ```
 
-### 2) 前端（Vite 静态）
-示例 `frontend/Dockerfile`（Nginx 托管静态资源）：
-```dockerfile
-FROM node:20-alpine AS build
-ARG VITE_API_URL
-ENV VITE_API_URL=${VITE_API_URL}
-WORKDIR /app
-COPY . .
-RUN npm install && npm run build
+### 国内用户加速
 
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
+如果构建或拉取镜像较慢，可在 `.env` 文件中启用镜像源：
+
+```bash
+# .env 文件
+DOCKER_REGISTRY=docker.1ms.run/
+NPM_REGISTRY=https://registry.npmmirror.com/
+GO_PROXY=https://goproxy.cn,direct
 ```
 
-### 3) docker-compose 示例
-```yaml
-version: "3.8"
-services:
-  backend:
-    build: ./backend
-    ports:
-      - "8080:8080"
-    environment:
-      - SERVER_PORT=8080
-      - TEMPLATES_REMOTE_URL=https://raw.githubusercontent.com/ShellMonster/Nano_Banana_Pro_Web/refs/heads/main/backend/internal/templates/assets/templates.json
-    volumes:
-      - ./backend/configs:/app/configs
-      - ./backend/storage:/app/storage
-      - ./backend/data.db:/app/data.db
-  frontend:
-    ports:
-      - "80:80"
-    build:
-      context: ./frontend
-      args:
-        VITE_API_URL: http://backend:8080/api/v1
-    depends_on:
-      - backend
-```
+### 详细文档
 
-> 说明：
-> - 后端配置优先读取 `backend/configs/config.yaml`，也可通过环境变量覆盖（如 `SERVER_PORT`、`TEMPLATES_REMOTE_URL`）。
-> - Web 前端通过 `VITE_API_URL` 注入 API 基地址（构建时生效），也可使用反向代理统一转发。
+完整的部署指南、配置说明、故障排查请查看：**[DOCKER_DEPLOY.md](DOCKER_DEPLOY.md)**
+
+### 主要特性
+
+- 🐳 **多阶段构建**：前端（Node.js）+ 后端（Go）+ 运行时（Alpine + Nginx）
+- 🚀 **环境自动检测**：后端自动识别 Docker 环境，监听 `0.0.0.0`（Tauri 监听 `127.0.0.1`）
+- 💾 **数据持久化**：图片存储和数据库自动挂载到 `./data/storage`
+- 🔄 **健康检查**：内置健康检查接口，自动重启异常容器
+- 🇨🇳 **镜像源支持**：通过 Build Args 配置国内镜像源，保持 Dockerfile 通用性
 
 ---
 
