@@ -6,6 +6,7 @@ import { BASE_URL } from '../services/api';
 
 export function useTaskStream(taskId: string | null) {
   const connectionMode = useGenerateStore((s) => s.connectionMode);
+  const isBatchTask = Boolean(taskId && taskId.startsWith('batch-'));
 
   const storeRef = useRef({
     updateProgress: useGenerateStore.getState().updateProgress,
@@ -40,7 +41,7 @@ export function useTaskStream(taskId: string | null) {
   }, [closeStream]);
 
   useEffect(() => {
-    if (!taskId || connectionMode === 'polling') {
+    if (!taskId || isBatchTask || connectionMode === 'polling') {
       closeStream();
       return;
     }
@@ -112,5 +113,5 @@ export function useTaskStream(taskId: string | null) {
       stream.removeEventListener('ping', handlePing);
       closeStream();
     };
-  }, [taskId, connectionMode, getStreamUrl, closeStream]);
+  }, [taskId, isBatchTask, connectionMode, getStreamUrl, closeStream]);
 }

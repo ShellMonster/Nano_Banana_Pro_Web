@@ -234,6 +234,11 @@ export default function MainLayout() {
   const isTaskWatchdogRunningRef = useRef(false);
   const hasWarnedCountMismatchRef = useRef<string | null>(null);
   const staleCountRef = useRef(0);
+  const BATCH_TASK_PREFIX = 'batch-';
+  const isBatchTaskId = (value: string | null | undefined) => {
+    if (!value) return false;
+    return value.startsWith(BATCH_TASK_PREFIX);
+  };
   useEffect(() => {
     if (!isHydrated || !isTauriReady) return;
 
@@ -248,6 +253,7 @@ export default function MainLayout() {
       const state = useGenerateStore.getState();
       const currentTaskId = state.taskId;
       if (state.status !== 'processing' || !currentTaskId) return;
+      if (isBatchTaskId(currentTaskId)) return;
 
       const now = Date.now();
       const last = state.lastMessageTime ?? state.startTime ?? now;

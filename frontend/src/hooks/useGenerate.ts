@@ -17,6 +17,16 @@ const POLL_INTERVAL = 3000;
 const MAX_POLL_RETRIES = 6;
 // 最大退避间隔（毫秒）（降低到 15 秒）
 const MAX_BACKOFF_INTERVAL = 15000;
+const BATCH_TASK_PREFIX = 'batch-';
+
+const isBatchTaskId = (value: string | null | undefined) => {
+  if (!value) return false;
+  return value.startsWith(BATCH_TASK_PREFIX);
+};
+
+const sleep = (ms: number) => new Promise<void>((resolve) => {
+  setTimeout(resolve, ms);
+});
 
 export function useGenerate() {
   const config = useConfigStore();
@@ -72,7 +82,7 @@ export function useGenerate() {
 
   // 轮询函数：检查任务状态
   const startPolling = useCallback(async (currentTaskId: string) => {
-    if (isPollingRef.current || status !== 'processing') {
+    if (isPollingRef.current || status !== 'processing' || isBatchTaskId(currentTaskId)) {
       return;
     }
 
@@ -162,7 +172,7 @@ export function useGenerate() {
 
   // 监听 connectionMode 变化，当切换到 polling 时自动启动轮询
   useEffect(() => {
-    if (connectionMode === 'polling' && status === 'processing' && taskId && !isPollingRef.current && !hasStartedRef.current) {
+    if (connectionMode === 'polling' && status === 'processing' && taskId && !isBatchTaskId(taskId) && !isPollingRef.current && !hasStartedRef.current) {
       console.log('Detected polling mode, starting poll');
       hasStartedRef.current = true;
       startPolling(taskId);
@@ -212,6 +222,163 @@ export function useGenerate() {
         window.dispatchEvent(new CustomEvent('template-market:close', { detail: { reason: 'generate' } }));
       }
 
+      const requestedCount = Math.max(1, Number(config.count) || 1);
+
+      const submitSingleGenerate = async () => {
+        if (config.refFiles.length > 0) {
+          const formData = new FormData();
+          formData.append('prompt', config.prompt);
+          formData.append('provider', config.imageProvider);
+          formData.append('model_id', config.imageModel);
+          formData.append('aspectRatio', config.aspectRatio);
+          formData.append('imageSize', config.imageSize);
+          formData.append('count', '1');
+
+          config.refFiles.forEach((file) => {
+            formData.append('refImages', file);
+          });
+
+          return generateBatchWithImages(formData);
+        }
+
+        return generateBatch({
+          provider: config.imageProvider,
+          model_id: config.imageModel,
+          params: {
+            prompt: config.prompt,
+            count: 1,
+            aspectRatio: config.aspectRatio,
+            imageSize: config.imageSize,
+          }
+        } as any);
+      };
+
+      const pollTaskUntilFinished = async (singleTaskId: string) => {
+        let retry = 0;
+        while (true) {
+          try {
+            const taskData = await getTaskStatus(singleTaskId);
+            retry = 0;
+            if (taskData.status === 'completed' || taskData.status === 'failed' || taskData.status === 'partial') {
+              return taskData;
+            }
+            await sleep(POLL_INTERVAL);
+          } catch (err) {
+            retry += 1;
+            if (retry >= MAX_POLL_RETRIES) {
+              throw err;
+            }
+            const backoffInterval = Math.min(
+              POLL_INTERVAL * Math.pow(2, retry - 1),
+              MAX_BACKOFF_INTERVAL
+            );
+            await sleep(backoffInterval);
+          }
+        }
+      };
+
+      if (requestedCount > 1) {
+        const batchTaskId = `${BATCH_TASK_PREFIX}${Date.now()}`;
+        startTask(batchTaskId, requestedCount, {
+          prompt: config.prompt,
+          aspectRatio: config.aspectRatio,
+          imageSize: config.imageSize
+        });
+        setConnectionMode('none');
+        expectedTaskIdRef.current = batchTaskId;
+
+        const historyStore = useHistoryStore.getState();
+        const createResults = await Promise.allSettled(
+          Array.from({ length: requestedCount }, () => submitSingleGenerate())
+        );
+
+        const createdTasks: any[] = [];
+        let firstError = '';
+        createResults.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            const task = result.value as any;
+            const createdTaskId = task?.id || task?.task_id;
+            if (createdTaskId) {
+              createdTasks.push(task);
+            } else if (!firstError) {
+              firstError = i18n.t('generate.toast.taskIdMissing');
+            }
+          } else if (!firstError) {
+            firstError = result.reason instanceof Error
+              ? result.reason.message
+              : i18n.t('generate.toast.startFailed');
+          }
+        });
+
+        createdTasks.forEach((task) => {
+          historyStore.upsertTask({
+            ...task,
+            status: 'processing',
+            updatedAt: new Date().toISOString()
+          });
+        });
+
+        if (createdTasks.length === 0) {
+          const errorMessage = firstError || i18n.t('generate.toast.startFailed');
+          toast.error(errorMessage);
+          storeRef.current.failTask(errorMessage);
+          expectedTaskIdRef.current = null;
+          clearUpdateSource();
+          return;
+        }
+
+        let successCount = 0;
+        const finalResults = await Promise.allSettled(
+          createdTasks.map(async (task) => {
+            const singleTaskId = task.id || task.task_id;
+            const finalTask = await pollTaskUntilFinished(singleTaskId);
+            historyStore.upsertTask(finalTask);
+
+            if (finalTask.images && finalTask.images.length > 0) {
+              const images = finalTask.images.map((image: any) => ({
+                ...image,
+                taskId: batchTaskId
+              }));
+              successCount += images.length;
+              storeRef.current.updateProgressBatch(successCount, images);
+            }
+
+            if (finalTask.status === 'failed' && finalTask.errorMessage && !firstError) {
+              firstError = finalTask.errorMessage;
+            }
+          })
+        );
+
+        finalResults.forEach((result) => {
+          if (result.status === 'rejected' && !firstError) {
+            firstError = result.reason instanceof Error
+              ? result.reason.message
+              : i18n.t('generate.toast.startFailed');
+          }
+        });
+
+        if (successCount === 0) {
+          const errorMessage = firstError || i18n.t('generate.toast.startFailed');
+          toast.error(errorMessage);
+          storeRef.current.failTask(errorMessage);
+          expectedTaskIdRef.current = null;
+          clearUpdateSource();
+          return;
+        }
+
+        if (successCount < requestedCount) {
+          toast.info(i18n.t('generate.toast.countMismatch', {
+            total: requestedCount,
+            returned: successCount
+          }));
+        }
+
+        storeRef.current.completeTask();
+        expectedTaskIdRef.current = null;
+        clearUpdateSource();
+        return;
+      }
+
       let response;
 
       if (config.refFiles.length > 0) {
@@ -222,7 +389,7 @@ export function useGenerate() {
         formData.append('model_id', config.imageModel);
         formData.append('aspectRatio', config.aspectRatio);
         formData.append('imageSize', config.imageSize);
-        formData.append('count', config.count.toString());
+        formData.append('count', requestedCount.toString());
         
         // 添加所有参考图片
         config.refFiles.forEach((file) => {
@@ -237,7 +404,7 @@ export function useGenerate() {
           model_id: config.imageModel,
           params: {
             prompt: config.prompt,
-            count: config.count,
+            count: requestedCount,
             aspectRatio: config.aspectRatio,
             imageSize: config.imageSize,
           }
@@ -252,10 +419,10 @@ export function useGenerate() {
         throw new Error(i18n.t('generate.toast.taskIdMissing'));
       }
 
-      console.log('[useGenerate] start generation task:', { newTaskId, count: config.count });
+      console.log('[useGenerate] start generation task:', { newTaskId, count: requestedCount });
 
       // 启动任务
-      startTask(newTaskId, config.count, {
+      startTask(newTaskId, requestedCount, {
           prompt: config.prompt,
           aspectRatio: config.aspectRatio,
           imageSize: config.imageSize
