@@ -152,7 +152,8 @@
       "label": "AI对接方式",
       "recommended": "推荐平台：",
       "yunwu": "云雾API",
-      "openaiImageLimit": "OpenAI 类型当前仅支持生成 1K 图片"
+      "openaiImageLimit": "OpenAI 类型当前仅支持生成 1K 图片",
+      "geminiBasePathHint": "Gemini 类型建议 Base URL 仅填写域名，不要带 /v1 或具体接口路径"
     },
     "model": {
       "default": "默认模型",
@@ -188,6 +189,7 @@
       "imageConfigIncomplete": "请先完整配置生图模型",
       "chatConfigIncomplete": "请完整配置对话模型",
       "openaiGeminiUnsupported": "OpenAI 官方 Base URL 不支持 Gemini 模型，请更换兼容接口",
+      "geminiBasePathWarning": "检测到 Gemini Base URL 包含路径（如 /v1），建议仅填写域名",
       "saveSuccess": "配置已成功同步到服务器",
       "saveFailed": "保存失败: {{msg}}",
       "checkNetwork": "请检查网络",

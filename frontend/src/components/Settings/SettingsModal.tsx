@@ -57,6 +57,38 @@ const resolveSystemLanguage = (locale: string | null) => {
   return 'en-US';
 };
 
+const isGeminiProvider = (provider: string) => {
+  const normalized = String(provider || '').trim().toLowerCase();
+  return normalized === 'gemini' || normalized === 'gemini-chat';
+};
+
+const hasGeminiBasePathWarning = (baseUrl: string) => {
+  const raw = String(baseUrl || '').trim();
+  if (!raw) return false;
+
+  let pathname = '';
+  try {
+    pathname = new URL(raw).pathname.toLowerCase();
+  } catch {
+    const withoutOrigin = raw
+      .replace(/^[a-z]+:\/\/[^/]+/i, '')
+      .split(/[?#]/)[0]
+      .toLowerCase();
+    pathname = withoutOrigin;
+  }
+
+  const path = pathname.replace(/\/+$/, '');
+  if (!path) return false;
+  return (
+    path === '/v1' ||
+    path.startsWith('/v1/') ||
+    path === '/v1beta' ||
+    path.startsWith('/v1beta/') ||
+    path.includes('/chat/completions') ||
+    path.includes('/responses')
+  );
+};
+
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { t } = useTranslation();
   const {
@@ -83,6 +115,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [fetching, setFetching] = useState(false);
+  const imageBaseWarn = isGeminiProvider(imageProvider) && hasGeminiBasePathWarning(imageApiBaseUrl);
+  const chatBaseWarn = isGeminiProvider(chatProvider) && hasGeminiBasePathWarning(chatApiBaseUrl);
   const normalizeTimeout = (value?: number | null) => {
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return 150;
     return Math.round(value);
@@ -167,9 +201,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const chatModelValue = chatModel.trim();
     const chatTimeoutValue = normalizeTimeout(chatTimeoutSeconds);
     const wantsChat = Boolean(chatKey);
+    const imageSaveWarn = isGeminiProvider(imageProvider) && hasGeminiBasePathWarning(imageBase);
+    const chatSaveWarn = wantsChat && isGeminiProvider(chatProvider) && hasGeminiBasePathWarning(chatBase);
     if (wantsChat && (!chatBase || !chatModelValue)) {
       toast.error(t('settings.toast.chatConfigIncomplete'));
       return;
+    }
+    if (imageSaveWarn || chatSaveWarn) {
+      toast.warning(t('settings.toast.geminiBasePathWarning'));
     }
     if (
       wantsChat &&
@@ -407,6 +446,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 placeholder="https://generativelanguage.googleapis.com"
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
+              {imageBaseWarn && (
+                <p className="text-xs text-amber-600 px-1">{t('settings.provider.geminiBasePathHint')}</p>
+              )}
               {imageProvider === 'openai' && (
                 <p className="text-xs text-red-500 px-1">{t('settings.provider.openaiImageLimit')}</p>
               )}
@@ -519,6 +561,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 }
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
+              {chatBaseWarn && (
+                <p className="text-xs text-amber-600 px-1">{t('settings.provider.geminiBasePathHint')}</p>
+              )}
             </div>
 
             {/* API Key */}
