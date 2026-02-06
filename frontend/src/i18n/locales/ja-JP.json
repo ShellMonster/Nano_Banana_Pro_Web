@@ -152,7 +152,8 @@
       "label": "プロバイダー",
       "recommended": "推奨:",
       "yunwu": "Yunwu API",
-      "openaiImageLimit": "OpenAI プロバイダーは現在 1K 画像のみ対応しています"
+      "openaiImageLimit": "OpenAI プロバイダーは現在 1K 画像のみ対応しています",
+      "geminiBasePathHint": "Gemini タイプの Base URL はドメインのみを推奨します（/v1 や具体的なエンドポイントは不要）。"
     },
     "model": {
       "default": "デフォルトモデル",
@@ -188,6 +189,7 @@
       "imageConfigIncomplete": "画像モデル設定を完了してください",
       "chatConfigIncomplete": "チャットモデル設定を完了してください",
       "openaiGeminiUnsupported": "OpenAI の Base URL は Gemini モデルに対応していません。対応エンドポイントを使用してください。",
+      "geminiBasePathWarning": "Gemini Base URL に /v1 などのパスが含まれています。ドメインのみの指定を推奨します。",
       "saveSuccess": "設定をサーバーに同期しました",
       "saveFailed": "保存に失敗しました: {{msg}}",
       "checkNetwork": "ネットワークを確認してください",
