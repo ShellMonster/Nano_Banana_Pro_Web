@@ -1,13 +1,15 @@
-use tauri_plugin_shell::ShellExt;
-use tauri_plugin_shell::process::{CommandChild, CommandEvent};
-use tauri_plugin_opener::OpenerExt;
-use tauri::{Emitter, State, Manager};
-use std::sync::{Arc, Mutex};
-use std::path::{Path, PathBuf};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::{Emitter, Manager, State};
+#[cfg(target_os = "macos")]
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::ShellExt;
 
 #[derive(Clone, serde::Serialize)]
 struct PortPayload {
@@ -16,6 +18,15 @@ struct PortPayload {
 
 struct BackendPort(Arc<Mutex<u16>>);
 struct SidecarState(Arc<Mutex<Option<CommandChild>>>);
+struct GenerationState(Arc<Mutex<bool>>);
+
+#[derive(Default)]
+struct QuitGuard {
+    confirmed_exit: bool,
+    confirming: bool,
+}
+
+struct QuitGuardState(Arc<Mutex<QuitGuard>>);
 
 #[derive(Clone)]
 struct LogWriter {
@@ -38,7 +49,11 @@ impl LogWriter {
             let _ = fs::create_dir_all(parent);
         }
         let _ = rotate_if_too_large(&self.path, 5 * 1024 * 1024, 5);
-        match OpenOptions::new().create(true).append(true).open(&self.path) {
+        match OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)
+        {
             Ok(f) => {
                 *guard = Some(f);
             }
@@ -95,7 +110,11 @@ impl LogState {
         );
         app_log.write_line(&header);
 
-        Self { dir, app: app_log, server: server_log }
+        Self {
+            dir,
+            app: app_log,
+            server: server_log,
+        }
     }
 
     fn log_app(&self, level: &str, message: &str) {
@@ -124,16 +143,15 @@ fn now_ms() -> u128 {
 }
 
 fn rotate_if_too_large(path: &Path, max_bytes: u64, keep: usize) -> std::io::Result<()> {
-    let Ok(meta) = fs::metadata(path) else { return Ok(()) };
+    let Ok(meta) = fs::metadata(path) else {
+        return Ok(());
+    };
     if meta.len() <= max_bytes {
         return Ok(());
     }
 
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let stem = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("log");
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("log");
     let ts = now_ms();
     let rotated = parent.join(format!("{}-{}.log", stem, ts));
     let _ = fs::rename(path, rotated);
@@ -175,10 +193,18 @@ fn get_backend_port(state: State<'_, BackendPort>) -> u16 {
     *port
 }
 
+#[tauri::command]
+fn set_generation_active(state: State<'_, GenerationState>, active: bool) {
+    if let Ok(mut flag) = state.0.lock() {
+        *flag = active;
+    }
+}
+
 // 获取应用数据目录的命令，用于前端拼接本地图片路径
 #[tauri::command]
 fn get_app_data_dir(app: tauri::AppHandle) -> String {
-    app.path().app_data_dir()
+    app.path()
+        .app_data_dir()
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_default()
 }
@@ -234,7 +260,10 @@ fn open_dir_with_command(path: &Path) -> Result<(), String> {
 
 // 写入前端日志（批量），用于捕获前端异常与关键调试信息
 #[tauri::command]
-fn write_frontend_logs(state: State<'_, LogState>, entries: Vec<FrontendLogEntry>) -> Result<(), String> {
+fn write_frontend_logs(
+    state: State<'_, LogState>,
+    entries: Vec<FrontendLogEntry>,
+) -> Result<(), String> {
     // 防御：避免日志被塞入超大 payload
     const MAX_ENTRIES: usize = 200;
     const MAX_LINE_CHARS: usize = 4000;
@@ -247,7 +276,11 @@ fn write_frontend_logs(state: State<'_, LogState>, entries: Vec<FrontendLogEntry
             msg.push_str("…(truncated)");
         }
 
-        let ctx = entry.context.unwrap_or_default().replace('\r', "").replace('\n', "\\n");
+        let ctx = entry
+            .context
+            .unwrap_or_default()
+            .replace('\r', "")
+            .replace('\n', "\\n");
         let mut line = format!("[{}] [FE] [{}] {}", now_ms(), level, msg);
         if !ctx.trim().is_empty() {
             if line.len() + ctx.len() + 4 <= MAX_LINE_CHARS {
@@ -320,7 +353,8 @@ fn copy_image_to_clipboard(app: tauri::AppHandle, path: String) -> Result<(), St
     let (tx, rx) = mpsc::channel::<Result<(), String>>();
     app.run_on_main_thread(move || {
         let result = (|| {
-            let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("clipboard init failed: {}", e))?;
+            let mut clipboard =
+                arboard::Clipboard::new().map_err(|e| format!("clipboard init failed: {}", e))?;
             clipboard
                 .set_image(arboard::ImageData {
                     width: width as usize,
@@ -335,7 +369,8 @@ fn copy_image_to_clipboard(app: tauri::AppHandle, path: String) -> Result<(), St
     })
     .map_err(|e| format!("run_on_main_thread failed: {}", e))?;
 
-    rx.recv().map_err(|_| "clipboard task aborted".to_string())?
+    rx.recv()
+        .map_err(|_| "clipboard task aborted".to_string())?
 }
 
 // 复制文本到系统剪贴板（用于日志路径等）
@@ -352,7 +387,8 @@ fn copy_text_to_clipboard(app: tauri::AppHandle, text: String) -> Result<(), Str
     let (tx, rx) = mpsc::channel::<Result<(), String>>();
     app.run_on_main_thread(move || {
         let result = (|| {
-            let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("clipboard init failed: {}", e))?;
+            let mut clipboard =
+                arboard::Clipboard::new().map_err(|e| format!("clipboard init failed: {}", e))?;
             clipboard
                 .set_text(content)
                 .map_err(|e| format!("clipboard set text failed: {}", e))?;
@@ -362,7 +398,8 @@ fn copy_text_to_clipboard(app: tauri::AppHandle, text: String) -> Result<(), Str
     })
     .map_err(|e| format!("run_on_main_thread failed: {}", e))?;
 
-    rx.recv().map_err(|_| "clipboard task aborted".to_string())?
+    rx.recv()
+        .map_err(|_| "clipboard task aborted".to_string())?
 }
 // 从系统剪贴板读取图片并写入 AppData 临时文件（用于打包环境下 Web ClipboardData 不可用/不稳定的兜底）
 #[tauri::command]
@@ -389,7 +426,8 @@ fn read_image_from_clipboard(app: tauri::AppHandle) -> Result<Option<String>, St
 
     let Some((width, height, bytes)) = rx
         .recv()
-        .map_err(|_| "clipboard task aborted".to_string())?? else {
+        .map_err(|_| "clipboard task aborted".to_string())??
+    else {
         return Ok(None);
     };
 
@@ -414,7 +452,11 @@ fn read_image_from_clipboard(app: tauri::AppHandle) -> Result<Option<String>, St
 
 // 将任意本地图片复制到 AppData/ref_images（用于持久化参考图）
 #[tauri::command]
-fn persist_ref_image(app: tauri::AppHandle, path: String, dest_name: String) -> Result<String, String> {
+fn persist_ref_image(
+    app: tauri::AppHandle,
+    path: String,
+    dest_name: String,
+) -> Result<String, String> {
     let trimmed = path.trim();
     if trimmed.is_empty() {
         return Err("path is empty".to_string());
@@ -496,6 +538,8 @@ pub fn run() {
     let port_state = Arc::new(Mutex::new(0u16)); // 初始为 0
     let port_state_for_setup = port_state.clone();
     let port_state_for_state = port_state.clone();
+    let generation_state = Arc::new(Mutex::new(false));
+    let quit_guard_state = Arc::new(Mutex::new(QuitGuard::default()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -506,27 +550,31 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(BackendPort(port_state_for_state))
+        .manage(GenerationState(generation_state))
+        .manage(QuitGuardState(quit_guard_state))
         .setup(move |app| {
             let log_state = LogState::init(&app.handle());
             app.manage(log_state.clone());
 
             let shell = app.shell();
-            let sidecar_command = shell.sidecar("server")
+            let sidecar_command = shell
+                .sidecar("server")
                 .unwrap()
                 .env("TAURI_PLATFORM", "macos")
                 .env("TAURI_FAMILY", "unix")
-                .env("GODEBUG", "http2debug=2") 
+                .env("GODEBUG", "http2debug=2")
                 .env("GIN_MODE", "release");
-            
+
             println!("Attempting to spawn sidecar...");
             log_state.log_app("INFO", "Attempting to spawn sidecar...");
-            
-            let (mut rx, child) = sidecar_command
-                .spawn()
-                .expect("Failed to spawn sidecar");
+
+            let (mut rx, child) = sidecar_command.spawn().expect("Failed to spawn sidecar");
 
             println!("Sidecar spawned with PID: {:?}", child.pid());
-            log_state.log_app("INFO", &format!("Sidecar spawned with PID: {:?}", child.pid()));
+            log_state.log_app(
+                "INFO",
+                &format!("Sidecar spawned with PID: {:?}", child.pid()),
+            );
 
             let sidecar_state = Arc::new(Mutex::new(Some(child)));
             app.manage(SidecarState(sidecar_state.clone()));
@@ -535,7 +583,7 @@ pub fn run() {
             let app_handle = app.handle().clone();
             let port_state_inner = port_state_for_setup.clone();
             let log_state_for_task = log_state.clone();
-            
+
             tauri::async_runtime::spawn(async move {
                 while let Some(event) = rx.recv().await {
                     match event {
@@ -543,17 +591,21 @@ pub fn run() {
                             let out = String::from_utf8_lossy(&line);
                             println!("Sidecar STDOUT: {}", out);
                             log_state_for_task.log_server("STDOUT", out.trim_end());
-                            
+
                             if out.contains("SERVER_PORT=") {
                                 if let Some(port_str) = out.split('=').last() {
                                     if let Ok(port) = port_str.trim().parse::<u16>() {
                                         println!("Detected backend port: {}", port);
-                                        log_state_for_task.log_app("INFO", &format!("Detected backend port: {}", port));
+                                        log_state_for_task.log_app(
+                                            "INFO",
+                                            &format!("Detected backend port: {}", port),
+                                        );
                                         if let Ok(mut p) = port_state_inner.lock() {
                                             *p = port;
                                         }
                                         // 依然发送事件，以便正在运行的页面能立即感知
-                                        let _ = app_handle.emit("backend-port", PortPayload { port });
+                                        let _ =
+                                            app_handle.emit("backend-port", PortPayload { port });
                                     }
                                 }
                             }
@@ -569,7 +621,10 @@ pub fn run() {
                         }
                         CommandEvent::Terminated(status) => {
                             println!("Sidecar Terminated with status: {:?}", status);
-                            log_state_for_task.log_app("WARN", &format!("Sidecar Terminated with status: {:?}", status));
+                            log_state_for_task.log_app(
+                                "WARN",
+                                &format!("Sidecar Terminated with status: {:?}", status),
+                            );
                             // 进程退出了，清空 handle
                             if let Ok(mut c) = child_clone.lock() {
                                 *c = None;
@@ -592,16 +647,105 @@ pub fn run() {
             copy_image_to_clipboard,
             copy_text_to_clipboard,
             read_image_from_clipboard,
-            persist_ref_image
+            persist_ref_image,
+            set_generation_active
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
-        .run(|app_handle, event| {
-            match event {
-                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit { .. } => {
-                    kill_sidecar(app_handle);
+        .run(|app_handle, event| match event {
+            tauri::RunEvent::WindowEvent { label, event, .. } => {
+                #[cfg(target_os = "macos")]
+                {
+                    if label == "main" {
+                        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                            let allow_close = app_handle
+                                .state::<QuitGuardState>()
+                                .0
+                                .lock()
+                                .map(|s| s.confirmed_exit)
+                                .unwrap_or(false);
+
+                            if !allow_close {
+                                api.prevent_close();
+                                if let Some(window) = app_handle.get_webview_window("main") {
+                                    let _ = window.hide();
+                                }
+                            }
+                        }
+                    }
                 }
-                _ => {}
             }
+            tauri::RunEvent::ExitRequested { code, api, .. } => {
+                #[cfg(target_os = "macos")]
+                {
+                    if code.is_none() {
+                        let quit_guard_state = app_handle.state::<QuitGuardState>();
+                        let mut guard = quit_guard_state.0.lock().unwrap();
+                        if guard.confirmed_exit {
+                            return;
+                        }
+                        if guard.confirming {
+                            api.prevent_exit();
+                            return;
+                        }
+
+                        let is_generating = app_handle
+                            .state::<GenerationState>()
+                            .0
+                            .lock()
+                            .map(|s| *s)
+                            .unwrap_or(false);
+
+                        if is_generating {
+                            api.prevent_exit();
+                            guard.confirming = true;
+                            let app_handle = app_handle.clone();
+
+                            app_handle
+                                .dialog()
+                                .message("当前有图片仍在生成，确定要退出吗？未完成任务会被中断。")
+                                .title("确认退出")
+                                .kind(MessageDialogKind::Warning)
+                                .buttons(MessageDialogButtons::OkCancelCustom(
+                                    "退出".to_string(),
+                                    "取消".to_string(),
+                                ))
+                                .show(move |should_exit| {
+                                    if let Ok(mut state) =
+                                        app_handle.state::<QuitGuardState>().0.lock()
+                                    {
+                                        state.confirming = false;
+                                        if should_exit {
+                                            state.confirmed_exit = true;
+                                        }
+                                    }
+
+                                    if should_exit {
+                                        app_handle.exit(0);
+                                    }
+                                });
+                            return;
+                        }
+
+                        guard.confirmed_exit = true;
+                    }
+                }
+            }
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen {
+                has_visible_windows,
+                ..
+            } => {
+                if !has_visible_windows {
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+            }
+            tauri::RunEvent::Exit => {
+                kill_sidecar(app_handle);
+            }
+            _ => {}
         });
 }
