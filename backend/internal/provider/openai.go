@@ -29,7 +29,7 @@ type OpenAIProvider struct {
 func NewOpenAIProvider(config *model.ProviderConfig) (*OpenAIProvider, error) {
 	timeout := time.Duration(config.TimeoutSeconds) * time.Second
 	if timeout <= 0 {
-		timeout = 150 * time.Second
+		timeout = 500 * time.Second
 	}
 
 	apiBase := NormalizeOpenAIBaseURL(config.APIBase)

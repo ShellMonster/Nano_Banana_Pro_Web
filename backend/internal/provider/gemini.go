@@ -27,7 +27,7 @@ func NewGeminiProvider(config *model.ProviderConfig) (*GeminiProvider, error) {
 
 	timeout := time.Duration(config.TimeoutSeconds) * time.Second
 	if timeout <= 0 {
-		timeout = 150 * time.Second
+		timeout = 500 * time.Second
 	}
 
 	// 配置自定义 HTTP 客户端，完全禁用连接复用

@@ -98,6 +98,12 @@ func (wp *WorkerPool) worker(id int) {
 
 // processTask 处理单个任务（由 Worker 调用）
 func (wp *WorkerPool) processTask(task *Task) {
+	if !task.TaskModel.CreatedAt.IsZero() {
+		log.Printf("任务 %s 开始处理: provider=%s model=%s queue_wait=%s", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, time.Since(task.TaskModel.CreatedAt))
+	} else {
+		log.Printf("任务 %s 开始处理: provider=%s model=%s", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID)
+	}
+
 	// 1. 更新状态为 processing
 	model.DB.Model(task.TaskModel).Update("status", "processing")
 
@@ -118,9 +124,21 @@ func (wp *WorkerPool) processTask(task *Task) {
 		err    error
 	}
 
+	callStartedAt := time.Now()
+	log.Printf("任务 %s 调用 Provider 开始: provider=%s model=%s timeout=%s", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, timeout)
 	done := make(chan generateResult, 1)
 	go func() {
 		result, err := p.Generate(ctx, task.Params)
+		elapsed := time.Since(callStartedAt)
+		if err != nil {
+			log.Printf("任务 %s 调用 Provider 失败: provider=%s model=%s elapsed=%s err=%v", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, elapsed, err)
+		} else {
+			imageCount := 0
+			if result != nil {
+				imageCount = len(result.Images)
+			}
+			log.Printf("任务 %s 调用 Provider 成功: provider=%s model=%s elapsed=%s images=%d", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, elapsed, imageCount)
+		}
 		done <- generateResult{result: result, err: err}
 	}()
 
@@ -197,14 +215,14 @@ func (wp *WorkerPool) failTask(taskModel *model.Task, err error) {
 
 func fetchProviderTimeout(providerName string) time.Duration {
 	if model.DB == nil || providerName == "" {
-		return 150 * time.Second
+		return 500 * time.Second
 	}
 	var cfg model.ProviderConfig
 	if err := model.DB.Select("timeout_seconds").Where("provider_name = ?", providerName).First(&cfg).Error; err != nil {
-		return 150 * time.Second
+		return 500 * time.Second
 	}
 	if cfg.TimeoutSeconds <= 0 {
-		return 150 * time.Second
+		return 500 * time.Second
 	}
 	return time.Duration(cfg.TimeoutSeconds) * time.Second
 }

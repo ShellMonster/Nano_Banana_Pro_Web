@@ -66,7 +66,7 @@ export const useConfigStore = create<ConfigState>()(
       imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
       imageApiKey: '',
       imageModel: 'gemini-3-pro-image-preview',
-      imageTimeoutSeconds: 150,
+      imageTimeoutSeconds: 500,
       chatProvider: 'openai-chat',
       chatApiBaseUrl: 'https://api.openai.com/v1',
       chatApiKey: '',
@@ -116,7 +116,7 @@ export const useConfigStore = create<ConfigState>()(
       reset: () => set({
         imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
         imageModel: 'gemini-3-pro-image-preview',
-        imageTimeoutSeconds: 150,
+        imageTimeoutSeconds: 500,
         chatProvider: 'openai-chat',
         chatApiBaseUrl: 'https://api.openai.com/v1',
         chatModel: 'gemini-3-flash-preview',
@@ -190,7 +190,7 @@ export const useConfigStore = create<ConfigState>()(
         if (version < 9) {
           next = {
             ...next,
-            imageTimeoutSeconds: next.imageTimeoutSeconds ?? 150,
+            imageTimeoutSeconds: next.imageTimeoutSeconds ?? 500,
             chatTimeoutSeconds: next.chatTimeoutSeconds ?? 150
           };
           if (next.chatSyncedConfig && next.chatSyncedConfig.timeoutSeconds == null) {

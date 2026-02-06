@@ -23,10 +23,19 @@ type Provider interface {
 
 // Registry 用于管理不同的 Provider
 var (
-	Registry    = make(map[string]Provider)
-	registryMu  sync.RWMutex
-	initMu      sync.Mutex // 确保 InitProviders 不会被并发调用
+	Registry   = make(map[string]Provider)
+	registryMu sync.RWMutex
+	initMu     sync.Mutex // 确保 InitProviders 不会被并发调用
 )
+
+func defaultTimeoutSeconds(providerName string) int {
+	switch providerName {
+	case "gemini", "openai":
+		return 500
+	default:
+		return 150
+	}
+}
 
 // Register 注册一个 Provider
 func Register(p Provider) {
@@ -54,9 +63,10 @@ func InitProviders() error {
 		model.DB.Model(&model.ProviderConfig{}).Where("provider_name = ?", name).Count(&count)
 		if count == 0 {
 			model.DB.Create(&model.ProviderConfig{
-				ProviderName: name,
-				DisplayName:  name,
-				Enabled:      true,
+				ProviderName:   name,
+				DisplayName:    name,
+				Enabled:        true,
+				TimeoutSeconds: defaultTimeoutSeconds(name),
 			})
 		}
 	}
@@ -72,11 +82,12 @@ func InitProviders() error {
 		if err != nil {
 			// 不存在，从配置文件创建
 			dbCfg = model.ProviderConfig{
-				ProviderName: name,
-				DisplayName:  name,
-				APIKey:       cfg.APIKey,
-				APIBase:      cfg.APIBase,
-				Enabled:      true,
+				ProviderName:   name,
+				DisplayName:    name,
+				APIKey:         cfg.APIKey,
+				APIBase:        cfg.APIBase,
+				Enabled:        true,
+				TimeoutSeconds: defaultTimeoutSeconds(name),
 			}
 			model.DB.Create(&dbCfg)
 		}
@@ -92,6 +103,13 @@ func InitProviders() error {
 	// 3. 重建 Registry
 	newRegistry := make(map[string]Provider)
 	for _, cfg := range finalConfigs {
+		if cfg.TimeoutSeconds <= 0 {
+			cfg.TimeoutSeconds = defaultTimeoutSeconds(cfg.ProviderName)
+			if err := model.DB.Model(&cfg).Update("timeout_seconds", cfg.TimeoutSeconds).Error; err != nil {
+				log.Printf("修复 Provider %s 超时配置失败: %v", cfg.ProviderName, err)
+			}
+		}
+
 		var p Provider
 		var err error
 

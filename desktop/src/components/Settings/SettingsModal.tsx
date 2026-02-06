@@ -130,8 +130,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [updateHint, setUpdateHint] = useState<{ type: 'checking' | 'latest' | 'available' | 'error'; message: string } | null>(null);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const repoUrl = import.meta.env.VITE_GITHUB_REPO_URL || 'https://github.com/ShellMonster/Nano_Banana_Pro_Web';
-  const normalizeTimeout = (value?: number | null) => {
-    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return 150;
+  const normalizeTimeout = (value?: number | null, fallback = 150) => {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return fallback;
     return Math.round(value);
   };
   const parseTimeoutInput = (value: string, fallback: number) => {
@@ -194,9 +194,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         if (modelFromConfig) {
           setImageModel(modelFromConfig);
         }
-        setImageTimeoutSeconds(normalizeTimeout(imageConfig.timeout_seconds));
+        setImageTimeoutSeconds(normalizeTimeout(imageConfig.timeout_seconds, 500));
       } else {
-        setImageTimeoutSeconds(150);
+        setImageTimeoutSeconds(500);
       }
 
       const chatConfig = data.find((p) => p.provider_name === chatProvider);
@@ -233,7 +233,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const imageBase = imageApiBaseUrl.trim();
     const imageKey = imageApiKey.trim();
     const imageModelValue = imageModel.trim();
-    const imageTimeoutValue = normalizeTimeout(imageTimeoutSeconds);
+    const imageTimeoutValue = normalizeTimeout(imageTimeoutSeconds, 500);
     if (!imageBase || !imageKey || !imageModelValue) {
       toast.error(t('settings.toast.imageConfigIncomplete'));
       return;
@@ -314,9 +314,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (modelFromConfig) {
         setImageModel(modelFromConfig);
       }
-      setImageTimeoutSeconds(normalizeTimeout(config.timeout_seconds));
+      setImageTimeoutSeconds(normalizeTimeout(config.timeout_seconds, 500));
     } else {
-      setImageTimeoutSeconds(150);
+      setImageTimeoutSeconds(500);
     }
   };
 

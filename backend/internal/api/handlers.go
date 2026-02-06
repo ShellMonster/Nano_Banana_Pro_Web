@@ -112,6 +112,15 @@ func fetchProviderConfig(providerName string) *model.ProviderConfig {
 	return &cfg
 }
 
+func defaultTimeoutSecondsForProvider(providerName string) int {
+	switch providerName {
+	case "gemini", "openai":
+		return 500
+	default:
+		return 150
+	}
+}
+
 // ProviderConfigRequest 设置 Provider 配置请求
 type ProviderConfigRequest struct {
 	ProviderName string `json:"provider_name" binding:"required"`
@@ -148,16 +157,19 @@ func UpdateProviderConfigHandler(c *gin.Context) {
 		log.Printf("[API] 配置不存在，准备创建: %s\n", req.ProviderName)
 		// 不存在则创建
 		modelsJSON := buildModelsJSON(req.ProviderName, req.ModelID, "")
-		configData = model.ProviderConfig{
-			ProviderName: req.ProviderName,
-			DisplayName:  req.DisplayName,
-			APIBase:      req.APIBase,
-			APIKey:       req.APIKey,
-			Models:       modelsJSON,
-			Enabled:      req.Enabled,
+		timeoutSeconds := defaultTimeoutSecondsForProvider(req.ProviderName)
+		if req.TimeoutSecs != nil && *req.TimeoutSecs > 0 {
+			timeoutSeconds = *req.TimeoutSecs
 		}
-		if req.TimeoutSecs != nil {
-			configData.TimeoutSeconds = *req.TimeoutSecs
+
+		configData = model.ProviderConfig{
+			ProviderName:   req.ProviderName,
+			DisplayName:    req.DisplayName,
+			APIBase:        req.APIBase,
+			APIKey:         req.APIKey,
+			Models:         modelsJSON,
+			Enabled:        req.Enabled,
+			TimeoutSeconds: timeoutSeconds,
 		}
 		if err := model.DB.Create(&configData).Error; err != nil {
 			log.Printf("[API] 创建配置失败: %v\n", err)
@@ -179,7 +191,11 @@ func UpdateProviderConfigHandler(c *gin.Context) {
 			updates["models"] = modelsJSON
 		}
 		if req.TimeoutSecs != nil {
-			updates["timeout_seconds"] = *req.TimeoutSecs
+			if *req.TimeoutSecs > 0 {
+				updates["timeout_seconds"] = *req.TimeoutSecs
+			} else {
+				updates["timeout_seconds"] = defaultTimeoutSecondsForProvider(req.ProviderName)
+			}
 		}
 		if err := model.DB.Model(&configData).Updates(updates).Error; err != nil {
 			log.Printf("[API] 更新配置失败: %v\n", err)

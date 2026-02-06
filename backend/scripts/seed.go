@@ -15,7 +15,7 @@ func main() {
 		APIKey:         "YOUR_API_KEY_HERE", // 用户需要替换为自己的 API Key
 		Models:         `[{"id": "gemini-2.0-flash-exp", "name": "Gemini 2.0 Flash (Native)", "default": true}, {"id": "imagen-3.0-generate-001", "name": "Imagen 3.0"}]`,
 		Enabled:        true,
-		TimeoutSeconds: 60,
+		TimeoutSeconds: 500,
 		MaxRetries:     3,
 	}
 
@@ -31,7 +31,7 @@ func main() {
 		APIKey:         "YOUR_API_KEY_HERE",
 		Models:         `[{"id": "gpt-image-1", "name": "gpt-image-1", "default": true}]`,
 		Enabled:        true,
-		TimeoutSeconds: 60,
+		TimeoutSeconds: 500,
 		MaxRetries:     3,
 	}
 
