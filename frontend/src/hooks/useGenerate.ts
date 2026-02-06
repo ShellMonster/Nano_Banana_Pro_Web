@@ -335,10 +335,7 @@ export function useGenerate() {
             historyStore.upsertTask(finalTask);
 
             if (finalTask.images && finalTask.images.length > 0) {
-              const images = finalTask.images.map((image: any) => ({
-                ...image,
-                taskId: batchTaskId
-              }));
+              const images = finalTask.images;
               successCount += images.length;
               storeRef.current.updateProgressBatch(successCount, images);
             }

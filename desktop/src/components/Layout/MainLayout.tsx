@@ -68,9 +68,12 @@ export default function MainLayout() {
   }, [currentTab, setTab]);
 
   useEffect(() => {
-    if (taskId) {
-      lastTaskIdRef.current = taskId;
+    if (!taskId) return;
+    if (taskId.startsWith('batch-')) {
+      lastTaskIdRef.current = null;
+      return;
     }
+    lastTaskIdRef.current = taskId;
   }, [taskId]);
 
   // 2. 检查后端健康状态
@@ -130,6 +133,7 @@ export default function MainLayout() {
     if (!isHydrated || !isTauriReady) return;
     const syncTaskId = taskId || (status !== 'idle' ? lastTaskIdRef.current : null);
     if (!syncTaskId) return;
+    if (syncTaskId.startsWith('batch-')) return;
 
     const taskImages = images.filter((img) => img.taskId === syncTaskId);
     const historyStatus = status === 'idle' ? undefined : status;
