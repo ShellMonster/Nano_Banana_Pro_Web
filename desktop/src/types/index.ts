@@ -140,3 +140,29 @@ export interface TemplateListResponse {
   meta: TemplateMeta;
   items: TemplateItem[];
 }
+
+// 后端 Task 模型（用于 API 响应）
+export interface BackendTask {
+  task_id: string;
+  prompt: string;
+  model_id?: string;
+  provider_name?: string;
+  local_path?: string;
+  thumbnail_path?: string;
+  image_url?: string;
+  thumbnail_url?: string;
+  width?: number;
+  height?: number;
+  created_at: string;
+  updated_at?: string;
+  status: string;
+  total_count?: number;
+  error_message?: string;
+  config_snapshot?: string;
+}
+
+// 后端历史列表响应
+export interface BackendHistoryResponse {
+  list: BackendTask[];
+  total: number;
+}

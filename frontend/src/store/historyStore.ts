@@ -127,7 +127,7 @@ export const useHistoryStore = create<HistoryState>()(
         }
 
         // 响应拦截器已返回 res.data（即 { data, total }）
-        const { list, total } = mapBackendHistoryResponse(response);
+        const { list, total } = mapBackendHistoryResponse(response as unknown as import('../types').BackendHistoryResponse);
 
         // 排序：
         // 1. 正在生成中的任务（pending + processing）最前面（临时置顶）
@@ -327,7 +327,7 @@ export const useHistoryStore = create<HistoryState>()(
   getDetail: async (id: string) => {
     try {
       const response = await getHistoryDetail(id);
-      const task = mapBackendTaskToFrontend(response);
+      const task = mapBackendTaskToFrontend(response as unknown as import('../types').BackendTask);
       return task;
     } catch (error) {
       console.error('Failed to fetch detail:', error);
