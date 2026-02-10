@@ -118,7 +118,7 @@ interface GenerateState {
   setSubmitting: (isSubmitting: boolean) => void;
   mergeImagesForTask: (taskId: string, images: GeneratedImage[], options?: MergeOptions) => void;
   // 新增：恢复任务状态（用于刷新后恢复）
-  restoreTaskState: (state: { taskId: string; status: 'processing'; totalCount: number; completedCount: number; images: any[] }) => void;
+  restoreTaskState: (state: { taskId: string; status: 'processing'; totalCount: number; completedCount: number; images: GeneratedImage[] }) => void;
   clearTaskState: () => void;
 }
 

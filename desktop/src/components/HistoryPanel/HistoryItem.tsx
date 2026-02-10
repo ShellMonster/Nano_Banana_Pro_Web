@@ -10,7 +10,8 @@ interface HistoryItemProps {
   onDelete: (id: string) => void;
 }
 
-export function HistoryItem({ item, onDelete }: HistoryItemProps) {
+// 使用 React.memo 防止不必要的重渲染
+export const HistoryItem = React.memo(function HistoryItem({ item, onDelete }: HistoryItemProps) {
   const { t } = useTranslation();
   // 获取第一张图片用于展示
   const firstImage = item.images && item.images.length > 0 ? item.images[0] : null;
@@ -20,9 +21,9 @@ export function HistoryItem({ item, onDelete }: HistoryItemProps) {
     <div className="group flex gap-4 p-4 bg-white rounded-lg border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all">
       <div className="w-24 h-24 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden relative">
         {imageUrl ? (
-            <img 
-                src={imageUrl} 
-                alt={item.prompt} 
+            <img
+                src={imageUrl}
+                alt={item.prompt}
                 className="w-full h-full object-cover"
                 loading="lazy"
                 decoding="async"
@@ -45,9 +46,9 @@ export function HistoryItem({ item, onDelete }: HistoryItemProps) {
                 <span>{formatDateTime(item.createdAt)}</span>
             </div>
         </div>
-        
+
         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-            <button 
+            <button
                 onClick={() => onDelete(item.id)}
                 className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                 title={t('history.actions.deleteTask')}
@@ -58,4 +59,4 @@ export function HistoryItem({ item, onDelete }: HistoryItemProps) {
       </div>
     </div>
   );
-}
+});
