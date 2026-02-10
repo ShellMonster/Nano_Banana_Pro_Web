@@ -4,6 +4,10 @@ import { setUpdateSource, getUpdateSource } from '../store/updateSourceStore';
 import { mapBackendTaskToFrontend } from '../utils/mapping';
 import { BASE_URL } from '../services/api';
 
+// SSE 重连配置
+const SSE_RECONNECT_DELAY = 2000; // 重连延迟（毫秒）
+const MAX_SSE_RECONNECT_ATTEMPTS = 2; // 最大重连次数
+
 export function useTaskStream(taskId: string | null) {
   const connectionMode = useGenerateStore((s) => s.connectionMode);
   const isBatchTask = Boolean(taskId && taskId.startsWith('batch-'));
@@ -19,8 +23,19 @@ export function useTaskStream(taskId: string | null) {
 
   const streamRef = useRef<EventSource | null>(null);
   const isMountedRef = useRef(true);
+  // SSE 重连相关
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const closeStream = useCallback(() => {
+    // 清理重连定时器
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    // 重置重连计数
+    reconnectAttemptsRef.current = 0;
+    // 关闭连接
     if (streamRef.current) {
       streamRef.current.close();
       streamRef.current = null;
@@ -58,9 +73,12 @@ export function useTaskStream(taskId: string | null) {
 
     stream.onopen = () => {
       if (isMountedRef.current) {
+        // 连接成功，重置重连计数
+        reconnectAttemptsRef.current = 0;
         setUpdateSource('websocket');
         storeRef.current.setConnectionMode('websocket');
         storeRef.current.updateLastMessageTime();
+        console.log('[SSE] Connection established');
       }
     };
 
@@ -95,13 +113,49 @@ export function useTaskStream(taskId: string | null) {
     };
 
     stream.onerror = () => {
-      console.error('SSE Error');
+      console.error('[SSE] Connection error');
       if (!isMountedRef.current) return;
 
-      closeStream();
+      // 关闭当前连接
+      if (streamRef.current) {
+        streamRef.current.close();
+        streamRef.current = null;
+      }
 
+      // 检查是否可以重连
       const currentMode = useGenerateStore.getState().connectionMode;
-      if (currentMode !== 'polling') {
+      if (reconnectAttemptsRef.current < MAX_SSE_RECONNECT_ATTEMPTS && currentMode !== 'polling') {
+        // 尝试重连
+        reconnectAttemptsRef.current++;
+        console.log(`[SSE] Attempting reconnect (${reconnectAttemptsRef.current}/${MAX_SSE_RECONNECT_ATTEMPTS})...`);
+
+        reconnectTimerRef.current = setTimeout(() => {
+          if (!isMountedRef.current) return;
+
+          // 检查当前状态是否仍在处理中
+          const state = useGenerateStore.getState();
+          if (state.status !== 'processing' || state.taskId !== taskId) {
+            console.log('[SSE] Task no longer active, skipping reconnect');
+            return;
+          }
+
+          // 重新创建 SSE 连接
+          try {
+            const newStream = new EventSource(streamUrl);
+            streamRef.current = newStream;
+            console.log('[SSE] Reconnected');
+          } catch (err) {
+            console.error('[SSE] Reconnect failed:', err);
+            // 重连失败，切换到轮询
+            if (getUpdateSource() === 'websocket') {
+              setUpdateSource(null);
+            }
+            storeRef.current.setConnectionMode('polling');
+          }
+        }, SSE_RECONNECT_DELAY);
+      } else {
+        // 重连次数用尽，切换到轮询模式
+        console.log('[SSE] Max reconnect attempts reached, switching to polling');
         if (getUpdateSource() === 'websocket') {
           setUpdateSource(null);
         }

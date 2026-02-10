@@ -10,7 +10,7 @@ import { useHistoryStore } from '../store/historyStore';
 import i18n from '../i18n';
 
 // 流式连接建立超时时间（毫秒）- 超过此时间未建立连接则启动轮询
-// 本地后端通常不会推实时进度，过长会导致用户“卡住”的观感
+// 本地后端通常不会推实时进度，过长会导致用户"卡住"的观感
 const STREAM_OPEN_TIMEOUT = 3000;
 // 轮询间隔（毫秒）
 const POLL_INTERVAL = 3000;
@@ -19,6 +19,8 @@ const MAX_POLL_RETRIES = 6;
 // 最大退避间隔（毫秒）（降低到 15 秒）
 const MAX_BACKOFF_INTERVAL = 15000;
 const BATCH_TASK_PREFIX = 'batch-';
+// 主动同步间隔（毫秒）- 作为 SSE/轮询的兜底机制，定期检查后端状态
+const ACTIVE_SYNC_INTERVAL = 8000;
 
 const isBatchTaskId = (value: string | null | undefined) => {
   if (!value) return false;
@@ -45,6 +47,8 @@ export function useGenerate() {
   const wsCloseRequestedRef = useRef(false); // 标记是否主动请求关闭WebSocket
   const basePollIntervalRef = useRef(POLL_INTERVAL); // 基础轮询间隔，用于指数退避
   const expectedTaskIdRef = useRef<string | null>(null); // 记录期望的任务ID，防止闭包陷阱
+  // 主动同步定时器引用 - 作为 SSE/轮询的兜底机制
+  const activeSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 使用 ref 存储最新的 store 函数，避免闭包问题
   const storeRef = useRef({
@@ -79,6 +83,78 @@ export function useGenerate() {
     // Bug #3修复：停止轮询时重置connectionMode为none
     storeRef.current.setConnectionMode('none');
   }, []);
+
+  // 停止主动同步
+  const stopActiveSync = useCallback(() => {
+    if (activeSyncTimerRef.current) {
+      clearTimeout(activeSyncTimerRef.current);
+      activeSyncTimerRef.current = null;
+    }
+  }, []);
+
+  // 主动同步：定期检查后端状态，作为 SSE/轮询的兜底机制
+  const startActiveSync = useCallback((currentTaskId: string) => {
+    // 批量任务不启动主动同步（已有独立轮询逻辑）
+    if (isBatchTaskId(currentTaskId)) return;
+
+    const doSync = async () => {
+      try {
+        // 检查当前状态是否仍在处理中
+        const currentState = useGenerateStore.getState();
+        if (currentState.status !== 'processing' || currentState.taskId !== currentTaskId) {
+          // 任务已结束或切换，停止同步
+          return;
+        }
+
+        // 从后端获取最新状态
+        const taskData = await getTaskStatus(currentTaskId);
+        const latestState = useGenerateStore.getState();
+
+        // 再次检查任务是否匹配（防止竞态）
+        if (latestState.taskId !== currentTaskId) return;
+
+        // 对比状态：如果后端已完成但本地仍在处理，同步更新
+        if (taskData.status !== 'processing' && latestState.status === 'processing') {
+          console.log('[active sync] Status mismatch detected, syncing:', {
+            local: latestState.status,
+            backend: taskData.status
+          });
+
+          // 更新进度
+          if (taskData.images && taskData.images.length > 0) {
+            storeRef.current.updateProgressBatch(taskData.completedCount, taskData.images);
+          } else {
+            storeRef.current.updateProgress(taskData.completedCount, null);
+          }
+
+          // 同步最终状态
+          if (taskData.status === 'completed') {
+            storeRef.current.completeTask();
+            stopActiveSync();
+            return;
+          } else if (taskData.status === 'failed') {
+            storeRef.current.failTask(taskData.errorMessage || 'Unknown error');
+            stopActiveSync();
+            return;
+          } else if (taskData.status === 'partial') {
+            storeRef.current.completeTask();
+            stopActiveSync();
+            return;
+          }
+        }
+
+        // 状态仍为 processing，继续定期同步
+        activeSyncTimerRef.current = setTimeout(doSync, ACTIVE_SYNC_INTERVAL);
+      } catch (error) {
+        console.error('[active sync] Error:', error);
+        // 出错时继续尝试，不中断同步
+        activeSyncTimerRef.current = setTimeout(doSync, ACTIVE_SYNC_INTERVAL);
+      }
+    };
+
+    // 启动同步
+    activeSyncTimerRef.current = setTimeout(doSync, ACTIVE_SYNC_INTERVAL);
+  }, [stopActiveSync]);
 
   // 轮询函数：检查任务状态
   const startPolling = useCallback(async (currentTaskId: string) => {
@@ -194,6 +270,17 @@ export function useGenerate() {
     }
   }, [connectionMode, status, taskId, startPolling]);
 
+  // 主动同步：当任务开始处理时启动定期检查
+  useEffect(() => {
+    if (status === 'processing' && taskId && !isBatchTaskId(taskId)) {
+      // 启动主动同步作为兜底机制
+      startActiveSync(taskId);
+    } else {
+      // 任务结束或空闲时停止主动同步
+      stopActiveSync();
+    }
+  }, [status, taskId, startActiveSync, stopActiveSync]);
+
   // 清理定时器和状态
   useEffect(() => {
     return () => {
@@ -206,6 +293,11 @@ export function useGenerate() {
       if (timeoutTimerRef.current) {
         clearTimeout(timeoutTimerRef.current);
         timeoutTimerRef.current = null;
+      }
+      // 清理主动同步定时器
+      if (activeSyncTimerRef.current) {
+        clearTimeout(activeSyncTimerRef.current);
+        activeSyncTimerRef.current = null;
       }
       // 重置轮询状态（Bug #4修复）
       isPollingRef.current = false;
