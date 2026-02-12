@@ -131,8 +131,12 @@
       "adding": "Adding images...",
       "pasteFailed": "Paste failed: {{message}}",
       "deduped": "Duplicate images filtered",
-      "timeout": "Operation timed out ({{seconds}}s)"
+      "timeout": "Operation timed out ({{seconds}}s)",
+      "promptExtracted": "Prompt extracted from image",
+      "extractFailed": "Failed to extract prompt",
+      "chatConfigMissing": "Please configure Chat Model API Key in Settings first"
     },
+    "extractPrompt": "Extract prompt",
     "compressReason": {
       "fileTooLarge": "File too large ({{size}}MB)",
       "dimensions": "Dimensions too large ({{width}}x{{height}})"
@@ -142,6 +146,7 @@
     "title": "Settings",
     "tabs": {
       "image": "Image Model",
+      "vision": "Vision Model",
       "chat": "Chat Model"
     },
     "language": {
@@ -155,12 +160,19 @@
       "openaiImageLimit": "OpenAI providers currently support only 1K images",
       "geminiBasePathHint": "For Gemini, use only the host as Base URL (avoid /v1 or endpoint paths)."
     },
+    "vision": {
+      "hint": "Vision config for reverse prompt feature. Leave empty to use image config.",
+      "apiKeyPlaceholder": "Leave empty to use image API key",
+      "apiKeyHint": "Leave empty to use image config API key"
+    },
     "model": {
       "default": "Default Model",
-      "chat": "Chat Model"
+      "chat": "Chat Model",
+      "vision": "Vision Model"
     },
     "timeout": {
       "image": "Image timeout (s)",
+      "vision": "Vision timeout (s)",
       "chat": "Text timeout (s)"
     },
     "update": {

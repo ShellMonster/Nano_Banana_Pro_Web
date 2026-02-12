@@ -131,8 +131,12 @@
       "adding": "正在添加图片...",
       "pasteFailed": "粘贴图片失败：{{message}}",
       "deduped": "已过滤重复图片",
-      "timeout": "操作超时（{{seconds}}秒）"
+      "timeout": "操作超时（{{seconds}}秒）",
+      "promptExtracted": "已从图片中提取提示词",
+      "extractFailed": "提取提示词失败",
+      "chatConfigMissing": "请先在设置中配置对话模型 API Key"
     },
+    "extractPrompt": "反推提示词",
     "compressReason": {
       "fileTooLarge": "文件过大 ({{size}}MB)",
       "dimensions": "尺寸过大 ({{width}}x{{height}})"
@@ -142,6 +146,7 @@
     "title": "系统设置",
     "tabs": {
       "image": "生图模型",
+      "vision": "识图模型",
       "chat": "对话模型"
     },
     "language": {
@@ -155,12 +160,19 @@
       "openaiImageLimit": "OpenAI 类型当前仅支持生成 1K 图片",
       "geminiBasePathHint": "Gemini 类型建议 Base URL 仅填写域名，不要带 /v1 或具体接口路径"
     },
+    "vision": {
+      "hint": "识图配置用于逆向提示词功能，留空则自动使用生图配置",
+      "apiKeyPlaceholder": "留空则使用生图 API Key",
+      "apiKeyHint": "留空则使用生图配置的 API Key"
+    },
     "model": {
       "default": "默认模型",
-      "chat": "对话模型"
+      "chat": "对话模型",
+      "vision": "识图模型"
     },
     "timeout": {
       "image": "生图超时(秒)",
+      "vision": "识图超时(秒)",
       "chat": "生文字超时(秒)"
     },
     "update": {

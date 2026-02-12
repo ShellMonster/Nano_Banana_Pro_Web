@@ -32,8 +32,9 @@ type Config struct {
 		Enabled bool   `mapstructure:"enabled"`
 	} `mapstructure:"providers"`
 	Prompts struct {
-		OptimizeSystem     string `mapstructure:"optimize_system"`
-		OptimizeSystemJSON string `mapstructure:"optimize_system_json"`
+		OptimizeSystem      string `mapstructure:"optimize_system"`
+		OptimizeSystemJSON  string `mapstructure:"optimize_system_json"`
+		ImageToPromptSystem string `mapstructure:"image_to_prompt_system"`
 	} `mapstructure:"prompts"`
 	Templates struct {
 		RemoteURL           string `mapstructure:"remote_url"`
@@ -74,6 +75,28 @@ const DefaultOptimizeSystemPrompt = `
 仅输出一段优化后的完整提示词正文。
 无前缀，无解释，无标记。
 `
+
+// DefaultImageToPromptSystem 图片逆向提示词的系统提示词
+// 注意：输出语言要求由后端根据用户语言动态添加
+const DefaultImageToPromptSystem = `你是一个AI绘图提示词专家。请分析用户提供的图片，直接输出一个详细的、可以用来生成相似图片的AI绘图提示词。
+
+提示词必须包含以下要素（融合成连贯的描述，不要分点列举）：
+- 主体内容：主要对象、人物、场景的详细描述
+- 构图方式：视角、景别、画面布局
+- 色彩风格：主色调、配色方案
+- 光影效果：光源、氛围
+- 艺术风格：写实、插画、动漫等
+- 细节特征：纹理、材质、装饰
+- 质量标签：如 high quality, 8k, detailed 等
+
+输出规则：
+- 直接输出提示词，不要任何前言、标题、引导语
+- 不要输出"这是提示词"、"Prompt:"、"AI 绘图 Prompt"等
+- 提示词是连续的一段描述性文本，用逗号或句号分隔
+- 不要使用 Markdown 格式（如 **粗体**）
+- 提示词要足够详细，能生成与原图相似的图片
+
+{{LANGUAGE_INSTRUCTION}}`
 
 const DefaultOptimizeSystemJSONPrompt = `
 你是一个「图像生成提示词改写器（Strict Prompt Rewriter）」。
@@ -199,6 +222,7 @@ func InitConfig() {
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("prompts.optimize_system", DefaultOptimizeSystemPrompt)
 	viper.SetDefault("prompts.optimize_system_json", DefaultOptimizeSystemJSONPrompt)
+	viper.SetDefault("prompts.image_to_prompt_system", DefaultImageToPromptSystem)
 	viper.SetDefault("templates.remote_url", "https://raw.githubusercontent.com/ShellMonster/Nano_Banana_Pro_Web/refs/heads/main/backend/internal/templates/assets/templates.json")
 	viper.SetDefault("templates.fetch_timeout_seconds", 4)
 

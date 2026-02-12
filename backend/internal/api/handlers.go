@@ -3,12 +3,15 @@ package api
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -781,4 +784,408 @@ func extractTextFromContent(content interface{}) string {
 		}
 	}
 	return ""
+}
+
+// ImageToPromptRequest 图片逆向提示词请求
+type ImageToPromptRequest struct {
+	Provider string `form:"provider"`
+	Model    string `form:"model"`
+}
+
+// 图片上传大小限制常量
+const maxImageUploadSize = 20 * 1024 * 1024 // 20MB
+
+// ImageToPromptHandler 图片逆向提示词处理函数
+// 用户上传图片，后端分析图片内容并生成提示词
+func ImageToPromptHandler(c *gin.Context) {
+	log.Printf("[API] 收到图片逆向提示词请求\n")
+
+	// 限制请求体大小，防止 DoS 攻击
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxImageUploadSize)
+
+	// 1. 解析请求参数
+	providerName := strings.TrimSpace(strings.ToLower(c.PostForm("provider")))
+	if providerName == "" {
+		providerName = "gemini-chat"
+	}
+	if providerName == "openai" {
+		providerName = "openai-chat"
+	}
+	if providerName == "gemini" {
+		providerName = "gemini-chat"
+	}
+
+	// 2. 获取 Provider 配置
+	var cfg model.ProviderConfig
+	if err := model.DB.Where("provider_name = ?", providerName).First(&cfg).Error; err != nil {
+		Error(c, http.StatusBadRequest, 400, "未找到指定的 Provider: "+providerName)
+		return
+	}
+	if strings.TrimSpace(cfg.APIKey) == "" {
+		Error(c, http.StatusBadRequest, 400, "Provider API Key 未配置")
+		return
+	}
+
+	// 3. 解析模型名称
+	modelName := provider.ResolveModelID(provider.ModelResolveOptions{
+		ProviderName: providerName,
+		Purpose:      provider.PurposeChat,
+		RequestModel: c.PostForm("model"),
+		Config:       &cfg,
+	}).ID
+	if modelName == "" {
+		Error(c, http.StatusBadRequest, 400, "未找到可用的模型")
+		return
+	}
+
+	// 4. 获取图片数据（支持 multipart 文件上传或本地路径）
+	var imageData []byte
+
+	// 方式1: 从 multipart 文件上传获取
+	file, header, err := c.Request.FormFile("image")
+	if err == nil && file != nil {
+		defer file.Close()
+		// 限制读取大小，使用 LimitReader 防止读取超过限制的数据
+		limitedReader := io.LimitReader(file, maxImageUploadSize+1)
+		imageData, err = io.ReadAll(limitedReader)
+		if err != nil {
+			Error(c, http.StatusBadRequest, 400, "读取上传图片失败")
+			return
+		}
+		if len(imageData) > maxImageUploadSize {
+			Error(c, http.StatusBadRequest, 400, "图片大小超过 20MB 限制")
+			return
+		}
+		log.Printf("[API] 从文件上传获取图片: %s, 大小: %d bytes\n", header.Filename, len(imageData))
+	}
+
+	// 方式2: 从本地路径获取（Tauri 桌面端优化）
+	if len(imageData) == 0 {
+		localPath := c.PostForm("image_path")
+		if localPath != "" {
+			// 安全校验：检查路径是否合法，防止路径遍历攻击
+			cleanPath := filepath.Clean(localPath)
+			// 检查路径中是否包含可疑的遍历字符
+			if strings.Contains(cleanPath, "..") || strings.Contains(localPath, "..") {
+				Error(c, http.StatusBadRequest, 400, "非法的图片路径")
+				return
+			}
+			// 检查文件是否存在且可读
+			info, err := os.Stat(cleanPath)
+			if err != nil {
+				Error(c, http.StatusBadRequest, 400, "读取本地图片失败")
+				return
+			}
+			// 检查文件大小
+			if info.Size() > maxImageUploadSize {
+				Error(c, http.StatusBadRequest, 400, "图片大小超过 20MB 限制")
+				return
+			}
+			imageData, err = os.ReadFile(cleanPath)
+			if err != nil {
+				Error(c, http.StatusBadRequest, 400, "读取本地图片失败")
+				return
+			}
+			log.Printf("[API] 从本地路径获取图片: 大小: %d bytes\n", len(imageData))
+		}
+	}
+
+	if len(imageData) == 0 {
+		Error(c, http.StatusBadRequest, 400, "请提供图片（通过 image 文件上传或 image_path 参数）")
+		return
+	}
+
+	// 5. 获取系统提示词
+	systemPrompt := strings.TrimSpace(config.GlobalConfig.Prompts.ImageToPromptSystem)
+	if systemPrompt == "" {
+		systemPrompt = config.DefaultImageToPromptSystem
+	}
+
+	// 6. 获取用户语言偏好，动态替换语言指令占位符
+	language := c.PostForm("language")
+	log.Printf("[API] 图片逆向提示词语言参数: %s\n", language)
+	outputLangInstruction := getImageToPromptLanguageInstruction(language)
+	log.Printf("[API] 图片逆向提示词语言指令: %s\n", outputLangInstruction)
+	// 替换占位符 {{LANGUAGE_INSTRUCTION}} 为实际的语言要求
+	systemPrompt = strings.Replace(systemPrompt, "{{LANGUAGE_INSTRUCTION}}", outputLangInstruction, 1)
+
+	// 7. 调用 AI 模型分析图片
+	var result string
+	if providerName == "gemini-chat" {
+		result, err = callGeminiImageToPrompt(c.Request.Context(), &cfg, modelName, imageData, systemPrompt)
+	} else {
+		result, err = callOpenAIImageToPrompt(c.Request.Context(), &cfg, modelName, imageData, systemPrompt)
+	}
+
+	if err != nil {
+		Error(c, http.StatusBadRequest, 400, "分析图片失败: "+err.Error())
+		return
+	}
+
+	log.Printf("[API] 图片逆向提示词成功, 结果长度: %d\n", len(result))
+	Success(c, gin.H{"prompt": result})
+}
+
+// callGeminiImageToPrompt 使用 Gemini 分析图片生成提示词
+func callGeminiImageToPrompt(ctx context.Context, cfg *model.ProviderConfig, modelName string, imageData []byte, systemPrompt string) (string, error) {
+	log.Printf("[ImageToPrompt] 开始调用 Gemini API, 模型: %s, API Base: %s", modelName, cfg.APIBase)
+
+	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 150 * time.Second
+	}
+	log.Printf("[ImageToPrompt] 超时设置: %v", timeout)
+
+	httpClient := &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			DisableKeepAlives:   true,
+			ForceAttemptHTTP2:   false,
+			MaxIdleConns:        0,
+			MaxIdleConnsPerHost: 0,
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
+		},
+	}
+
+	clientConfig := &genai.ClientConfig{
+		APIKey:     cfg.APIKey,
+		Backend:    genai.BackendGeminiAPI,
+		HTTPClient: httpClient,
+	}
+
+	if apiBase := strings.TrimRight(strings.TrimSpace(cfg.APIBase), "/"); apiBase != "" && apiBase != "https://generativelanguage.googleapis.com" {
+		clientConfig.HTTPOptions = genai.HTTPOptions{BaseURL: apiBase}
+		log.Printf("[ImageToPrompt] 使用自定义 API Base: %s", apiBase)
+	}
+
+	log.Printf("[ImageToPrompt] 正在创建 Gemini 客户端...")
+	client, err := genai.NewClient(ctx, clientConfig)
+	if err != nil {
+		log.Printf("[ImageToPrompt] 创建 Gemini 客户端失败: %v", err)
+		return "", fmt.Errorf("创建 Gemini 客户端失败: %w", err)
+	}
+	log.Printf("[ImageToPrompt] Gemini 客户端创建成功")
+
+	// 自动检测 MIME Type
+	mimeType := http.DetectContentType(imageData)
+	if !strings.HasPrefix(mimeType, "image/") {
+		mimeType = "image/jpeg"
+	}
+	log.Printf("[ImageToPrompt] 图片 MIME Type: %s, 数据大小: %d bytes", mimeType, len(imageData))
+
+	// 构建请求：图片 + 系统提示词
+	contents := []*genai.Content{
+		{
+			Role: "user",
+			Parts: []*genai.Part{
+				{
+					InlineData: &genai.Blob{
+						MIMEType: mimeType,
+						Data:     imageData,
+					},
+				},
+				{Text: "请分析这张图片并生成提示词描述。"},
+			},
+		},
+	}
+
+	genConfig := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{
+			Parts: []*genai.Part{{Text: systemPrompt}},
+		},
+	}
+
+	log.Printf("[ImageToPrompt] 正在调用 Gemini API GenerateContent...")
+	startTime := time.Now()
+	resp, err := client.Models.GenerateContent(ctx, modelName, contents, genConfig)
+	elapsed := time.Since(startTime)
+	log.Printf("[ImageToPrompt] Gemini API 调用完成, 耗时: %v", elapsed)
+
+	if err != nil {
+		log.Printf("[ImageToPrompt] Gemini API 请求失败: %v", err)
+		return "", fmt.Errorf("请求失败: %w", err)
+	}
+
+	result := strings.TrimSpace(resp.Text())
+	log.Printf("[ImageToPrompt] Gemini API 返回结果长度: %d", len(result))
+	if result == "" {
+		log.Printf("[ImageToPrompt] Gemini API 返回空结果")
+		return "", fmt.Errorf("未返回分析结果")
+	}
+	log.Printf("[ImageToPrompt] 成功获取提示词, 前100字符: %s", truncateString(result, 100))
+	return result, nil
+}
+
+// truncateString 截断字符串用于日志显示
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
+// getImageToPromptLanguageInstruction 根据用户语言返回逆向提示词的输出语言指令
+// 返回完整的语言输出要求，用于替换系统提示词中的 {{LANGUAGE_INSTRUCTION}} 占位符
+func getImageToPromptLanguageInstruction(language string) string {
+	// 统一小写处理
+	lang := strings.ToLower(strings.TrimSpace(language))
+	if lang == "" {
+		// 默认英文
+		return "用英文输出提示词"
+	}
+
+	// 语言映射表：语言代码 -> 输出语言指令
+	languageInstructions := map[string]string{
+		// 中文
+		"zh-cn": "用中文输出提示词",
+		"zh-tw": "用繁體中文輸出提示詞",
+		"zh-hk": "用繁體中文輸出提示詞",
+		"zh":    "用中文输出提示词",
+		// 日语
+		"ja":    "日本語でプロンプトを出力してください",
+		"ja-jp": "日本語でプロンプトを出力してください",
+		// 韩语
+		"ko":    "한국어로 프롬프트를 출력하세요",
+		"ko-kr": "한국어로 프롬프트를 출력하세요",
+		// 法语
+		"fr":    "Générez le prompt en français",
+		"fr-fr": "Générez le prompt en français",
+		// 德语
+		"de":    "Geben Sie den Prompt auf Deutsch aus",
+		"de-de": "Geben Sie den Prompt auf Deutsch aus",
+		// 西班牙语
+		"es":    "Genere el prompt en español",
+		"es-es": "Genere el prompt en español",
+		// 意大利语
+		"it":    "Restituisci il prompt in italiano",
+		"it-it": "Restituisci il prompt in italiano",
+		// 葡萄牙语
+		"pt":    "Gere o prompt em português",
+		"pt-br": "Gere o prompt em português",
+		"pt-pt": "Gere o prompt em português",
+		// 俄语
+		"ru":    "Выведите промпт на русском языке",
+		"ru-ru": "Выведите промпт на русском языке",
+		// 阿拉伯语
+		"ar":    "أخرج الموجه باللغة العربية",
+		"ar-sa": "أخرج الموجه باللغة العربية",
+		// 印地语
+		"hi":    "प्रॉम्प्ट हिंदी में आउटपुट करें",
+		"hi-in": "प्रॉम्प्ट हिंदी में आउटपुट करें",
+		// 泰语
+		"th":    "ส่งออกพรอมต์เป็นภาษาไทย",
+		"th-th": "ส่งออกพรอมต์เป็นภาษาไทย",
+		// 越南语
+		"vi":    "Xuất lời nhắc bằng tiếng Việt",
+		"vi-vn": "Xuất lời nhắc bằng tiếng Việt",
+		// 印尼语
+		"id":    "Keluarkan prompt dalam bahasa Indonesia",
+		"id-id": "Keluarkan prompt dalam bahasa Indonesia",
+		// 马来语
+		"ms":    "Keluaran prompt dalam bahasa Melayu",
+		"ms-my": "Keluaran prompt dalam bahasa Melayu",
+		// 荷兰语
+		"nl":    "Geef de prompt in het Nederlands",
+		"nl-nl": "Geef de prompt in het Nederlands",
+		// 波兰语
+		"pl":    "Wyświetl monit w języku polskim",
+		"pl-pl": "Wyświetl monit w języku polskim",
+		// 土耳其语
+		"tr":    "İstemi Türkçe olarak çıktılayın",
+		"tr-tr": "İstemi Türkçe olarak çıktılayın",
+		// 乌克兰语
+		"uk":    "Виведіть підказку українською мовою",
+		"uk-ua": "Виведіть підказку українською мовою",
+	}
+
+	// 先尝试完整匹配
+	if instruction, ok := languageInstructions[lang]; ok {
+		return instruction
+	}
+
+	// 尝试匹配语言主代码（如 zh-CN -> zh）
+	if idx := strings.Index(lang, "-"); idx > 0 {
+		mainLang := lang[:idx]
+		if instruction, ok := languageInstructions[mainLang]; ok {
+			return instruction
+		}
+	}
+
+	// 默认返回英文要求
+	return "用英文输出提示词"
+}
+
+// callOpenAIImageToPrompt 使用 OpenAI Vision 分析图片生成提示词
+func callOpenAIImageToPrompt(ctx context.Context, cfg *model.ProviderConfig, modelName string, imageData []byte, systemPrompt string) (string, error) {
+	log.Printf("[ImageToPrompt] 开始调用 OpenAI Vision API, 模型: %s, API Base: %s", modelName, cfg.APIBase)
+
+	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 150 * time.Second
+	}
+	log.Printf("[ImageToPrompt] 超时设置: %v", timeout)
+
+	httpClient := &http.Client{Timeout: timeout}
+	apiBase := provider.NormalizeOpenAIBaseURL(cfg.APIBase)
+	opts := []option.RequestOption{
+		option.WithAPIKey(cfg.APIKey),
+		option.WithHTTPClient(httpClient),
+	}
+	if apiBase != "" {
+		opts = append(opts, option.WithBaseURL(apiBase))
+		log.Printf("[ImageToPrompt] 使用自定义 API Base: %s", apiBase)
+	}
+	client := openai.NewClient(opts...)
+
+	// 构建 base64 图片数据
+	mimeType := http.DetectContentType(imageData)
+	if !strings.HasPrefix(mimeType, "image/") {
+		mimeType = "image/jpeg"
+	}
+	log.Printf("[ImageToPrompt] 图片 MIME Type: %s, 数据大小: %d bytes", mimeType, len(imageData))
+
+	base64Image := base64.StdEncoding.EncodeToString(imageData)
+	dataURL := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Image)
+
+	// 构建请求
+	payload := map[string]interface{}{
+		"model": modelName,
+		"messages": []openai.ChatCompletionMessageParamUnion{
+			openai.SystemMessage(systemPrompt),
+			openai.UserMessage([]openai.ChatCompletionContentPartUnionParam{
+				openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{
+					URL: dataURL,
+				}),
+				openai.TextContentPart("请分析这张图片并生成提示词描述。"),
+			}),
+		},
+	}
+
+	log.Printf("[ImageToPrompt] 正在调用 OpenAI API /chat/completions...")
+	startTime := time.Now()
+	var respBytes []byte
+	if err := client.Post(ctx, "/chat/completions", payload, &respBytes); err != nil {
+		elapsed := time.Since(startTime)
+		log.Printf("[ImageToPrompt] OpenAI API 请求失败, 耗时: %v, 错误: %v", elapsed, err)
+		return "", fmt.Errorf("请求失败: %s", formatOpenAIClientError(err))
+	}
+	elapsed := time.Since(startTime)
+	log.Printf("[ImageToPrompt] OpenAI API 调用完成, 耗时: %v, 响应长度: %d", elapsed, len(respBytes))
+
+	result, err := extractChatMessage(respBytes)
+	if err != nil {
+		log.Printf("[ImageToPrompt] 解析响应失败: %v, 原始响应: %s", err, truncateString(string(respBytes), 500))
+		return "", err
+	}
+
+	result = strings.TrimSpace(result)
+	log.Printf("[ImageToPrompt] OpenAI API 返回结果长度: %d", len(result))
+	if result == "" {
+		log.Printf("[ImageToPrompt] OpenAI API 返回空结果")
+		return "", fmt.Errorf("未返回分析结果")
+	}
+	log.Printf("[ImageToPrompt] 成功获取提示词, 前100字符: %s", truncateString(result, 100))
+	return result, nil
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, FileText, FolderOpen, Copy, RefreshCw, Languages, MessageSquare, Github } from 'lucide-react';
+import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, FileText, FolderOpen, Copy, RefreshCw, Languages, MessageSquare, Github, ScanEye } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '../../store/configStore';
 import { Input } from '../common/Input';
@@ -20,7 +20,7 @@ const CHAT_PROVIDER_OPTIONS = [
 ];
 const DEFAULT_CHAT_PROVIDER = 'openai-chat';
 
-type SettingsTab = 'language' | 'image' | 'chat' | 'update' | 'logs';
+type SettingsTab = 'language' | 'image' | 'vision' | 'chat' | 'update' | 'logs';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -100,6 +100,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     imageApiBaseUrl, setImageApiBaseUrl,
     imageModel, setImageModel,
     imageTimeoutSeconds, setImageTimeoutSeconds,
+    visionProvider, setVisionProvider,
+    visionApiBaseUrl, setVisionApiBaseUrl,
+    visionApiKey, setVisionApiKey,
+    visionModel, setVisionModel,
+    visionTimeoutSeconds, setVisionTimeoutSeconds,
+    setVisionSyncedConfig,
     chatProvider, setChatProvider,
     chatApiBaseUrl, setChatApiBaseUrl,
     chatApiKey, setChatApiKey,
@@ -114,11 +120,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('image');
   const [showImageKey, setShowImageKey] = useState(false);
+  const [showVisionKey, setShowVisionKey] = useState(false);
   const [showChatKey, setShowChatKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [fetching, setFetching] = useState(false);
   const imageBaseWarn = isGeminiProvider(imageProvider) && hasGeminiBasePathWarning(imageApiBaseUrl);
+  const visionBaseWarn = isGeminiProvider(visionProvider) && hasGeminiBasePathWarning(visionApiBaseUrl);
   const chatBaseWarn = isGeminiProvider(chatProvider) && hasGeminiBasePathWarning(chatApiBaseUrl);
   const [verboseLogs, setVerboseLogs] = useState(getDiagnosticVerbose());
   const [appVersion, setAppVersion] = useState('');
@@ -145,6 +153,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     if (isOpen) {
       setActiveTab('image');
       setShowImageKey(false);
+      setShowVisionKey(false);
       setShowChatKey(false);
       fetchConfigs();
       setUpdateHint(null);
@@ -199,6 +208,33 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setImageTimeoutSeconds(500);
       }
 
+      // 识图配置：先尝试从后端加载，如果没有则继承生图配置
+      const visionConfig = data.find((p) => p.provider_name === visionProvider);
+      if (visionConfig && visionConfig.api_key) {
+        setVisionApiBaseUrl(visionConfig.api_base);
+        setVisionApiKey(visionConfig.api_key);
+        const modelFromConfig = getDefaultModelId(visionConfig.models);
+        if (modelFromConfig) {
+          setVisionModel(modelFromConfig);
+        }
+        setVisionTimeoutSeconds(normalizeTimeout(visionConfig.timeout_seconds));
+        setVisionSyncedConfig({
+          apiBaseUrl: visionConfig.api_base || '',
+          apiKey: visionConfig.api_key || '',
+          model: modelFromConfig || '',
+          timeoutSeconds: normalizeTimeout(visionConfig.timeout_seconds)
+        });
+      } else {
+        // 如果没有独立的识图配置，默认继承生图配置的 base URL 和 key
+        const imageCfg = imageConfig || data.find((p) => p.provider_name === imageProvider);
+        if (imageCfg) {
+          setVisionApiBaseUrl(imageCfg.api_base);
+          setVisionApiKey(imageCfg.api_key);
+        }
+        setVisionTimeoutSeconds(150);
+        setVisionSyncedConfig(null);
+      }
+
       const chatConfig = data.find((p) => p.provider_name === chatProvider);
       if (chatConfig) {
         setChatApiBaseUrl(chatConfig.api_base);
@@ -239,18 +275,25 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       return;
     }
 
+    // 识图配置：如果没有单独设置，则使用生图配置
+    const visionBase = visionApiBaseUrl.trim() || imageBase;
+    const visionKey = visionApiKey.trim() || imageKey;
+    const visionModelValue = visionModel.trim() || 'gemini-3-flash-preview';
+    const visionTimeoutValue = normalizeTimeout(visionTimeoutSeconds, 150);
+
     const chatBase = chatApiBaseUrl.trim();
     const chatKey = chatApiKey.trim();
     const chatModelValue = chatModel.trim();
     const chatTimeoutValue = normalizeTimeout(chatTimeoutSeconds);
     const wantsChat = Boolean(chatKey);
     const imageSaveWarn = isGeminiProvider(imageProvider) && hasGeminiBasePathWarning(imageBase);
+    const visionSaveWarn = isGeminiProvider(visionProvider) && hasGeminiBasePathWarning(visionBase);
     const chatSaveWarn = wantsChat && isGeminiProvider(chatProvider) && hasGeminiBasePathWarning(chatBase);
     if (wantsChat && (!chatBase || !chatModelValue)) {
       toast.error(t('settings.toast.chatConfigIncomplete'));
       return;
     }
-    if (imageSaveWarn || chatSaveWarn) {
+    if (imageSaveWarn || visionSaveWarn || chatSaveWarn) {
       toast.warning(t('settings.toast.geminiBasePathWarning'));
     }
     if (
@@ -275,6 +318,18 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         timeout_seconds: imageTimeoutValue
       });
 
+      // 保存识图配置
+      await updateProviderConfig({
+        provider_name: visionProvider,
+        display_name: visionProvider,
+        api_base: visionBase,
+        api_key: visionKey,
+        enabled: false,
+        model_id: visionModelValue,
+        timeout_seconds: visionTimeoutValue
+      });
+      setVisionSyncedConfig({ apiBaseUrl: visionBase, apiKey: visionKey, model: visionModelValue, timeoutSeconds: visionTimeoutValue });
+
       if (wantsChat) {
         await updateProviderConfig({
           provider_name: chatProvider,
@@ -292,9 +347,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
       toast.success(t('settings.toast.saveSuccess'));
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Save failed:', error);
-      const msg = error.response?.data?.message || error.message || t('settings.toast.checkNetwork');
+      let msg = t('settings.toast.checkNetwork');
+      if (error instanceof Error) {
+        msg = error.message;
+      }
+      // 处理 AxiosError 类型的响应错误
+      if (typeof error === 'object' && error !== null && 'response' in error) {
+        const axiosError = error as { response?: { data?: { message?: string } } };
+        if (axiosError.response?.data?.message) {
+          msg = axiosError.response.data.message;
+        }
+      }
       toast.error(t('settings.toast.saveFailed', { msg }));
     } finally {
       setLoading(false);
@@ -317,6 +382,35 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setImageTimeoutSeconds(normalizeTimeout(config.timeout_seconds, 500));
     } else {
       setImageTimeoutSeconds(500);
+    }
+  };
+
+  const handleVisionProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newProvider = e.target.value;
+    setVisionProvider(newProvider);
+
+    const config = providers.find(p => p.provider_name === newProvider);
+    if (config) {
+      setVisionApiBaseUrl(config.api_base);
+      setVisionApiKey(config.api_key);
+      const modelFromConfig = getDefaultModelId(config.models);
+      if (modelFromConfig) {
+        setVisionModel(modelFromConfig);
+      }
+      setVisionTimeoutSeconds(normalizeTimeout(config.timeout_seconds));
+      setVisionSyncedConfig({
+        apiBaseUrl: config.api_base || '',
+        apiKey: config.api_key || '',
+        model: modelFromConfig || '',
+        timeoutSeconds: normalizeTimeout(config.timeout_seconds)
+      });
+    } else {
+      const defaults = getChatProviderDefaults(newProvider);
+      setVisionApiBaseUrl(defaults.baseUrl);
+      setVisionApiKey('');
+      setVisionModel(defaults.model);
+      setVisionTimeoutSeconds(150);
+      setVisionSyncedConfig(null);
     }
   };
 
@@ -552,6 +646,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const menuItems = [
     { id: 'language' as const, label: t('settings.language.label'), icon: Languages },
     { id: 'image' as const, label: t('settings.tabs.image'), icon: Box },
+    { id: 'vision' as const, label: t('settings.tabs.vision'), icon: ScanEye },
     { id: 'chat' as const, label: t('settings.tabs.chat'), icon: MessageSquare },
     { id: 'update' as const, label: t('settings.update.title'), icon: RefreshCw },
     { id: 'logs' as const, label: t('settings.logs.title'), icon: FileText }
@@ -719,6 +814,120 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 step={1}
                 value={imageTimeoutSeconds}
                 onChange={(e) => setImageTimeoutSeconds(parseTimeoutInput(e.target.value, imageTimeoutSeconds))}
+                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              />
+            </div>
+                </>
+              )}
+
+              {activeTab === 'vision' && (
+                <>
+            {/* Provider Selection */}
+            <div className="space-y-3">
+              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <Box className="w-4 h-4 text-blue-600" />
+                {t('settings.provider.label')}
+              </label>
+              <Select
+                value={visionProvider}
+                onChange={handleVisionProviderChange}
+                className="h-10 bg-slate-100 text-slate-900 font-bold rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              >
+                {CHAT_PROVIDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            {/* API Base URL */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-blue-600" />
+                  Base URL
+                </label>
+                <span className="text-xs text-slate-500">
+                  {t('settings.provider.recommended')}
+                  <button
+                    type="button"
+                    onClick={handleOpenYunwu}
+                    className="text-blue-600 hover:text-blue-700 underline underline-offset-2"
+                  >
+                    {t('settings.provider.yunwu')}
+                  </button>
+                </span>
+              </div>
+              <Input
+                type="text"
+                value={visionApiBaseUrl || ''}
+                onChange={(e) => setVisionApiBaseUrl(e.target.value)}
+                placeholder={
+                  visionProvider === 'gemini-chat'
+                    ? 'https://generativelanguage.googleapis.com'
+                    : 'https://api.openai.com/v1'
+                }
+                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              />
+              {visionBaseWarn && (
+                <p className="text-xs text-amber-600 px-1">{t('settings.provider.geminiBasePathHint')}</p>
+              )}
+              <p className="text-xs text-slate-500 px-1">{t('settings.vision.hint')}</p>
+            </div>
+
+            {/* API Key */}
+            <div className="space-y-3">
+              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <Key className="w-4 h-4 text-blue-600" />
+                API Key
+              </label>
+              <div className="relative">
+                <Input
+                  type={showVisionKey ? 'text' : 'password'}
+                  value={visionApiKey || ''}
+                  onChange={(e) => setVisionApiKey(e.target.value)}
+                  placeholder={t('settings.vision.apiKeyPlaceholder')}
+                  className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 pr-14 focus:bg-white border border-slate-200 transition-all shadow-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowVisionKey(!showVisionKey)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-blue-600 transition-colors bg-white/80 rounded-xl shadow-sm"
+                >
+                  {showVisionKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 px-1">{t('settings.vision.apiKeyHint')}</p>
+            </div>
+
+            {/* Model */}
+            <div className="space-y-3">
+              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <Box className="w-4 h-4 text-blue-600" />
+                {t('settings.model.vision')}
+              </label>
+              <Input
+                type="text"
+                value={visionModel}
+                onChange={(e) => setVisionModel(e.target.value)}
+                placeholder="gemini-3-flash-preview"
+                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              />
+            </div>
+
+            {/* Timeout */}
+            <div className="space-y-3">
+              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <Box className="w-4 h-4 text-blue-600" />
+                {t('settings.timeout.vision')}
+              </label>
+              <Input
+                type="number"
+                min={5}
+                step={1}
+                value={visionTimeoutSeconds}
+                onChange={(e) => setVisionTimeoutSeconds(parseTimeoutInput(e.target.value, visionTimeoutSeconds))}
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
             </div>
