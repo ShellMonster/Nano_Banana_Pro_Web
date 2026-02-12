@@ -10,6 +10,19 @@ interface ConfigState {
   imageModel: string;
   imageTimeoutSeconds: number;
 
+  // 识图配置（逆向提示词用）
+  visionProvider: string;
+  visionApiBaseUrl: string;
+  visionApiKey: string;
+  visionModel: string;
+  visionTimeoutSeconds: number;
+  visionSyncedConfig: {
+    apiBaseUrl: string;
+    apiKey: string;
+    model: string;
+    timeoutSeconds: number;
+  } | null;
+
   // 对话配置
   chatProvider: string;
   chatApiBaseUrl: string;
@@ -25,7 +38,7 @@ interface ConfigState {
 
   language: string;
   languageResolved: string | null;
-  
+
   prompt: string;
   count: number;
   imageSize: string;
@@ -38,6 +51,12 @@ interface ConfigState {
   setImageApiKey: (key: string) => void;
   setImageModel: (model: string) => void;
   setImageTimeoutSeconds: (seconds: number) => void;
+  setVisionProvider: (provider: string) => void;
+  setVisionApiBaseUrl: (url: string) => void;
+  setVisionApiKey: (key: string) => void;
+  setVisionModel: (model: string) => void;
+  setVisionTimeoutSeconds: (seconds: number) => void;
+  setVisionSyncedConfig: (config: { apiBaseUrl: string; apiKey: string; model: string; timeoutSeconds: number } | null) => void;
   setChatProvider: (provider: string) => void;
   setChatApiBaseUrl: (url: string) => void;
   setChatApiKey: (key: string) => void;
@@ -67,6 +86,12 @@ export const useConfigStore = create<ConfigState>()(
       imageApiKey: '',
       imageModel: 'gemini-3-pro-image-preview',
       imageTimeoutSeconds: 500,
+      visionProvider: 'gemini-chat',
+      visionApiBaseUrl: '',
+      visionApiKey: '',
+      visionModel: 'gemini-3-flash-preview',
+      visionTimeoutSeconds: 150,
+      visionSyncedConfig: null,
       chatProvider: 'openai-chat',
       chatApiBaseUrl: 'https://api.openai.com/v1',
       chatApiKey: '',
@@ -87,6 +112,12 @@ export const useConfigStore = create<ConfigState>()(
       setImageApiKey: (imageApiKey) => set({ imageApiKey }),
       setImageModel: (imageModel) => set({ imageModel }),
       setImageTimeoutSeconds: (imageTimeoutSeconds) => set({ imageTimeoutSeconds }),
+      setVisionProvider: (visionProvider) => set({ visionProvider }),
+      setVisionApiBaseUrl: (visionApiBaseUrl) => set({ visionApiBaseUrl }),
+      setVisionApiKey: (visionApiKey) => set({ visionApiKey }),
+      setVisionModel: (visionModel) => set({ visionModel }),
+      setVisionTimeoutSeconds: (visionTimeoutSeconds) => set({ visionTimeoutSeconds }),
+      setVisionSyncedConfig: (visionSyncedConfig) => set({ visionSyncedConfig }),
       setChatProvider: (chatProvider) => set({ chatProvider }),
       setChatApiBaseUrl: (chatApiBaseUrl) => set({ chatApiBaseUrl }),
       setChatApiKey: (chatApiKey) => set({ chatApiKey }),
@@ -117,6 +148,12 @@ export const useConfigStore = create<ConfigState>()(
         imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
         imageModel: 'gemini-3-pro-image-preview',
         imageTimeoutSeconds: 500,
+        visionProvider: 'gemini-chat',
+        visionApiBaseUrl: '',
+        visionApiKey: '',
+        visionModel: 'gemini-3-flash-preview',
+        visionTimeoutSeconds: 150,
+        visionSyncedConfig: null,
         chatProvider: 'openai-chat',
         chatApiBaseUrl: 'https://api.openai.com/v1',
         chatModel: 'gemini-3-flash-preview',
@@ -133,7 +170,7 @@ export const useConfigStore = create<ConfigState>()(
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 9,
+      version: 10,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;
@@ -202,6 +239,18 @@ export const useConfigStore = create<ConfigState>()(
               }
             };
           }
+        }
+        // 版本 10: 添加识图配置，默认继承生图配置
+        if (version < 10) {
+          next = {
+            ...next,
+            visionProvider: 'gemini-chat',
+            visionApiBaseUrl: next.imageApiBaseUrl ?? '',
+            visionApiKey: next.imageApiKey ?? '',
+            visionModel: 'gemini-3-flash-preview',
+            visionTimeoutSeconds: 150,
+            visionSyncedConfig: null
+          };
         }
         return next;
       },

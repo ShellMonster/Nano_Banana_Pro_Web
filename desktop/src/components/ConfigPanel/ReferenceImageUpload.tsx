@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { ImagePlus, X, Image as ImageIcon, ChevronDown, ChevronUp } from 'lucide-react';
+import { ImagePlus, X, Image as ImageIcon, ChevronDown, ChevronUp, Sparkles, Loader2 } from 'lucide-react';
 import { useConfigStore } from '../../store/configStore';
 import { useInternalDragStore, type InternalDragPayload } from '../../store/internalDragStore';
 import { cn } from '../common/Button';
@@ -9,6 +9,7 @@ import SparkMD5 from 'spark-md5';
 import { calculateMd5, compressImage, fetchFileWithMd5 } from '../../utils/image';
 import { getImageUrl } from '../../services/api';
 import { useTranslation } from 'react-i18next';
+import { imageToPrompt } from '../../services/promptApi';
 
 const REF_IMAGE_DIR = 'ref_images';
 const REORDER_DRAG_THRESHOLD = 6;
@@ -109,6 +110,11 @@ export function ReferenceImageUpload() {
   const setRefFiles = useConfigStore((s) => s.setRefFiles);
   const refImageEntries = useConfigStore((s) => s.refImageEntries);
   const setRefImageEntries = useConfigStore((s) => s.setRefImageEntries);
+  const setPrompt = useConfigStore((s) => s.setPrompt);
+  const visionProvider = useConfigStore((s) => s.visionProvider);
+  const visionModel = useConfigStore((s) => s.visionModel);
+  const visionSyncedConfig = useConfigStore((s) => s.visionSyncedConfig);
+  const languageResolved = useConfigStore((s) => s.languageResolved);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -144,6 +150,10 @@ export function ReferenceImageUpload() {
   const restoreInFlightRef = useRef(false);
   const dialogOpenRef = useRef<null | ((options: Record<string, unknown>) => Promise<string | string[] | null>)>(null);
   const dialogLoadingRef = useRef<Promise<void> | null>(null);
+
+  // 图片反推提示词相关状态
+  const [isExtractingPrompt, setIsExtractingPrompt] = useState(false);
+  const [extractingIndex, setExtractingIndex] = useState<number | null>(null);
 
   // 计算文件 MD5（使用工具函数）
   const calculateMd5Callback = useCallback(calculateMd5, []);
@@ -1292,6 +1302,74 @@ export function ReferenceImageUpload() {
     prevRefFilesLengthRef.current = useConfigStore.getState().refFiles.length;
   }, [removeRefFile]);
 
+  // 反推提示词 - 从参考图中提取提示词
+  const handleExtractPrompt = useCallback(async (index: number) => {
+    if (isExtractingPrompt) return;
+
+    // 一次性获取所有需要的状态，避免多次调用 getState 导致数据不一致
+    const state = useConfigStore.getState();
+    const file = state.refFiles[index] as ExtendedFile;
+    if (!file) return;
+
+    // 获取有效的识图配置
+    // 优先使用 visionSyncedConfig，如果没有则检查 visionApiKey，最后回退到 imageApiKey
+    const syncedConfig = visionSyncedConfig || state.visionSyncedConfig;
+    const effectiveApiKey = syncedConfig?.apiKey || state.visionApiKey || state.imageApiKey;
+
+    if (!effectiveApiKey) {
+      toast.error(t('refImage.toast.chatConfigMissing'));
+      return;
+    }
+
+    setIsExtractingPrompt(true);
+    setExtractingIndex(index);
+
+    // 获取当前界面语言，用于指定逆向提示词的输出语言
+    // 优先使用 languageResolved，如果为空则使用 language，最后默认为 'en-US'
+    const currentLanguage = languageResolved || state.language || 'en-US';
+    console.log('[ImageToPrompt] Using language:', currentLanguage, '(resolved:', languageResolved, ', stored:', state.language, ')');
+
+    // 使用识图模型配置
+    const effectiveProvider = visionProvider;
+    const effectiveModel = syncedConfig?.model || visionModel;
+
+    try {
+      let result: { prompt: string };
+
+      // 优先使用本地路径（Tauri 桌面端优化）
+      if (file.__path && window.__TAURI_INTERNALS__) {
+        result = await imageToPrompt({
+          provider: effectiveProvider,
+          model: effectiveModel,
+          imagePath: file.__path,
+          language: currentLanguage,
+        });
+      } else {
+        // 否则使用文件上传
+        result = await imageToPrompt({
+          provider: effectiveProvider,
+          model: effectiveModel,
+          imageFile: file,
+          language: currentLanguage,
+        });
+      }
+
+      if (result.prompt) {
+        setPrompt(result.prompt);
+        toast.success(t('refImage.toast.promptExtracted'));
+      } else {
+        toast.error(t('refImage.toast.extractFailed'));
+      }
+    } catch (error) {
+      console.error('Extract prompt failed:', error);
+      const message = error instanceof Error ? error.message : t('refImage.toast.unknown');
+      toast.error(t('refImage.toast.extractFailed') + ': ' + message);
+    } finally {
+      setIsExtractingPrompt(false);
+      setExtractingIndex(null);
+    }
+  }, [visionProvider, visionModel, visionSyncedConfig, setPrompt, isExtractingPrompt, t, languageResolved]);
+
   const ensurePreviewInfo = (file: File) => {
     const key = (file as ExtendedFile).__md5 || `${file.name}-${file.size}-${file.lastModified}`;
     if (!objectUrlsRef.current.has(key)) {
@@ -1602,9 +1680,31 @@ export function ReferenceImageUpload() {
                       draggable={false}
                       onDragStart={(event) => event.preventDefault()}
                     />
+                    {/* 反推提示词按钮 */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleExtractPrompt(index);
+                      }}
+                      disabled={isExtractingPrompt}
+                      className={cn(
+                        "absolute bottom-1 left-1 p-1.5 rounded-lg transition-all",
+                        isExtractingPrompt && extractingIndex === index
+                          ? "bg-purple-500 text-white"
+                          : "bg-black/50 text-white opacity-0 group-hover:opacity-100 hover:bg-purple-500"
+                      )}
+                      title={t('refImage.extractPrompt')}
+                    >
+                      {isExtractingPrompt && extractingIndex === index ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3 h-3" />
+                      )}
+                    </button>
+                    {/* 删除按钮 */}
                     <button
                       onClick={() => handleRemoveFile(index)}
-                      className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
                     >
                       <X className="w-3 h-3" />
                     </button>
