@@ -23,11 +23,14 @@
 </p>
 
 > 💡 **Recent Highlights**:
+> - **🔍 Independent Vision Model Config**: New "Vision Model" settings tab for reverse prompt feature, inherits image model config by default.
+> - **✨ Reverse Prompt Extraction**: Click "Extract Prompt" on reference images to let AI analyze and generate reusable prompts.
+> - **🔒 Security Enhancements**: 20MB upload limit for images, path traversal protection for local file reads.
+> - **🌐 Multi-language Output**: Reverse prompt supports output in 20+ languages based on interface language setting (EN/ZH/JP/KR etc.).
 > - **✨ OpenAI Standard API Integration**: Switch between Gemini / OpenAI compatible interfaces for both prompt optimization and image generation.
 > - **🤖 Enhanced Prompt Optimization**: New **JSON Mode** button, supporting structured JSON output with automatic formatting and backfilling for better prompt quality.
 > - **🧵 Template Market**: Pull-down to open a full-screen template market with filtering, previewing, source tracking, and usage tips.
 > - **🚀 Performance Optimization**: History records and template market migrated to virtual lists/grids for smoother image loading.
-> - **🖼️ No-Image Template Support**: Automatically shows a placeholder when a template lacks a preview image, while still allowing Prompt reuse.
 
 > 💡 **Recommended**: For the best generation experience and cost-effectiveness, we recommend using [Yunwu API](https://yunwu.ai/register?aff=i4hh).
 >
@@ -63,7 +66,8 @@
 
 ### 2. Powerful Image-to-Image
 - **Multi-Ref Support**: Add up to 10 reference images to help the AI understand desired composition or style.
-- **Flexible Uploads**: 
+- **Reverse Prompt Extraction**: Click "Extract Prompt" button on reference images to let AI analyze the image and generate detailed prompts. Supports 20+ languages output.
+- **Flexible Uploads**:
     - **Click/Drag**: Select from local folders or drag-and-drop.
     - **Clipboard Support**: Paste images directly from the web or chat tools.
 - **Smart Preprocessing**: Automatic compression for oversized images and MD5-based duplicate filtering.
@@ -282,6 +286,9 @@ Integrated Tauri Updater for one-click updates.
 | :--- | :--- |
 | `AI Mode` | `Gemini(/v1beta)` or `OpenAI(/v1)`. |
 | `API Base / Key` | Standard OpenAI format compatibility. |
+| `Image Model` | Primary model for image generation. |
+| `Vision Model` | Model for reverse prompt extraction. Inherits Image Model's Base URL and API Key by default. |
+| `Chat Model` | Model for prompt optimization. |
 | `Storage Dir` | Default to system `AppData` (Win) or `Application Support` (Mac). |
 | `Templates Remote URL` | Remote template JSON URL (defaults to GitHub Raw). |
 | `asset://` | Custom protocol for fast local image access. |
