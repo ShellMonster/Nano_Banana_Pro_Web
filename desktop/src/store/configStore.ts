@@ -39,6 +39,9 @@ interface ConfigState {
   language: string;
   languageResolved: string | null;
 
+  // 新手引导
+  showOnboarding: boolean;  // 是否在下次启动时显示引导
+
   prompt: string;
   count: number;
   imageSize: string;
@@ -65,6 +68,7 @@ interface ConfigState {
   setChatSyncedConfig: (config: { apiBaseUrl: string; apiKey: string; model: string; timeoutSeconds: number } | null) => void;
   setLanguage: (language: string) => void;
   setLanguageResolved: (languageResolved: string | null) => void;
+  setShowOnboarding: (show: boolean) => void;
   setPrompt: (prompt: string) => void;
   setCount: (count: number) => void;
   setImageSize: (size: string) => void;
@@ -100,6 +104,7 @@ export const useConfigStore = create<ConfigState>()(
       chatSyncedConfig: null,
       language: 'system',
       languageResolved: null,
+      showOnboarding: true,  // 首次启动默认显示引导
       prompt: '',
       count: 1,
       imageSize: '2K',
@@ -126,6 +131,7 @@ export const useConfigStore = create<ConfigState>()(
       setChatSyncedConfig: (chatSyncedConfig) => set({ chatSyncedConfig }),
       setLanguage: (language) => set({ language }),
       setLanguageResolved: (languageResolved) => set({ languageResolved }),
+      setShowOnboarding: (showOnboarding) => set({ showOnboarding }),
       setPrompt: (prompt) => set({ prompt }),
       setCount: (count) => set({ count }),
       setImageSize: (imageSize) => set({ imageSize }),
@@ -170,7 +176,7 @@ export const useConfigStore = create<ConfigState>()(
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 10,
+      version: 11,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;
@@ -250,6 +256,13 @@ export const useConfigStore = create<ConfigState>()(
             visionModel: 'gemini-3-flash-preview',
             visionTimeoutSeconds: 150,
             visionSyncedConfig: null
+          };
+        }
+        // 版本 11: 添加新手引导开关，首次启动默认显示
+        if (version < 11) {
+          next = {
+            ...next,
+            showOnboarding: true
           };
         }
         return next;

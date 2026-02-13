@@ -23,7 +23,7 @@ export default function ConfigPanel() {
       </div>
 
       {/* 中间：参考图区域 - 紧贴上方 */}
-      <div className="px-4 py-3 border-b border-slate-100 flex-shrink-0">
+      <div className="px-4 py-3 border-b border-slate-100 flex-shrink-0" data-onboarding="ref-image-area">
         <ReferenceImageUpload />
       </div>
 
@@ -39,6 +39,7 @@ export default function ConfigPanel() {
             </div>
           )}
           <Button
+            data-onboarding="generate-button"
             className="w-full h-14 text-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-xl shadow-blue-200/50 border-none transition-all duration-300"
             onClick={generate}
             disabled={!apiKey || !prompt.trim()}

@@ -182,7 +182,7 @@ export function PromptInput() {
           <MessageSquare className="w-4 h-4" />
           {t('prompt.label')}
         </label>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5" data-onboarding="optimize-buttons">
           <button
             type="button"
             onClick={() => runOptimize('normal')}
@@ -245,7 +245,7 @@ export function PromptInput() {
           </button>
         </div>
       </div>
-      <div className="relative flex-1">
+      <div className="relative flex-1" data-onboarding="prompt-input">
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}

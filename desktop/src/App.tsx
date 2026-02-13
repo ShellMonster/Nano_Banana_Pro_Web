@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MainLayout from './components/Layout/MainLayout';
 import { ToastContainer } from './components/common/Toast';
 import { UpdaterModal } from './components/common/UpdaterModal';
+import { OnboardingTour } from './components/Onboarding/OnboardingTour';
 import i18n from './i18n';
 import { useConfigStore } from './store/configStore';
 import { useGenerateStore } from './store/generateStore';
@@ -39,6 +40,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <MainLayout />
+      <OnboardingTour />
       <UpdaterModal />
       <ToastContainer />
     </QueryClientProvider>

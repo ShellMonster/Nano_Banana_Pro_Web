@@ -65,6 +65,7 @@ export function Header() {
       {/* 右侧：设置按钮 */}
       <div className="w-[40px] sm:w-[140px] flex justify-end relative z-10">
           <button
+            data-onboarding="settings-button"
             onClick={() => setIsSettingsOpen(true)}
             className="p-2.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-xl transition-all duration-300 shadow-none hover:shadow-sm"
             title={t('nav.settings')}
