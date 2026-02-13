@@ -144,11 +144,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return fallback;
     return Math.round(value);
   };
-  const parseTimeoutInput = (value: string, fallback: number) => {
+  const parseTimeoutInput = (value: string) => {
+    // 允许空值，返回 0 表示未填写
+    if (!value.trim()) return 0;
     const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return fallback;
-    return Math.max(5, Math.round(parsed));
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.round(parsed);
   };
+  const MIN_TIMEOUT = 50; // 最小超时时间
 
   // 当弹窗打开时，从后端获取最新的配置
   useEffect(() => {
@@ -277,17 +280,35 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       return;
     }
 
+    // 校验超时时间
+    if (imageTimeoutSeconds > 0 && imageTimeoutSeconds < MIN_TIMEOUT) {
+      toast.error(t('settings.toast.timeoutTooSmall', { min: MIN_TIMEOUT }));
+      return;
+    }
+
     // 识图配置：如果没有单独设置，则使用生图配置
     const visionBase = visionApiBaseUrl.trim() || imageBase;
     const visionKey = visionApiKey.trim() || imageKey;
     const visionModelValue = visionModel.trim() || 'gemini-3-flash-preview';
     const visionTimeoutValue = normalizeTimeout(visionTimeoutSeconds, 150);
 
+    // 校验识图超时时间
+    if (visionTimeoutSeconds > 0 && visionTimeoutSeconds < MIN_TIMEOUT) {
+      toast.error(t('settings.toast.timeoutTooSmall', { min: MIN_TIMEOUT }));
+      return;
+    }
+
     const chatBase = chatApiBaseUrl.trim();
     const chatKey = chatApiKey.trim();
     const chatModelValue = chatModel.trim();
     const chatTimeoutValue = normalizeTimeout(chatTimeoutSeconds);
     const wantsChat = Boolean(chatKey);
+
+    // 校验对话超时时间
+    if (wantsChat && chatTimeoutSeconds > 0 && chatTimeoutSeconds < MIN_TIMEOUT) {
+      toast.error(t('settings.toast.timeoutTooSmall', { min: MIN_TIMEOUT }));
+      return;
+    }
     const imageSaveWarn = isGeminiProvider(imageProvider) && hasGeminiBasePathWarning(imageBase);
     const visionSaveWarn = isGeminiProvider(visionProvider) && hasGeminiBasePathWarning(visionBase);
     const chatSaveWarn = wantsChat && isGeminiProvider(chatProvider) && hasGeminiBasePathWarning(chatBase);
@@ -868,8 +889,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 type="number"
                 min={5}
                 step={1}
-                value={imageTimeoutSeconds}
-                onChange={(e) => setImageTimeoutSeconds(parseTimeoutInput(e.target.value, imageTimeoutSeconds))}
+                value={imageTimeoutSeconds || ''}
+                onChange={(e) => setImageTimeoutSeconds(parseTimeoutInput(e.target.value))}
+                placeholder="500"
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
             </div>
@@ -982,8 +1004,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 type="number"
                 min={5}
                 step={1}
-                value={visionTimeoutSeconds}
-                onChange={(e) => setVisionTimeoutSeconds(parseTimeoutInput(e.target.value, visionTimeoutSeconds))}
+                value={visionTimeoutSeconds || ''}
+                onChange={(e) => setVisionTimeoutSeconds(parseTimeoutInput(e.target.value))}
+                placeholder="150"
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
             </div>
@@ -1094,8 +1117,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 type="number"
                 min={5}
                 step={1}
-                value={chatTimeoutSeconds}
-                onChange={(e) => setChatTimeoutSeconds(parseTimeoutInput(e.target.value, chatTimeoutSeconds))}
+                value={chatTimeoutSeconds || ''}
+                onChange={(e) => setChatTimeoutSeconds(parseTimeoutInput(e.target.value))}
+                placeholder="150"
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
             </div>

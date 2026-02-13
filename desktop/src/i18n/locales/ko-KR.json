@@ -198,6 +198,7 @@
       "chatConfigIncomplete": "채팅 모델 설정을 완료해 주세요",
       "openaiGeminiUnsupported": "OpenAI Base URL은 Gemini 모델을 지원하지 않습니다. 호환되는 엔드포인트를 사용해 주세요.",
       "geminiBasePathWarning": "Gemini Base URL에 /v1 같은 경로가 감지되었습니다. 도메인만 입력하는 것을 권장합니다.",
+      "timeoutTooSmall": "타임아웃은 {{min}}초 미만일 수 없습니다",
       "saveSuccess": "설정을 서버와 동기화했습니다",
       "saveFailed": "저장 실패: {{msg}}",
       "checkNetwork": "네트워크를 확인해 주세요",
