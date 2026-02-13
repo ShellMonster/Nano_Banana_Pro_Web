@@ -603,6 +603,7 @@
     }
   },
   "onboarding": {
+    "progress": "步骤 {{current}}/{{total}}",
     "buttons": {
       "next": "下一步",
       "back": "上一步",
@@ -621,17 +622,25 @@
       "title": "输入提示词",
       "content": "在这里描述你想要生成的图片。越详细的描述，生成的效果越好。"
     },
-    "optimize": {
+    "optimizeNormal": {
       "title": "优化提示词",
-      "content": "这两个按钮可以帮你优化提示词。「优化」让描述更详细，「JSON」模式输出结构化内容。"
+      "content": "点击这个按钮，AI 会帮你把简单的描述扩展成更详细、更专业的提示词，提升生成效果。"
+    },
+    "optimizeJson": {
+      "title": "JSON 模式",
+      "content": "这个按钮会输出结构化的 JSON 格式提示词，适合需要精细控制生成参数的场景。"
     },
     "resolution": {
       "title": "画质与画幅",
       "content": "选择生成的分辨率（1K/2K/4K）和宽高比（正方形、横版、竖版等）。"
     },
-    "refImage": {
-      "title": "参考图功能",
-      "content": "展开这里可以上传参考图片。支持拖拽、粘贴，还可以点击「反推提示词」让 AI 分析图片生成描述。"
+    "refImageUpload": {
+      "title": "上传参考图",
+      "content": "点击这里可以上传参考图片。支持拖拽、粘贴，最多可添加 10 张。上传后可进行图生图创作。"
+    },
+    "refImageExtract": {
+      "title": "反推提示词",
+      "content": "上传参考图后，每张图上会出现一个紫色按钮。点击它，AI 会分析图片并生成可以复用的提示词描述。"
     },
     "templateMarket": {
       "title": "模板市场",

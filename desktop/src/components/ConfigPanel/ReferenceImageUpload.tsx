@@ -1734,6 +1734,7 @@ export function ReferenceImageUpload() {
           {/* 上传按钮/区域 */}
           {refFiles.length === 0 && refFiles.length < 10 && (
               <button
+                data-onboarding="ref-image-upload"
                 onClick={handleUploadClick}
                 className={cn(
                     "w-full py-3 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 transition-all group",

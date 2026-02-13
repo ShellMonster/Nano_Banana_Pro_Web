@@ -603,6 +603,7 @@
     }
   },
   "onboarding": {
+    "progress": "Step {{current}}/{{total}}",
     "buttons": {
       "next": "Next",
       "back": "Back",
@@ -621,17 +622,25 @@
       "title": "Enter Prompt",
       "content": "Describe the image you want to generate here. More detailed descriptions lead to better results."
     },
-    "optimize": {
+    "optimizeNormal": {
       "title": "Optimize Prompt",
-      "content": "These two buttons help optimize your prompt. 'Optimize' makes descriptions more detailed, 'JSON' mode outputs structured content."
+      "content": "Click this button to let AI expand your simple description into a more detailed, professional prompt for better results."
+    },
+    "optimizeJson": {
+      "title": "JSON Mode",
+      "content": "This button outputs structured JSON format prompts, suitable for scenarios requiring fine control over generation parameters."
     },
     "resolution": {
       "title": "Quality & Aspect Ratio",
       "content": "Select the generation resolution (1K/2K/4K) and aspect ratio (square, landscape, portrait, etc.)."
     },
-    "refImage": {
-      "title": "Reference Images",
-      "content": "Expand here to upload reference images. Supports drag & drop, paste, and click 'Extract Prompt' to let AI analyze the image."
+    "refImageUpload": {
+      "title": "Upload Reference Images",
+      "content": "Click here to upload reference images. Supports drag & drop, paste, up to 10 images. Use them for image-to-image generation."
+    },
+    "refImageExtract": {
+      "title": "Extract Prompt",
+      "content": "After uploading, a purple button appears on each image. Click it to let AI analyze the image and generate a reusable prompt description."
     },
     "templateMarket": {
       "title": "Template Market",

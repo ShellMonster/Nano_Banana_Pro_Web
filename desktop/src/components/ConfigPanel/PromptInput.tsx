@@ -182,9 +182,10 @@ export function PromptInput() {
           <MessageSquare className="w-4 h-4" />
           {t('prompt.label')}
         </label>
-        <div className="flex items-center gap-1.5" data-onboarding="optimize-buttons">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
+            data-onboarding="optimize-normal"
             onClick={() => runOptimize('normal')}
             disabled={isOptimizing}
             title={t('prompt.optimize')}
@@ -202,6 +203,7 @@ export function PromptInput() {
           </button>
           <button
             type="button"
+            data-onboarding="optimize-json"
             onClick={() => runOptimize('json')}
             disabled={isOptimizing}
             title={t('prompt.optimizeJson')}
