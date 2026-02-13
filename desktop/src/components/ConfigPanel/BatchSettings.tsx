@@ -10,7 +10,7 @@ export function BatchSettings() {
   const { count, setCount, imageSize, setImageSize, aspectRatio, setAspectRatio } = useConfigStore();
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-onboarding="resolution-ratio">
         <div className="flex items-center gap-2 text-gray-900 font-medium">
             <Settings2 className="w-4 h-4" />
             <span>{t('config.batch.title')}</span>

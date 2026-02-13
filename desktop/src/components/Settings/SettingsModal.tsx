@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, FileText, FolderOpen, Copy, RefreshCw, Languages, MessageSquare, Github, ScanEye } from 'lucide-react';
+import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, FileText, FolderOpen, Copy, RefreshCw, Languages, MessageSquare, Github, ScanEye, HelpCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '../../store/configStore';
 import { Input } from '../common/Input';
@@ -115,7 +115,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     language,
     languageResolved,
     setLanguage,
-    setLanguageResolved
+    setLanguageResolved,
+    setShowOnboarding
   } = useConfigStore();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('image');
@@ -709,6 +710,24 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <p className="text-xs text-slate-500 px-1">
                     {t('settings.language.hint')}
                   </p>
+
+                  {/* 新手引导开关 */}
+                  <div className="pt-4 border-t border-slate-200 space-y-3">
+                    <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                      <HelpCircle className="w-4 h-4 text-blue-600" />
+                      {t('settings.onboarding.label')}
+                    </label>
+                    <p className="text-xs text-slate-500 px-1">
+                      {t('settings.onboarding.hint')}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowOnboarding(true)}
+                      className="w-full h-10 bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold rounded-2xl text-sm transition-all border border-blue-200"
+                    >
+                      {t('settings.onboarding.restart')}
+                    </button>
+                  </div>
                 </div>
               )}
 

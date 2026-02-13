@@ -175,6 +175,11 @@
       "vision": "Vision timeout (s)",
       "chat": "Text timeout (s)"
     },
+    "onboarding": {
+      "label": "Onboarding",
+      "hint": "Enable to show the onboarding guide on next launch",
+      "restart": "Show Guide Again"
+    },
     "update": {
       "title": "Updates",
       "check": "Check for updates",
@@ -595,6 +600,46 @@
       "ratio9_16": "9:16",
       "ratio16_9": "16:9",
       "ratio2_3": "2:3"
+    }
+  },
+  "onboarding": {
+    "buttons": {
+      "next": "Next",
+      "back": "Back",
+      "skip": "Skip",
+      "finish": "Get Started"
+    },
+    "welcome": {
+      "title": "Welcome to Banana AI",
+      "content": "This is a powerful AI image generation tool. Let me guide you through the main features. Click 'Next' to begin."
+    },
+    "settings": {
+      "title": "Configure API",
+      "content": "Click here to open settings and configure your API Key and model. Supports Gemini and OpenAI compatible interfaces."
+    },
+    "prompt": {
+      "title": "Enter Prompt",
+      "content": "Describe the image you want to generate here. More detailed descriptions lead to better results."
+    },
+    "optimize": {
+      "title": "Optimize Prompt",
+      "content": "These two buttons help optimize your prompt. 'Optimize' makes descriptions more detailed, 'JSON' mode outputs structured content."
+    },
+    "resolution": {
+      "title": "Quality & Aspect Ratio",
+      "content": "Select the generation resolution (1K/2K/4K) and aspect ratio (square, landscape, portrait, etc.)."
+    },
+    "refImage": {
+      "title": "Reference Images",
+      "content": "Expand here to upload reference images. Supports drag & drop, paste, and click 'Extract Prompt' to let AI analyze the image."
+    },
+    "templateMarket": {
+      "title": "Template Market",
+      "content": "Pull down here to open the template market. Contains 900+ curated templates for one-click reuse."
+    },
+    "generate": {
+      "title": "Start Creating",
+      "content": "Everything is ready! Click this button to generate your first image!"
     }
   }
 }

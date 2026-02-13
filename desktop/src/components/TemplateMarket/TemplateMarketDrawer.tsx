@@ -1364,7 +1364,7 @@ export function TemplateMarketDrawer({
   return (
     <>
       {!isOpen && (
-        <div className="absolute right-10 top-2 z-40 hidden md:flex flex-col items-center select-none">
+        <div className="absolute right-10 top-2 z-40 hidden md:flex flex-col items-center select-none" data-onboarding="template-market">
         <div className="w-[2px] bg-slate-400/80 rounded-full" style={{ height: ropeLength }} />
         <button
           type="button"
