@@ -11,6 +11,7 @@ Thumbs.db
 
 # Backend (Go)
 backend/bin/
+bin/
 backend/dist/
 backend/*.exe
 backend/*.test
@@ -19,6 +20,9 @@ backend/data/*.db-journal
 backend/storage/local/
 backend/configs/config.yaml
 backend/.env
+
+# Data directory
+data/
 
 # Frontend (Node/React)
 frontend/node_modules/
@@ -55,6 +59,7 @@ desktop/src-tauri/*-pc-windows-msvc.exe
 desktop/src-tauri/*.app
 desktop/src-tauri/*.dmg
 desktop/src-tauri/*.tar.gz
+desktop/bin/
 backend/server
 backend/desktop/src-tauri/bin/
 *.png
