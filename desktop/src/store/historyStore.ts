@@ -278,41 +278,50 @@ export const useHistoryStore = create<HistoryState>()(
               //（generateStore.removeImage 内部会同时移除选中状态）
               useGenerateStore.getState().removeImage(imageId);
 
-              // 本地移除图片（立即更新 UI）
-              set((state) => {
-                  const updatedItems = state.items.map(item => {
-                      if (item.id === taskId && item.images) {
-                          const filteredImages = item.images.filter(img => img.id !== imageId);
-                          return {
-                              ...item,
-                              images: filteredImages,
-                              completedCount: filteredImages.length
-                          };
-                      }
-                      return item;
-                  }).filter(item => {
-                      // 如果任务没有图片了，从列表中移除
-                      return !(item.id === taskId && (!item.images || item.images.length === 0));
+              // 从生成区删除时，强制重置历史记录列表，确保两边数据同步
+              // （因为失败任务没有图片，本地移除逻辑无法正确处理）
+              const isFromGenerate = options?.source === 'generate' || options?.source === 'preview';
+
+              if (isFromGenerate) {
+                  // 生成区删除：强制重置列表，确保失败任务也被移除
+                  get().loadHistory(true, { silent: true });
+              } else {
+                  // 历史区删除：本地移除图片（立即更新 UI），然后轻量同步
+                  set((state) => {
+                      const updatedItems = state.items.map(item => {
+                          if (item.id === taskId && item.images) {
+                              const filteredImages = item.images.filter(img => img.id !== imageId);
+                              return {
+                                  ...item,
+                                  images: filteredImages,
+                                  completedCount: filteredImages.length
+                              };
+                          }
+                          return item;
+                      }).filter(item => {
+                          // 如果任务没有图片了，从列表中移除
+                          return !(item.id === taskId && (!item.images || item.images.length === 0));
+                      });
+
+                      const removedTaskCount = state.items.length - updatedItems.length;
+                      const nextTotal = Math.max(0, state.total - removedTaskCount);
+
+                      return {
+                          items: updatedItems,
+                          total: nextTotal,
+                          hasMore: updatedItems.length < nextTotal
+                      };
                   });
 
-                  const removedTaskCount = state.items.length - updatedItems.length;
-                  const nextTotal = Math.max(0, state.total - removedTaskCount);
+                  // 后台轻量同步（不重置分页，避免滚动跳顶）
+                  get().loadHistory(false, { silent: true });
+              }
 
-                  return {
-                      items: updatedItems,
-                      total: nextTotal,
-                      hasMore: updatedItems.length < nextTotal
-                  };
-              });
-
-              if (isTemp && (options?.source === 'generate' || options?.source === 'preview')) {
+              if (isTemp && isFromGenerate) {
                   toast.success(i18n.t('generate.card.removeSuccess'));
               } else {
                   toast.success(i18n.t('history.toast.imageDeleted'));
               }
-
-              // 后台轻量同步（不重置分页，避免滚动跳顶）
-              get().loadHistory(false, { silent: true });
           } catch (error) {
               console.error('Failed to delete image:', error);
               const errorMessage = error instanceof Error ? error.message : i18n.t('history.toast.imageDeleteFailed');

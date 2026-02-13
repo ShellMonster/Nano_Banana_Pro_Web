@@ -163,6 +163,14 @@
       "image": "이미지 시간 제한(초)",
       "chat": "텍스트 시간 제한(초)"
     },
+    "onboarding": {
+      "label": "초보자 가이드",
+      "hint": "활성화하면 다음 시작 시 초보자 가이드가 표시됩니다",
+      "restart": "가이드 다시 보기",
+      "confirmTitle": "가이드 시작",
+      "confirmHint": "설정을 닫고 초보자 가이드를 시작합니다. 계속하시겠습니까?",
+      "confirmStart": "시작"
+    },
     "update": {
       "title": "업데이트",
       "check": "업데이트 확인",

@@ -178,7 +178,10 @@
     "onboarding": {
       "label": "新手引导",
       "hint": "重新开启后，下次启动时会再次显示新手引导",
-      "restart": "重新显示引导"
+      "restart": "重新显示引导",
+      "confirmTitle": "开始新手引导",
+      "confirmHint": "即将关闭设置界面并开始新手引导，确定要继续吗？",
+      "confirmStart": "开始引导"
     },
     "update": {
       "title": "软件更新",

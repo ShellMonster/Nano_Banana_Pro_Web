@@ -138,6 +138,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const updaterError = useUpdaterStore((s) => s.error);
   const [updateHint, setUpdateHint] = useState<{ type: 'checking' | 'latest' | 'available' | 'error'; message: string } | null>(null);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+  const [showOnboardingConfirm, setShowOnboardingConfirm] = useState(false);
   const repoUrl = import.meta.env.VITE_GITHUB_REPO_URL || 'https://github.com/ShellMonster/Nano_Banana_Pro_Web';
   const normalizeTimeout = (value?: number | null, fallback = 150) => {
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return fallback;
@@ -722,12 +723,48 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </p>
                     <button
                       type="button"
-                      onClick={() => setShowOnboarding(true)}
+                      onClick={() => setShowOnboardingConfirm(true)}
                       className="w-full h-10 bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold rounded-2xl text-sm transition-all border border-blue-200"
                     >
                       {t('settings.onboarding.restart')}
                     </button>
                   </div>
+
+                  {/* 新手引导确认弹窗 */}
+                  <Modal
+                    isOpen={showOnboardingConfirm}
+                    onClose={() => setShowOnboardingConfirm(false)}
+                    title={t('settings.onboarding.confirmTitle')}
+                    className="max-w-sm"
+                    density="compact"
+                  >
+                    <div className="space-y-4">
+                      <p className="text-sm text-slate-600">
+                        {t('settings.onboarding.confirmHint')}
+                      </p>
+                      <div className="flex gap-3 justify-end">
+                        <Button
+                          variant="ghost"
+                          onClick={() => setShowOnboardingConfirm(false)}
+                        >
+                          {t('common.cancel')}
+                        </Button>
+                        <Button
+                          variant="primary"
+                          onClick={() => {
+                            setShowOnboardingConfirm(false);
+                            onClose(); // 关闭设置界面
+                            // 延迟启动引导，确保设置界面完全关闭
+                            setTimeout(() => {
+                              setShowOnboarding(true);
+                            }, 100);
+                          }}
+                        >
+                          {t('settings.onboarding.confirmStart')}
+                        </Button>
+                      </div>
+                    </div>
+                  </Modal>
                 </div>
               )}
 

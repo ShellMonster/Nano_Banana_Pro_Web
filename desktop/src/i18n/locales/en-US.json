@@ -178,7 +178,10 @@
     "onboarding": {
       "label": "Onboarding",
       "hint": "Enable to show the onboarding guide on next launch",
-      "restart": "Show Guide Again"
+      "restart": "Show Guide Again",
+      "confirmTitle": "Start Onboarding",
+      "confirmHint": "This will close settings and start the onboarding guide. Continue?",
+      "confirmStart": "Start Guide"
     },
     "update": {
       "title": "Updates",

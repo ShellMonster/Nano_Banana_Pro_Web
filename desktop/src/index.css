@@ -7,3 +7,12 @@
     @apply bg-gray-50 text-gray-900;
   }
 }
+
+/* 引导模式下强制显示 hover 元素 */
+body.onboarding-active {
+  /* 强制显示参考图区域的操作按钮 */
+  .group:hover .opacity-0.group-hover\:opacity-100,
+  .group .opacity-0.group-hover\:opacity-100 {
+    opacity: 1 !important;
+  }
+}

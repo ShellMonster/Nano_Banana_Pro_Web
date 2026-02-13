@@ -2,10 +2,23 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Joyride, { CallBackProps, STATUS, Step, ACTIONS, EVENTS } from 'react-joyride';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '../../store/configStore';
+import appIcon from '../../assets/app-icon.png';
 
 // 引导时使用的示例提示词
 const DEMO_PROMPT_ZH = '一只可爱的橘猫坐在窗台上，阳光洒在它的毛发上，温暖而惬意，高清摄影风格';
 const DEMO_PROMPT_EN = 'A cute orange cat sitting on a windowsill, sunlight streaming through its fur, warm and cozy atmosphere, high-quality photography style';
+
+// 从 URL 创建 File 对象
+async function createDemoRefFile(url: string): Promise<File | null> {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new File([blob], 'demo-image.png', { type: 'image/png' });
+  } catch (error) {
+    console.error('Failed to create demo ref file:', error);
+    return null;
+  }
+}
 
 // 引导步骤的 CSS 样式
 const joyrideStyles = {
@@ -69,7 +82,7 @@ interface OnboardingTourProps {
 
 export function OnboardingTour({ onReady }: OnboardingTourProps) {
   const { t, i18n } = useTranslation();
-  const { showOnboarding, setShowOnboarding, prompt, setPrompt, refFiles, setRefFiles } = useConfigStore();
+  const { showOnboarding, setShowOnboarding, prompt, setPrompt, refFiles, setRefFiles, clearRefFiles } = useConfigStore();
   const [run, setRun] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
 
@@ -78,6 +91,9 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     prompt: string;
     hadRefFiles: boolean;
   } | null>(null);
+
+  // 加载示例参考图的状态
+  const demoFileLoadedRef = useRef(false);
 
   // 定义引导步骤 - 拆分为更细的步骤
   const steps: Step[] = [
@@ -131,7 +147,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       spotlightPadding: 4,
     },
     {
-      target: '[data-onboarding="ref-image-area"]',
+      target: '[data-onboarding="ref-image-extract"]',
       placement: 'right',
       title: t('onboarding.refImageExtract.title'),
       content: t('onboarding.refImageExtract.content'),
@@ -168,14 +184,31 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
         setPrompt(demoPrompt);
       }
 
+      // 如果没有参考图，加载示例参考图（app icon）用于展示逆向提示词功能
+      if (refFiles.length === 0 && !demoFileLoadedRef.current) {
+        demoFileLoadedRef.current = true;
+        createDemoRefFile(appIcon).then((file) => {
+          if (file) {
+            setRefFiles([file]);
+          }
+        });
+      }
+
+      // 添加引导模式的 body class，用于强制显示 hover 元素
+      document.body.classList.add('onboarding-active');
+
       // 延迟启动，等待 DOM 完全加载
       const timer = setTimeout(() => {
         setRun(true);
         setStepIndex(0);
       }, 500);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        document.body.classList.remove('onboarding-active');
+      };
     } else {
       setRun(false);
+      document.body.classList.remove('onboarding-active');
     }
   }, [showOnboarding]);
 
@@ -186,10 +219,14 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       if (!prevStateRef.current.prompt.trim()) {
         setPrompt('');
       }
-      // 参考图保持原样（我们无法轻易创建示例图片）
+      // 如果之前没有参考图，清除我们添加的示例参考图
+      if (!prevStateRef.current.hadRefFiles) {
+        clearRefFiles();
+      }
+      demoFileLoadedRef.current = false;
       prevStateRef.current = null;
     }
-  }, [setPrompt]);
+  }, [setPrompt, clearRefFiles]);
 
   // 处理引导回调
   const handleJoyrideCallback = useCallback(
@@ -239,6 +276,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       showProgress
       disableScrolling={false}
       disableScrollParentFix={false}
+      disableOverlayClose
       locale={{
         next: t('onboarding.buttons.next'),
         back: t('onboarding.buttons.back'),
