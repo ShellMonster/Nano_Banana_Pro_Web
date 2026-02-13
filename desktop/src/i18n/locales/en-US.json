@@ -177,7 +177,7 @@
     },
     "onboarding": {
       "label": "Onboarding",
-      "hint": "Enable to show the onboarding guide on next launch",
+      "hint": "Click the button to restart the onboarding guide",
       "restart": "Show Guide Again",
       "confirmTitle": "Start Onboarding",
       "confirmHint": "This will close settings and start the onboarding guide. Continue?",

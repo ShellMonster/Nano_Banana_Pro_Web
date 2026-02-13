@@ -23,6 +23,7 @@
 </p>
 
 > 💡 **Recent Highlights**:
+> - **🎓 Onboarding Tour**: Interactive guide shown on first launch to help new users get started. Can be replayed anytime from settings.
 > - **🔍 Independent Vision Model Config**: New "Vision Model" settings tab for reverse prompt feature, inherits image model config by default.
 > - **✨ Reverse Prompt Extraction**: Click "Extract Prompt" on reference images to let AI analyze and generate reusable prompts.
 > - **🔒 Security Enhancements**: 20MB upload limit for images, path traversal protection for local file reads.
