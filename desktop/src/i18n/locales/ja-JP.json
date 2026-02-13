@@ -163,6 +163,14 @@
       "image": "画像タイムアウト(秒)",
       "chat": "テキストタイムアウト(秒)"
     },
+    "onboarding": {
+      "label": "初心者ガイド",
+      "hint": "有効にすると、次回起動時に初心者ガイドが表示されます",
+      "restart": "ガイドを再表示",
+      "confirmTitle": "ガイドを開始",
+      "confirmHint": "設定を閉じて初心者ガイドを開始します。続行しますか？",
+      "confirmStart": "開始"
+    },
     "update": {
       "title": "更新",
       "check": "更新を確認",

@@ -1682,6 +1682,7 @@ export function ReferenceImageUpload() {
                     />
                     {/* 反推提示词按钮 */}
                     <button
+                      data-onboarding="ref-image-extract"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleExtractPrompt(index);
