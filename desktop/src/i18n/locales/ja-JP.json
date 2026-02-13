@@ -198,6 +198,7 @@
       "chatConfigIncomplete": "チャットモデル設定を完了してください",
       "openaiGeminiUnsupported": "OpenAI の Base URL は Gemini モデルに対応していません。対応エンドポイントを使用してください。",
       "geminiBasePathWarning": "Gemini Base URL に /v1 などのパスが含まれています。ドメインのみの指定を推奨します。",
+      "timeoutTooSmall": "タイムアウトは {{min}} 秒未満にできません",
       "saveSuccess": "設定をサーバーに同期しました",
       "saveFailed": "保存に失敗しました: {{msg}}",
       "checkNetwork": "ネットワークを確認してください",

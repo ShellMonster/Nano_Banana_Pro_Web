@@ -210,6 +210,7 @@
       "chatConfigIncomplete": "Please complete the chat model config",
       "openaiGeminiUnsupported": "OpenAI base URL does not support Gemini models. Please use a compatible endpoint.",
       "geminiBasePathWarning": "Gemini Base URL contains a path (such as /v1). It is recommended to use a host-only URL.",
+      "timeoutTooSmall": "Timeout cannot be less than {{min}} seconds",
       "saveSuccess": "Config synced to server",
       "saveFailed": "Save failed: {{msg}}",
       "checkNetwork": "Please check your network",
