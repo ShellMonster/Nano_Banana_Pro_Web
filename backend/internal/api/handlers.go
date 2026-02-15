@@ -543,10 +543,15 @@ func DeleteImageHandler(c *gin.Context) {
 	}
 
 	// 删除物理文件/OSS 文件
-	fileName := fmt.Sprintf("%s.jpg", task.TaskID)
-	if err := storage.GlobalStorage.Delete(fileName); err != nil {
-		// 记录日志但继续删除数据库记录，避免因为文件不存在导致记录无法删除
-		fmt.Printf("警告: 删除物理文件失败 %s: %v\n", fileName, err)
+	// 兼容旧版本 .jpg 和新版本 .png 文件
+	fileNamePNG := fmt.Sprintf("%s.png", task.TaskID)
+	fileNameJPG := fmt.Sprintf("%s.jpg", task.TaskID)
+	if err := storage.GlobalStorage.Delete(fileNamePNG); err != nil {
+		// 尝试删除旧版本的 .jpg 文件
+		if err := storage.GlobalStorage.Delete(fileNameJPG); err != nil {
+			// 记录日志但继续删除数据库记录，避免因为文件不存在导致记录无法删除
+			fmt.Printf("警告: 删除物理文件失败 %s/%s: %v\n", fileNamePNG, fileNameJPG, err)
+		}
 	}
 
 	if err := model.DB.Delete(&task).Error; err != nil {

@@ -171,8 +171,9 @@ func (wp *WorkerPool) processTask(task *Task) {
 	}
 
 	// 4. 存储图片（含缩略图生成）
+	// 使用 PNG 格式保存，以保留透明通道
 	if len(result.Images) > 0 {
-		fileName := fmt.Sprintf("%s.jpg", task.TaskModel.TaskID)
+		fileName := fmt.Sprintf("%s.png", task.TaskModel.TaskID)
 		reader := bytes.NewReader(result.Images[0])
 		localPath, remoteURL, thumbLocalPath, thumbRemoteURL, width, height, err := storage.GlobalStorage.SaveWithThumbnail(fileName, reader)
 		if err != nil {
