@@ -583,7 +583,7 @@ func DownloadImageHandler(c *gin.Context) {
 	}
 
 	// 设置下载头
-	fileName := fmt.Sprintf("%s.jpg", task.TaskID)
+	fileName := fmt.Sprintf("%s.png", task.TaskID)
 	c.Header("Content-Description", "File Transfer")
 	c.Header("Content-Transfer-Encoding", "binary")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))

@@ -1,6 +1,7 @@
 /bin/
 /storage/local/*.db
 /storage/local/*.jpg
+/storage/local/*.png
 .DS_Store
 
 # 二进制文件
