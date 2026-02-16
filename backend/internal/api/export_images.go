@@ -74,7 +74,7 @@ func ExportImagesHandler(c *gin.Context) {
 			if _, err := os.Stat(localPath); err == nil {
 				ext := filepath.Ext(localPath)
 				if ext == "" {
-					ext = ".jpg"
+					ext = ".png"
 				}
 				files = append(files, fileEntry{
 					name: id + ext,

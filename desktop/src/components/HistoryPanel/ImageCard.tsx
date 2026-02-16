@@ -122,7 +122,19 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
         const target = e.target as HTMLElement | null;
         if (target?.closest('button')) return;
 
-        const name = `ref-${image.id || 'unknown'}.jpg`;
+        // 从实际文件路径提取后缀，默认 .png
+        const getSourceExt = () => {
+            const sources = [image.filePath, image.thumbnailPath, image.url, image.thumbnailUrl];
+            for (const src of sources) {
+                if (src) {
+                    const match = src.match(/\.(png|jpg|jpeg|gif|webp)$/i);
+                    if (match) return match[0].toLowerCase();
+                }
+            }
+            return '.png';
+        };
+        const ext = getSourceExt();
+        const name = `ref-${image.id || 'unknown'}${ext}`;
         const url = image.url || '';
         const thumbnailUrl = image.thumbnailUrl || '';
         const filePath = image.filePath || '';
@@ -146,7 +158,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
                     return;
                 }
                 ctx.drawImage(img, 0, 0);
-                canvas.toBlob((blob) => resolve(blob || null), 'image/jpeg', 0.9);
+                canvas.toBlob((blob) => resolve(blob || null), 'image/png');
             } catch {
                 resolve(null);
             }
