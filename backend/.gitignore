@@ -2,6 +2,8 @@
 /storage/local/*.db
 /storage/local/*.jpg
 /storage/local/*.png
+/storage/local/*.gif
+/storage/local/*.webp
 .DS_Store
 
 # 二进制文件

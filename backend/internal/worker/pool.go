@@ -171,11 +171,12 @@ func (wp *WorkerPool) processTask(task *Task) {
 	}
 
 	// 4. 存储图片（含缩略图生成）
-	// 使用 PNG 格式保存，以保留透明通道
+	// 文件后缀由 storage 层根据实际图片格式自动确定
 	if len(result.Images) > 0 {
-		fileName := fmt.Sprintf("%s.png", task.TaskModel.TaskID)
+		// 传入基础文件名（无后缀），storage 会根据实际格式添加正确后缀
+		baseFileName := task.TaskModel.TaskID
 		reader := bytes.NewReader(result.Images[0])
-		localPath, remoteURL, thumbLocalPath, thumbRemoteURL, width, height, err := storage.GlobalStorage.SaveWithThumbnail(fileName, reader)
+		localPath, remoteURL, thumbLocalPath, thumbRemoteURL, width, height, err := storage.GlobalStorage.SaveWithThumbnail(baseFileName, reader)
 		if err != nil {
 			wp.failTask(task.TaskModel, err)
 			return

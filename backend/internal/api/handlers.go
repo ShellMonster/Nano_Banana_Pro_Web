@@ -543,14 +543,18 @@ func DeleteImageHandler(c *gin.Context) {
 	}
 
 	// 删除物理文件/OSS 文件
-	// 兼容旧版本 .jpg 和新版本 .png 文件
-	fileNamePNG := fmt.Sprintf("%s.png", task.TaskID)
-	fileNameJPG := fmt.Sprintf("%s.jpg", task.TaskID)
-	if err := storage.GlobalStorage.Delete(fileNamePNG); err != nil {
-		// 尝试删除旧版本的 .jpg 文件
-		if err := storage.GlobalStorage.Delete(fileNameJPG); err != nil {
-			// 记录日志但继续删除数据库记录，避免因为文件不存在导致记录无法删除
-			fmt.Printf("警告: 删除物理文件失败 %s/%s: %v\n", fileNamePNG, fileNameJPG, err)
+	// 优先使用数据库中存储的实际路径，兼容旧数据则尝试各种格式
+	if task.LocalPath != "" {
+		// 使用实际存储的文件名
+		fileName := filepath.Base(task.LocalPath)
+		if err := storage.GlobalStorage.Delete(fileName); err != nil {
+			fmt.Printf("警告: 删除物理文件失败 %s: %v\n", fileName, err)
+		}
+	} else {
+		// 兼容旧数据：尝试各种格式
+		for _, ext := range []string{".png", ".jpg", ".gif", ".webp"} {
+			fileName := task.TaskID + ext
+			storage.GlobalStorage.Delete(fileName)
 		}
 	}
 
@@ -582,8 +586,12 @@ func DownloadImageHandler(c *gin.Context) {
 		return
 	}
 
-	// 设置下载头
-	fileName := fmt.Sprintf("%s.png", task.TaskID)
+	// 根据实际文件扩展名设置下载文件名
+	ext := filepath.Ext(task.LocalPath)
+	if ext == "" {
+		ext = ".png" // 默认使用 .png
+	}
+	fileName := fmt.Sprintf("%s%s", task.TaskID, ext)
 	c.Header("Content-Description", "File Transfer")
 	c.Header("Content-Transfer-Encoding", "binary")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))

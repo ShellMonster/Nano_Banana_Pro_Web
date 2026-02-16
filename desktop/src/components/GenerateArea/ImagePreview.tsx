@@ -282,7 +282,7 @@ export const ImagePreview = React.memo(function ImagePreview({
             // 复制到剪贴板：优先复制图片，兜底复制链接
             const ClipboardItemCtor = (window as any).ClipboardItem as typeof ClipboardItem | undefined;
             if (ClipboardItemCtor && navigator.clipboard?.write) {
-                const type = blob.type || guessMime(getBestSrc() || 'image.jpg');
+                const type = blob.type || guessMime(getBestSrc() || 'image.png');
                 const item = new ClipboardItemCtor({ [type]: blob });
                 try {
                     await navigator.clipboard.write([item]);
