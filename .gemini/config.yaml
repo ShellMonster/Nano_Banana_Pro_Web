@@ -1,0 +1,94 @@
+# Gemini Code Assist 主配置文件
+# 大香蕉 AI 项目专用配置
+
+# 禁用趣味性功能(保持专业)
+have_fun: false
+
+# 记忆配置(保留上下文信息)
+memory_config:
+  disabled: false
+
+# 代码审查核心配置
+code_review:
+  # 启用代码审查功能
+  disable: false
+
+  # 评论严重度阈值
+  # 可选值: LOW, MEDIUM, HIGH, CRITICAL
+  # MEDIUM: 只显示中等及以上严重度的问题,避免过多低级别提示
+  comment_severity_threshold: MEDIUM
+
+  # 最大评论数量
+  # -1 表示无限制,确保发现所有问题
+  max_review_comments: -1
+
+  # Pull Request 打开时的行为
+  pull_request_opened:
+    # 不显示帮助信息(保持简洁)
+    help: false
+    # 自动生成 PR 变更摘要
+    summary: true
+    # 自动进行代码审查
+    code_review: true
+    # 不包含草稿 PR(避免重复审查)
+    include_drafts: false
+
+# 忽略审查的文件模式
+# 这些文件的变更不会触发代码审查
+ignore_patterns:
+  # 文档类
+  - "**/*.md"              # Markdown 文档
+  - "**/README*"           # README 文件
+  - "**/CHANGELOG*"        # 变更日志
+  - "**/LICENSE*"          # 许可证文件
+
+  # 配置类
+  - "**/*.json"            # JSON 配置文件
+  - "**/*.yaml"            # YAML 配置文件
+  - "**/*.yml"             # YAML 配置文件
+  - "**/*.toml"            # TOML 配置文件
+
+  # 锁文件(自动生成)
+  - "**/*.lock"            # 各种锁文件
+  - "**/package-lock.json" # npm 锁文件
+  - "**/yarn.lock"         # Yarn 锁文件
+  - "**/go.sum"            # Go 依赖校验
+  - "**/Cargo.lock"        # Rust 锁文件
+
+  # 构建产物
+  - "**/dist/**"           # 前端构建输出
+  - "**/build/**"          # 构建目录
+  - "**/target/**"         # Rust/Go 构建产物
+  - "**/*.exe"             # Windows 可执行文件
+  - "**/*.dll"             # 动态链接库
+  - "**/*.so"              # Linux 共享库
+  - "**/*.dylib"           # macOS 动态库
+
+  # 依赖目录
+  - "**/node_modules/**"   # Node.js 依赖
+  - "**/vendor/**"         # Go vendor 目录
+
+  # 资源文件
+  - "**/assets/**"         # 静态资源
+  - "**/static/**"         # 静态文件
+  - "**/public/**"         # 公共资源
+  - "**/*.png"             # 图片文件
+  - "**/*.jpg"             # 图片文件
+  - "**/*.jpeg"            # 图片文件
+  - "**/*.gif"             # 图片文件
+  - "**/*.ico"             # 图标文件
+  - "**/*.svg"             # SVG 图片
+  - "**/*.woff"            # 字体文件
+  - "**/*.woff2"           # 字体文件
+  - "**/*.ttf"             # 字体文件
+  - "**/*.eot"             # 字体文件
+
+  # 自动生成的代码
+  - "**/*.pb.go"           # Protobuf 生成代码
+  - "**/*.gen.go"          # Go 生成代码
+  - "**/bindata.go"        # 嵌入资源文件
+
+  # 测试覆盖率报告
+  - "**/coverage/**"       # 覆盖率报告目录
+  - "**/*.lcov"            # 覆盖率文件
+  - "**/.nyc_output/**"    # NYC 输出目录
