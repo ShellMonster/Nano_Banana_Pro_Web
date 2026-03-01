@@ -223,16 +223,20 @@ func (p *OpenAIProvider) extractImagesFromData(ctx context.Context, data []inter
 		}
 		if b64, ok := obj["b64_json"].(string); ok && b64 != "" {
 			imgBytes, err := base64.StdEncoding.DecodeString(b64)
-			if err == nil {
-				images = append(images, imgBytes)
+			if err != nil {
+				log.Printf("[OpenAI] base64解码失败，跳过此图: err=%v", err)
+				continue
 			}
+			images = append(images, imgBytes)
 			continue
 		}
 		if url, ok := obj["url"].(string); ok && url != "" {
 			imgBytes, err := p.fetchImage(ctx, url)
-			if err == nil {
-				images = append(images, imgBytes)
+			if err != nil {
+				log.Printf("[OpenAI] 下载图片失败，跳过此图: url=%s, err=%v", url, err)
+				continue
 			}
+			images = append(images, imgBytes)
 		}
 	}
 	return images, nil
@@ -261,24 +265,28 @@ func (p *OpenAIProvider) extractImagesFromContent(ctx context.Context, content i
 				if imgMap, ok := partMap["image_url"].(map[string]interface{}); ok {
 					if url, _ := imgMap["url"].(string); url != "" {
 						imgBytes, err := p.decodeImageURL(ctx, url)
-						if err == nil {
-							images = append(images, imgBytes)
+						if err != nil {
+							log.Printf("[OpenAI] choices路径下载图片失败，跳过此图: url=%s, err=%v", url, err)
+							continue
 						}
+						images = append(images, imgBytes)
 					}
 				}
 			}
 		}
 	case map[string]interface{}:
 		if partType, _ := v["type"].(string); partType == "image_url" {
-			if imgMap, ok := v["image_url"].(map[string]interface{}); ok {
-				if url, _ := imgMap["url"].(string); url != "" {
-					imgBytes, err := p.decodeImageURL(ctx, url)
-					if err == nil {
-						images = append(images, imgBytes)
-					}
+		if imgMap, ok := v["image_url"].(map[string]interface{}); ok {
+			if url, _ := imgMap["url"].(string); url != "" {
+				imgBytes, err := p.decodeImageURL(ctx, url)
+				if err != nil {
+					log.Printf("[OpenAI] choices路径下载图片失败: url=%s, err=%v", url, err)
+				} else {
+					images = append(images, imgBytes)
 				}
 			}
 		}
+	}
 		if partType, _ := v["type"].(string); partType == "text" {
 			if text, _ := v["text"].(string); text != "" {
 				texts = append(texts, text)
@@ -297,19 +305,37 @@ func (p *OpenAIProvider) decodeImageURL(ctx context.Context, url string) ([]byte
 }
 
 func (p *OpenAIProvider) fetchImage(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
+	const maxRetries = 3
+	var lastErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err // 构造请求失败不重试
+		}
+		resp, err := p.httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			log.Printf("[OpenAI] fetchImage 第%d次尝试失败, url=%s, err=%v", attempt, url, err)
+			if attempt < maxRetries {
+				time.Sleep(time.Second)
+			}
+			continue
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("下载图片失败: %s", resp.Status)
+			log.Printf("[OpenAI] fetchImage 第%d次尝试失败, url=%s, status=%s", attempt, url, resp.Status)
+			if attempt < maxRetries {
+				time.Sleep(time.Second)
+			}
+			continue
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("下载图片失败: %s", resp.Status)
+		}
+		return io.ReadAll(resp.Body)
 	}
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("下载图片失败: %s", resp.Status)
-	}
-	return io.ReadAll(resp.Body)
+	return nil, fmt.Errorf("下载图片失败（重试%d次）: %w", maxRetries, lastErr)
 }
 
 func buildImageParts(raw interface{}) ([]openai.ChatCompletionContentPartUnionParam, error) {

@@ -242,9 +242,15 @@ func (p *GeminiProvider) generateWithReferences(ctx context.Context, modelID, pr
 	// 2. 再添加文本提示词
 	parts = append(parts, &genai.Part{Text: cleanedPrompt})
 
+	// 安全读取 ImageConfig 字段，避免 nil pointer panic
+	var aspectRatio, imageSize string
+	if config.ImageConfig != nil {
+		aspectRatio = config.ImageConfig.AspectRatio
+		imageSize = config.ImageConfig.ImageSize
+	}
 	// 调用 GenerateContent 接口
 	log.Printf("[Gemini] 开始调用 GenerateContent, Model: %s, Parts: %d, AspectRatio: %s, ImageSize: %s\n",
-		modelID, len(parts), config.ImageConfig.AspectRatio, config.ImageConfig.ImageSize)
+		modelID, len(parts), aspectRatio, imageSize)
 
 	resp, err := p.client.Models.GenerateContent(ctx, modelID, []*genai.Content{
 		{
@@ -315,8 +321,14 @@ func (p *GeminiProvider) generateViaContent(ctx context.Context, modelID, prompt
 		},
 	}
 
+	// 安全读取 ImageConfig 字段，避免 nil pointer panic
+	var aspectRatio, imageSize string
+	if config.ImageConfig != nil {
+		aspectRatio = config.ImageConfig.AspectRatio
+		imageSize = config.ImageConfig.ImageSize
+	}
 	log.Printf("[Gemini] 开始调用 GenerateContent (Text-to-Image), Model: %s, AspectRatio: %s, ImageSize: %s\n",
-		modelID, config.ImageConfig.AspectRatio, config.ImageConfig.ImageSize)
+		modelID, aspectRatio, imageSize)
 
 	resp, err := p.client.Models.GenerateContent(ctx, modelID, []*genai.Content{content}, config)
 	if err != nil {

@@ -136,10 +136,12 @@ func (l *LocalStorage) SaveWithThumbnail(name string, reader io.Reader) (string,
 		return "", "", "", "", 0, 0, ErrImageTooLarge
 	}
 
-	// 3. 检测图片格式（不再使用默认值，格式必须被识别）
+	// 3. 检测图片格式（失败时兒底为 PNG）
 	format, err := detectImageFormat(data)
 	if err != nil {
-		return "", "", "", "", 0, 0, fmt.Errorf("检测图片格式失败: %w", err)
+		// 格式无法识别，兒底按 PNG 保存，原始字节内容不损失
+		log.Printf("[Storage] 警告: 图片格式识别失败(%v)，兒底保存为 PNG", err)
+		format = "png"
 	}
 	ext := formatToExt(format)
 	log.Printf("[Storage] 检测到图片格式: %s, 后缀: %s", format, ext)
@@ -234,10 +236,12 @@ func (s *OSSStorage) SaveWithThumbnail(name string, reader io.Reader) (string, s
 		return "", "", "", "", 0, 0, ErrImageTooLarge
 	}
 
-	// 3. 检测格式（必须被识别）
+	// 3. 检测格式（失败时兒底为 PNG）
 	format, err := detectImageFormat(data)
 	if err != nil {
-		return "", "", "", "", 0, 0, fmt.Errorf("检测图片格式失败: %w", err)
+		// 格式无法识别，兒底按 PNG 保存，原始字节内容不损失
+		log.Printf("[Storage] 警告: 图片格式识别失败(%v)，兒底保存为 PNG", err)
+		format = "png"
 	}
 	ext := formatToExt(format)
 

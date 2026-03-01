@@ -175,6 +175,10 @@ func (wp *WorkerPool) processTask(task *Task) {
 	if len(result.Images) > 0 {
 		// 传入基础文件名（无后缀），storage 会根据实际格式添加正确后缀
 		baseFileName := task.TaskModel.TaskID
+		// 警告：当前只保存第一张图片，其余丢弃
+		if len(result.Images) > 1 {
+			log.Printf("任务 %s 生成了 %d 张图片，当前只保存第1张，其余 %d 张已丢弃", task.TaskModel.TaskID, len(result.Images), len(result.Images)-1)
+		}
 		reader := bytes.NewReader(result.Images[0])
 		localPath, remoteURL, thumbLocalPath, thumbRemoteURL, width, height, err := storage.GlobalStorage.SaveWithThumbnail(baseFileName, reader)
 		if err != nil {
@@ -200,8 +204,11 @@ func (wp *WorkerPool) processTask(task *Task) {
 			updates["config_snapshot"] = configSnapshot
 		}
 
-		model.DB.Model(task.TaskModel).Updates(updates)
-		log.Printf("任务 %s 处理完成", task.TaskModel.TaskID)
+		if dbResult := model.DB.Model(task.TaskModel).Updates(updates); dbResult.Error != nil {
+			log.Printf("任务 %s 数据库更新失败（图片文件已保存至磁盘）: %v", task.TaskModel.TaskID, dbResult.Error)
+		} else {
+			log.Printf("任务 %s 处理完成", task.TaskModel.TaskID)
+		}
 	} else {
 		wp.failTask(task.TaskModel, fmt.Errorf("未生成任何图片"))
 	}
@@ -209,10 +216,12 @@ func (wp *WorkerPool) processTask(task *Task) {
 
 func (wp *WorkerPool) failTask(taskModel *model.Task, err error) {
 	log.Printf("任务 %s 失败: %v", taskModel.TaskID, err)
-	model.DB.Model(taskModel).Updates(map[string]interface{}{
+	if dbResult := model.DB.Model(taskModel).Updates(map[string]interface{}{
 		"status":        "failed",
 		"error_message": err.Error(),
-	})
+	}); dbResult.Error != nil {
+		log.Printf("任务 %s 写入失败状态到数据库时出错: %v", taskModel.TaskID, dbResult.Error)
+	}
 }
 
 func fetchProviderTimeout(providerName string) time.Duration {
