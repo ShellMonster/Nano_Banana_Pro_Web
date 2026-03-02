@@ -15,6 +15,10 @@ import (
 	"google.golang.org/genai"
 )
 
+// defaultGeminiAPIBase 是 Google Gemini API 的默认基础 URL
+const defaultGeminiAPIBase = "https://generativelanguage.googleapis.com"
+
+
 type GeminiProvider struct {
 	config *model.ProviderConfig
 	// 不再持有 client，每次请求时新建，避免连接空闲失效导致 EOF
@@ -62,7 +66,7 @@ func (p *GeminiProvider) newClient(ctx context.Context) (*genai.Client, error) {
 		HTTPClient: httpClient,
 	}
 
-	if p.config.APIBase != "" && p.config.APIBase != "https://generativelanguage.googleapis.com" {
+	if p.config.APIBase != "" && p.config.APIBase != defaultGeminiAPIBase {
 		apiBase := strings.TrimRight(p.config.APIBase, "/")
 		clientConfig.HTTPOptions = genai.HTTPOptions{
 			BaseURL: apiBase,
