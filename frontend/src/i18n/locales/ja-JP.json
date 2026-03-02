@@ -158,7 +158,8 @@
     "model": {
       "default": "デフォルトモデル",
       "chat": "チャットモデル",
-      "custom": "カスタム"
+      "custom": "カスタム",
+      "customPlaceholder": "カスタムモデル ID を入力"
     },
     "timeout": {
       "image": "画像タイムアウト(秒)",

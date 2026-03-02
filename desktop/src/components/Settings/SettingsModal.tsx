@@ -925,7 +925,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   type="text"
                   value={imageModel}
                   onChange={(e) => setImageModel(e.target.value)}
-                  placeholder="输入自定义模型 ID"
+                  placeholder={t('settings.model.customPlaceholder')}
                   className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none mt-2"
                 />
               )}
@@ -1052,7 +1052,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   type="text"
                   value={visionModel}
                   onChange={(e) => setVisionModel(e.target.value)}
-                  placeholder="输入自定义模型 ID"
+                  placeholder={t('settings.model.customPlaceholder')}
                   className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none mt-2"
                 />
               )}

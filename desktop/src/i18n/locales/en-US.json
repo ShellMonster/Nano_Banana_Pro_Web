@@ -169,7 +169,8 @@
       "default": "Default Model",
       "chat": "Chat Model",
       "vision": "Vision Model",
-      "custom": "Custom"
+      "custom": "Custom",
+      "customPlaceholder": "Enter custom model ID"
     },
     "timeout": {
       "image": "Image timeout (s)",
