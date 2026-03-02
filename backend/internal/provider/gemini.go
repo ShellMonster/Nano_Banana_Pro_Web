@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"image-gen-service/internal/model"
 	"log"
@@ -306,7 +307,7 @@ func (p *GeminiProvider) generateWithReferences(ctx context.Context, client *gen
 				}
 			}
 		}
-		return nil, fmt.Errorf(reason.String())
+		return nil, errors.New(reason.String())
 	}
 
 	return &ProviderResult{
@@ -378,7 +379,7 @@ func (p *GeminiProvider) generateViaContent(ctx context.Context, client *genai.C
 				}
 			}
 		}
-		return nil, fmt.Errorf(reason.String())
+		return nil, errors.New(reason.String())
 	}
 
 	return &ProviderResult{
