@@ -624,8 +624,8 @@ export const ImagePreview = React.memo(function ImagePreview({
                     onWheel={isFailedImage ? undefined : handleWheel}
                     onMouseDown={isFailedImage ? undefined : handleMouseDown}
                     onMouseMove={isFailedImage ? undefined : handleMouseMove}
-                    onMouseUp={isFailedImage ? undefined : () => setIsDragging(false)}
-                    onMouseLeave={isFailedImage ? undefined : () => setIsDragging(false)}
+                    onMouseUp={isFailedImage ? undefined : () => { setIsDragging(false); }}
+                    onMouseLeave={isFailedImage ? undefined : () => { setIsDragging(false); }}
                 >
                     {isFailedImage ? (
                         // 失败状态占位图
@@ -634,20 +634,22 @@ export const ImagePreview = React.memo(function ImagePreview({
                                 <ImageOff className="w-12 h-12 text-slate-400" />
                             </div>
                             <p className="text-lg font-bold text-slate-700 mb-3">{t('preview.failed.title')}</p>
-                            {image?.errorMessage && (
+                            {image.errorMessage && (
                                 <div className="max-w-md mx-8">
                                     <p className="text-sm text-slate-500 text-center mb-3 leading-relaxed">
                                         {image.errorMessage}
                                     </p>
                                     <button
-                                        onClick={async (e) => {
+                                        onClick={(e) => {
                                             e.stopPropagation();
-                                            const ok = await copyText(image.errorMessage || '');
-                                            if (ok) {
-                                                toast.success(t('preview.failed.errorCopied'));
-                                            } else {
-                                                toast.error(t('toast.copyFailed'));
-                                            }
+                                            void (async () => {
+                                                const ok = await copyText(image.errorMessage || '');
+                                                if (ok) {
+                                                    toast.success(t('preview.failed.errorCopied'));
+                                                } else {
+                                                    toast.error(t('toast.copyFailed'));
+                                                }
+                                            })();
                                         }}
                                         className="mx-auto flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
                                     >
