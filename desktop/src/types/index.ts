@@ -23,6 +23,7 @@ export interface GeneratedImage {
   status?: 'pending' | 'success' | 'failed';
   model?: string;
   options?: string | ImageOptions;
+  errorMessage?: string;
 }
 
 // 图片选项配置

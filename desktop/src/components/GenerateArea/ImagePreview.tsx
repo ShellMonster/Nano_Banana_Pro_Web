@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Modal } from '../common/Modal';
 import { GeneratedImage } from '../../types';
 import { Button } from '../common/Button';
-import { Download, Copy, Calendar, Box, Maximize2, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Trash2, Check } from 'lucide-react';
+import { Download, Copy, Calendar, Box, Maximize2, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Trash2, Check, ImageOff } from 'lucide-react';
 import { formatDateTime } from '../../utils/date';
 import { getImageDownloadUrl } from '../../services/api';
 import { useHistoryStore } from '../../store/historyStore';
@@ -24,6 +24,9 @@ export const ImagePreview = React.memo(function ImagePreview({
     onClose
 }: ImagePreviewProps) {
     const { t } = useTranslation();
+
+    // 判断是否为失败图片
+    const isFailedImage = useMemo(() => !image?.url && !image?.thumbnailUrl && image?.status === 'failed', [image]);
     const [scale, setScale] = useState(1);
     const [position, setPosition] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
@@ -617,183 +620,218 @@ export const ImagePreview = React.memo(function ImagePreview({
                 {/* 左侧：图片展示区 (移动端改为 50% 高度或自适应) */}
                 <div 
                     ref={containerRef}
-                    className="flex-1 bg-slate-50 relative min-h-[50vh] md:min-h-full overflow-hidden cursor-grab active:cursor-grabbing"
-                    onWheel={handleWheel}
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={() => setIsDragging(false)}
-                    onMouseLeave={() => setIsDragging(false)}
+                    className={`flex-1 bg-slate-50 relative min-h-[50vh] md:min-h-full overflow-hidden ${isFailedImage ? '' : 'cursor-grab active:cursor-grabbing'}`}
+                    onWheel={isFailedImage ? undefined : handleWheel}
+                    onMouseDown={isFailedImage ? undefined : handleMouseDown}
+                    onMouseMove={isFailedImage ? undefined : handleMouseMove}
+                    onMouseUp={isFailedImage ? undefined : () => { setIsDragging(false); }}
+                    onMouseLeave={isFailedImage ? undefined : () => { setIsDragging(false); }}
                 >
-                    <div className="absolute inset-0 z-0 pointer-events-none select-none">
-                        <img 
-                            src={image.thumbnailUrl || image.url} 
-                            alt="" 
-                            className="w-full h-full object-cover opacity-30 blur-3xl scale-110 transition-opacity duration-700" 
-                            decoding="async"
-                        />
-                        <div className="absolute inset-0 bg-white/10" />
-                    </div>
-
-                    {/* 右上角操作区：复制/关闭/缩放比例（不随图片缩放） */}
-                    <div className="absolute top-6 right-4 z-50 flex flex-col items-end gap-2 pointer-events-auto">
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyImage();
-                            }}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            disabled={!image.url && !image.thumbnailUrl && !image.filePath && !image.thumbnailPath}
-                            className={`
-                                px-3 py-2 bg-black/60 hover:bg-black/75 text-white rounded-xl shadow-xl border border-white/15 backdrop-blur-md transition-all active:scale-95
-                                flex items-center gap-2
-                                disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-black/60
-                            `}
-                            title={t('preview.copyImage')}
-                            style={{ WebkitAppRegion: 'no-drag' } as any}
-                        >
-                            {isCopyingImage ? (
-                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            ) : (
-                                <Copy className="w-4 h-4" />
-                            )}
-                            <span className="hidden sm:inline text-[11px] font-black pr-1">{t('preview.copyImage')}</span>
-                        </button>
-                    </div>
-
-                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 p-1.5 bg-white/90 backdrop-blur-xl border border-white/50 rounded-2xl shadow-2xl">
-                        <button onClick={() => performZoom(Math.max(0.25, scale - 0.25))} className="p-2.5 hover:bg-white rounded-xl transition-all text-slate-600"><ZoomOut className="w-4 h-4" /></button>
-                        <div className="w-px h-4 bg-slate-200 mx-1" />
-                        <button onClick={handleReset} className="px-4 py-1.5 hover:bg-white rounded-xl transition-all text-slate-700 text-[11px] font-black">{Math.round(scale * 100)}%</button>
-                        <div className="w-px h-4 bg-slate-200 mx-1" />
-                        <button onClick={() => performZoom(Math.min(10, scale + 0.25))} className="p-2.5 hover:bg-white rounded-xl transition-all text-slate-600"><ZoomIn className="w-4 h-4" /></button>
-                    </div>
-
-                    <div
-                        className="relative z-10 w-full h-full flex items-center justify-center select-none p-5 md:p-7"
-                        style={{
-                            transform: `translate(${displayPosition.x}px, ${displayPosition.y}px) scale(${scale})`,
-                            transition: isDragging || isWheelZooming ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)',
-                            willChange: isDragging || isWheelZooming ? 'transform' : undefined
-                        }}
-                        onContextMenu={handleOpenContextMenu}
-                    >
-
-
-                        {/* 缩略图占位 (模糊) */}
-                        {!fullImageLoaded && (
-                            <img 
-                                src={image.thumbnailUrl || image.url} 
-                                alt="" 
-                                className={`max-w-full max-h-full object-contain absolute ${
-                                  fullImageError ? 'opacity-100 scale-100' : 'blur-lg scale-95 opacity-50'
-                                }`} 
-                                decoding="async"
-                                draggable={false} 
-                            />
-                        )}
-                        
-                        {/* 高清大图 */}
-                        <img 
-                            ref={imageRef} 
-                            src={image.url} 
-                            alt={image.prompt} 
-                            onLoad={() => setFullImageLoaded(true)}
-                            onError={() => setFullImageError(true)}
-                            className={`max-w-full max-h-full object-contain shadow-2xl rounded-lg transition-all duration-500 ${fullImageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
-                            decoding="async"
-                            draggable={false} 
-                        />
-
-                        {/* 加载指示器 */}
-                        {!fullImageLoaded && !fullImageError && (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin shadow-lg" />
+                    {isFailedImage ? (
+                        // 失败状态占位图
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50">
+                            <div className="w-24 h-24 rounded-full bg-slate-100 flex items-center justify-center mb-5">
+                                <ImageOff className="w-12 h-12 text-slate-400" />
                             </div>
-                        )}
-
-                        {/* 加载失败提示 */}
-                        {fullImageError && !fullImageLoaded && (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="px-4 py-2 rounded-xl bg-black/70 text-white text-xs font-bold backdrop-blur-md">
-                                    {t('preview.imageLoadFailed')}
+                            <p className="text-lg font-bold text-slate-700 mb-3">{t('preview.failed.title')}</p>
+                            {image.errorMessage && (
+                                <div className="max-w-md mx-8">
+                                    <p className="text-sm text-slate-500 text-center mb-3 leading-relaxed">
+                                        {image.errorMessage}
+                                    </p>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            void (async () => {
+                                                const ok = await copyText(image.errorMessage || '');
+                                                if (ok) {
+                                                    toast.success(t('preview.failed.errorCopied'));
+                                                } else {
+                                                    toast.error(t('toast.copyFailed'));
+                                                }
+                                            })();
+                                        }}
+                                        className="mx-auto flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                    >
+                                        <Copy className="w-3.5 h-3.5" />
+                                        {t('preview.failed.copyError')}
+                                    </button>
                                 </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* 自定义右键菜单（替代系统英文菜单） */}
-                    {contextMenu && (
-                        <div
-                            ref={contextMenuRef}
-                            className="fixed z-[1000] min-w-[180px] bg-white/95 backdrop-blur-xl border border-slate-200/70 rounded-2xl shadow-[0_18px_60px_-18px_rgba(0,0,0,0.35)] overflow-hidden"
-                            style={{ left: contextMenu.x, top: contextMenu.y }}
-                            role="menu"
-                            aria-label={t('preview.menu.label')}
-                            onClick={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => {
-                                // 防止 mousedown 冒泡到图片容器导致先关闭菜单，从而 click 不触发
-                                e.stopPropagation();
-                            }}
-                            onContextMenu={(e) => {
-                                // 菜单区域内右键不再触发新的菜单
-                                e.preventDefault();
-                                e.stopPropagation();
-                            }}
-                        >
-                            <button
-                                type="button"
-                                className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setContextMenu(null);
-                                    handleCopyImage();
-                                }}
-                                role="menuitem"
-                            >
-                                <Copy className="w-4 h-4 text-slate-600" />
-                                {t('preview.menu.copyImage')}
-                            </button>
-                            <button
-                                type="button"
-                                className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setContextMenu(null);
-                                handleCopyImagePath();
-                                }}
-                                role="menuitem"
-                            >
-                                <Copy className="w-4 h-4 text-slate-600" />
-                                {t('preview.menu.copyImagePath')}
-                            </button>
-                            <div className="h-px bg-slate-200/60" />
-                            <button
-                                type="button"
-                                className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setContextMenu(null);
-                                    handleDownload();
-                                }}
-                                role="menuitem"
-                            >
-                                <Download className="w-4 h-4 text-slate-600" />
-                                {t('preview.menu.downloadOriginal')}
-                            </button>
-                            <button
-                                type="button"
-                                className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setContextMenu(null);
-                                    handleReset();
-                                }}
-                                role="menuitem"
-                            >
-                                <Maximize2 className="w-4 h-4 text-slate-600" />
-                                {t('preview.menu.resetZoom')}
-                            </button>
+                            )}
                         </div>
+                    ) : (
+                        <>
+                            <div className="absolute inset-0 z-0 pointer-events-none select-none">
+                                <img 
+                                    src={image.thumbnailUrl || image.url} 
+                                    alt="" 
+                                    className="w-full h-full object-cover opacity-30 blur-3xl scale-110 transition-opacity duration-700" 
+                                    decoding="async"
+                                />
+                                <div className="absolute inset-0 bg-white/10" />
+                            </div>
+
+                            {/* 右上角操作区：复制/关闭/缩放比例（不随图片缩放） */}
+                            <div className="absolute top-6 right-4 z-50 flex flex-col items-end gap-2 pointer-events-auto">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCopyImage();
+                                    }}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    disabled={!image.url && !image.thumbnailUrl && !image.filePath && !image.thumbnailPath}
+                                    className={`
+                                        px-3 py-2 bg-black/60 hover:bg-black/75 text-white rounded-xl shadow-xl border border-white/15 backdrop-blur-md transition-all active:scale-95
+                                        flex items-center gap-2
+                                        disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-black/60
+                                    `}
+                                    title={t('preview.copyImage')}
+                                    style={{ WebkitAppRegion: 'no-drag' } as any}
+                                >
+                                    {isCopyingImage ? (
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <Copy className="w-4 h-4" />
+                                    )}
+                                    <span className="hidden sm:inline text-[11px] font-black pr-1">{t('preview.copyImage')}</span>
+                                </button>
+                            </div>
+
+                            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 p-1.5 bg-white/90 backdrop-blur-xl border border-white/50 rounded-2xl shadow-2xl">
+                                <button onClick={() => performZoom(Math.max(0.25, scale - 0.25))} className="p-2.5 hover:bg-white rounded-xl transition-all text-slate-600"><ZoomOut className="w-4 h-4" /></button>
+                                <div className="w-px h-4 bg-slate-200 mx-1" />
+                                <button onClick={handleReset} className="px-4 py-1.5 hover:bg-white rounded-xl transition-all text-slate-700 text-[11px] font-black">{Math.round(scale * 100)}%</button>
+                                <div className="w-px h-4 bg-slate-200 mx-1" />
+                                <button onClick={() => performZoom(Math.min(10, scale + 0.25))} className="p-2.5 hover:bg-white rounded-xl transition-all text-slate-600"><ZoomIn className="w-4 h-4" /></button>
+                            </div>
+
+                            <div
+                                className="relative z-10 w-full h-full flex items-center justify-center select-none p-5 md:p-7"
+                                style={{
+                                    transform: `translate(${displayPosition.x}px, ${displayPosition.y}px) scale(${scale})`,
+                                    transition: isDragging || isWheelZooming ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)',
+                                    willChange: isDragging || isWheelZooming ? 'transform' : undefined
+                                }}
+                                onContextMenu={handleOpenContextMenu}
+                            >
+
+                                {/* 缩略图占位 (模糊) */}
+                                {!fullImageLoaded && (
+                                    <img 
+                                        src={image.thumbnailUrl || image.url} 
+                                        alt="" 
+                                        className={`max-w-full max-h-full object-contain absolute ${
+                                          fullImageError ? 'opacity-100 scale-100' : 'blur-lg scale-95 opacity-50'
+                                        }`} 
+                                        decoding="async"
+                                        draggable={false} 
+                                    />
+                                )}
+                                
+                                {/* 高清大图 */}
+                                <img 
+                                    ref={imageRef} 
+                                    src={image.url} 
+                                    alt={image.prompt} 
+                                    onLoad={() => setFullImageLoaded(true)}
+                                    onError={() => setFullImageError(true)}
+                                    className={`max-w-full max-h-full object-contain shadow-2xl rounded-lg transition-all duration-500 ${fullImageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+                                    decoding="async"
+                                    draggable={false} 
+                                />
+
+                                {/* 加载指示器 */}
+                                {!fullImageLoaded && !fullImageError && (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin shadow-lg" />
+                                    </div>
+                                )}
+
+                                {/* 加载失败提示 */}
+                                {fullImageError && !fullImageLoaded && (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="px-4 py-2 rounded-xl bg-black/70 text-white text-xs font-bold backdrop-blur-md">
+                                            {t('preview.imageLoadFailed')}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 自定义右键菜单（替代系统英文菜单） */}
+                            {contextMenu && (
+                                <div
+                                    ref={contextMenuRef}
+                                    className="fixed z-[1000] min-w-[180px] bg-white/95 backdrop-blur-xl border border-slate-200/70 rounded-2xl shadow-[0_18px_60px_-18px_rgba(0,0,0,0.35)] overflow-hidden"
+                                    style={{ left: contextMenu.x, top: contextMenu.y }}
+                                    role="menu"
+                                    aria-label={t('preview.menu.label')}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onMouseDown={(e) => {
+                                        // 防止 mousedown 冒泡到图片容器导致先关闭菜单，从而 click 不触发
+                                        e.stopPropagation();
+                                    }}
+                                    onContextMenu={(e) => {
+                                        // 菜单区域内右键不再触发新的菜单
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                    }}
+                                >
+                                    <button
+                                        type="button"
+                                        className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setContextMenu(null);
+                                            handleCopyImage();
+                                        }}
+                                        role="menuitem"
+                                    >
+                                        <Copy className="w-4 h-4 text-slate-600" />
+                                        {t('preview.menu.copyImage')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setContextMenu(null);
+                                            handleCopyImagePath();
+                                        }}
+                                        role="menuitem"
+                                    >
+                                        <Copy className="w-4 h-4 text-slate-600" />
+                                        {t('preview.menu.copyImagePath')}
+                                    </button>
+                                    <div className="h-px bg-slate-200/60" />
+                                    <button
+                                        type="button"
+                                        className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setContextMenu(null);
+                                            handleDownload();
+                                        }}
+                                        role="menuitem"
+                                    >
+                                        <Download className="w-4 h-4 text-slate-600" />
+                                        {t('preview.menu.downloadOriginal')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-slate-800 hover:bg-slate-100/70 transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setContextMenu(null);
+                                            handleReset();
+                                        }}
+                                        role="menuitem"
+                                    >
+                                        <Maximize2 className="w-4 h-4 text-slate-600" />
+                                        {t('preview.menu.resetZoom')}
+                                    </button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
 
@@ -903,11 +941,13 @@ export const ImagePreview = React.memo(function ImagePreview({
                                 <span className="font-bold text-slate-900">{formatDateTime(image.createdAt || '')}</span>
                             </div>
                         </div>
-                        <div className="p-8 pt-3">
-                            <Button className="w-full h-14 bg-slate-900 hover:bg-black text-white" onClick={handleDownload}>
-                                <Download className="w-5 h-5 mr-3" /> {t('preview.downloadOriginal')}
-                            </Button>
-                        </div>
+                        {!isFailedImage && (
+                            <div className="p-8 pt-3">
+                                <Button className="w-full h-14 bg-slate-900 hover:bg-black text-white" onClick={handleDownload}>
+                                    <Download className="w-5 h-5 mr-3" /> {t('preview.downloadOriginal')}
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

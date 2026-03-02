@@ -111,10 +111,10 @@ export const ImageCard = React.memo(function ImageCard({
   const handleClick = useCallback(() => {
     const lastDragEndAt = useInternalDragStore.getState().lastDragEndAt;
     if (Date.now() - lastDragEndAt < 200) return;
-    if (isSuccess) {
+    if (isSuccess || isFailed) {
       onClick(image);
     }
-  }, [image, isSuccess, onClick]);
+  }, [image, isSuccess, isFailed, onClick]);
 
   const meta = useMemo(() => {
     const w = image.width || 0;
