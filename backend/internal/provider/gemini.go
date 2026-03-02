@@ -17,30 +17,34 @@ import (
 
 type GeminiProvider struct {
 	config *model.ProviderConfig
-	client *genai.Client
+	// 不再持有 client，每次请求时新建，避免连接空闲失效导致 EOF
 }
 
 func NewGeminiProvider(config *model.ProviderConfig) (*GeminiProvider, error) {
-	ctx := context.Background()
-
 	log.Printf("[Gemini] 正在初始化 Provider: BaseURL=%s, KeyLen=%d\n", config.APIBase, len(config.APIKey))
 
-	timeout := time.Duration(config.TimeoutSeconds) * time.Second
+	if config == nil {
+		return nil, fmt.Errorf("config 不能为空")
+	}
+
+	log.Printf("[Gemini] Provider 初始化成功\n")
+	return &GeminiProvider{config: config}, nil
+}
+
+// newClient 为每次请求创建全新的 genai.Client，避免连接复用导致 EOF
+func (p *GeminiProvider) newClient(ctx context.Context) (*genai.Client, error) {
+	timeout := time.Duration(p.config.TimeoutSeconds) * time.Second
 	if timeout <= 0 {
 		timeout = 500 * time.Second
 	}
 
-	// 配置自定义 HTTP 客户端，完全禁用连接复用
-	// 每次请求都使用新的 TCP 连接，避免 "bad file descriptor" 问题
 	httpClient := &http.Client{
 		Timeout: timeout,
 		Transport: &http.Transport{
-			// 禁用连接复用和 HTTP/2
 			DisableKeepAlives:   true,
 			ForceAttemptHTTP2:   false,
 			MaxIdleConns:        0,
 			MaxIdleConnsPerHost: 0,
-			// TLS 配置
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: false,
 				MinVersion:         tls.VersionTLS12,
@@ -49,16 +53,13 @@ func NewGeminiProvider(config *model.ProviderConfig) (*GeminiProvider, error) {
 	}
 
 	clientConfig := &genai.ClientConfig{
-		APIKey:     config.APIKey,
+		APIKey:     p.config.APIKey,
 		Backend:    genai.BackendGeminiAPI,
 		HTTPClient: httpClient,
 	}
 
-	// 设置自定义 BaseURL (如果提供)
-	// 修正：某些中转 API 需要去掉末尾的 / 或者确保有正确的协议
-	if config.APIBase != "" && config.APIBase != "https://generativelanguage.googleapis.com" {
-		apiBase := strings.TrimRight(config.APIBase, "/")
-		log.Printf("[Gemini] 使用自定义 BaseURL: %s\n", apiBase)
+	if p.config.APIBase != "" && p.config.APIBase != "https://generativelanguage.googleapis.com" {
+		apiBase := strings.TrimRight(p.config.APIBase, "/")
 		clientConfig.HTTPOptions = genai.HTTPOptions{
 			BaseURL: apiBase,
 		}
@@ -66,15 +67,11 @@ func NewGeminiProvider(config *model.ProviderConfig) (*GeminiProvider, error) {
 
 	client, err := genai.NewClient(ctx, clientConfig)
 	if err != nil {
-		log.Printf("[Gemini] 创建客户端失败: %v\n", err)
 		return nil, fmt.Errorf("创建 Gemini 客户端失败: %w", err)
 	}
 
-	log.Printf("[Gemini] Provider 初始化成功\n")
-	return &GeminiProvider{
-		config: config,
-		client: client,
-	}, nil
+	log.Printf("[Gemini] 新建 client 用于本次请求\n")
+	return client, nil
 }
 
 func (p *GeminiProvider) Name() string {
@@ -82,6 +79,12 @@ func (p *GeminiProvider) Name() string {
 }
 
 func (p *GeminiProvider) Generate(ctx context.Context, params map[string]interface{}) (*ProviderResult, error) {
+	// 每次请求创建新的 client，避免连接空闲失效导致 EOF
+	client, err := p.newClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// 记录日志时排除大数据字段
 	logParams := make(map[string]interface{})
 	for k, v := range params {
@@ -172,11 +175,11 @@ func (p *GeminiProvider) Generate(ctx context.Context, params map[string]interfa
 	// 判断是否为图生图 (Image-to-Image)
 	// 如果 params 中包含 reference_images (base64 列表)
 	if refImgs, ok := params["reference_images"].([]interface{}); ok && len(refImgs) > 0 {
-		return p.generateWithReferences(ctx, modelID, prompt, refImgs, genConfig)
+		return p.generateWithReferences(ctx, client, modelID, prompt, refImgs, genConfig)
 	}
 
 	// 默认为文生图 (Text-to-Image)
-	return p.generateViaContent(ctx, modelID, prompt, genConfig)
+	return p.generateViaContent(ctx, client, modelID, prompt, genConfig)
 }
 
 // removeMarkdownImages 从提示词中移除 Markdown 图片语法 ![alt](url)，只保留 alt 文字
@@ -192,7 +195,7 @@ func (p *GeminiProvider) removeMarkdownImages(text string) string {
 	})
 }
 
-func (p *GeminiProvider) generateWithReferences(ctx context.Context, modelID, prompt string, refImgs []interface{}, config *genai.GenerateContentConfig) (*ProviderResult, error) {
+func (p *GeminiProvider) generateWithReferences(ctx context.Context, client *genai.Client, modelID, prompt string, refImgs []interface{}, config *genai.GenerateContentConfig) (*ProviderResult, error) {
 	// 清理提示词，移除可能存在的 Markdown 图片链接
 	cleanedPrompt := p.removeMarkdownImages(prompt)
 
@@ -252,7 +255,7 @@ func (p *GeminiProvider) generateWithReferences(ctx context.Context, modelID, pr
 	log.Printf("[Gemini] 开始调用 GenerateContent, Model: %s, Parts: %d, AspectRatio: %s, ImageSize: %s\n",
 		modelID, len(parts), aspectRatio, imageSize)
 
-	resp, err := p.client.Models.GenerateContent(ctx, modelID, []*genai.Content{
+	resp, err := client.Models.GenerateContent(ctx, modelID, []*genai.Content{
 		{
 			Role:  "user",
 			Parts: parts,
@@ -309,7 +312,7 @@ func (p *GeminiProvider) generateWithReferences(ctx context.Context, modelID, pr
 }
 
 // generateViaContent 尝试通过 GenerateContent 接口发送请求 (适配某些中转 API)
-func (p *GeminiProvider) generateViaContent(ctx context.Context, modelID, prompt string, config *genai.GenerateContentConfig) (*ProviderResult, error) {
+func (p *GeminiProvider) generateViaContent(ctx context.Context, client *genai.Client, modelID, prompt string, config *genai.GenerateContentConfig) (*ProviderResult, error) {
 	// 清理提示词
 	cleanedPrompt := p.removeMarkdownImages(prompt)
 
@@ -330,7 +333,7 @@ func (p *GeminiProvider) generateViaContent(ctx context.Context, modelID, prompt
 	log.Printf("[Gemini] 开始调用 GenerateContent (Text-to-Image), Model: %s, AspectRatio: %s, ImageSize: %s\n",
 		modelID, aspectRatio, imageSize)
 
-	resp, err := p.client.Models.GenerateContent(ctx, modelID, []*genai.Content{content}, config)
+	resp, err := client.Models.GenerateContent(ctx, modelID, []*genai.Content{content}, config)
 	if err != nil {
 		return nil, fmt.Errorf("通过 GenerateContent 调用失败: %w", err)
 	}
