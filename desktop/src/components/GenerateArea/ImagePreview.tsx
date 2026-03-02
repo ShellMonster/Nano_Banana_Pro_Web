@@ -26,7 +26,7 @@ export const ImagePreview = React.memo(function ImagePreview({
     const { t } = useTranslation();
 
     // 判断是否为失败图片
-    const isFailedImage = !image?.url && !image?.thumbnailUrl && image?.status === 'failed';
+    const isFailedImage = useMemo(() => !image?.url && !image?.thumbnailUrl && image?.status === 'failed', [image]);
     const [scale, setScale] = useState(1);
     const [position, setPosition] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
@@ -640,10 +640,14 @@ export const ImagePreview = React.memo(function ImagePreview({
                                         {image.errorMessage}
                                     </p>
                                     <button
-                                        onClick={(e) => {
+                                        onClick={async (e) => {
                                             e.stopPropagation();
-                                            navigator.clipboard.writeText(image.errorMessage || '');
-                                            toast.success(t('preview.failed.errorCopied'));
+                                            const ok = await copyText(image.errorMessage || '');
+                                            if (ok) {
+                                                toast.success(t('preview.failed.errorCopied'));
+                                            } else {
+                                                toast.error(t('toast.copyFailed'));
+                                            }
                                         }}
                                         className="mx-auto flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
                                     >
