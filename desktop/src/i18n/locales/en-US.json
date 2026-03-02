@@ -158,7 +158,9 @@
       "recommended": "Recommended:",
       "yunwu": "Yunwu API",
       "openaiImageLimit": "OpenAI providers currently support only 1K images",
-      "geminiBasePathHint": "For Gemini, use only the host as Base URL (avoid /v1 or endpoint paths)."
+      "geminiBasePathHint": "For Gemini, use only the host as Base URL (avoid /v1 or endpoint paths).",
+      "yunwuExtraPathHint": "For Yunwu API, enter only the domain (e.g., https://yunwu.ai). Do not include /v1 or /v1beta paths - the backend handles this automatically.",
+      "yunwuMissingV1Hint": "For Yunwu API (OpenAI type), enter the full URL with /v1 (e.g., https://yunwu.ai/v1)."
     },
     "vision": {
       "hint": "Vision config for reverse prompt feature. Leave empty to use image config.",

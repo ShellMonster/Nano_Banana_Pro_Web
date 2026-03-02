@@ -74,11 +74,10 @@ const hasGeminiBasePathWarning = (baseUrl: string) => {
   try {
     pathname = new URL(raw).pathname.toLowerCase();
   } catch {
-    const withoutOrigin = raw
-      .replace(/^[a-z]+:\/\/[^/]+/i, '')
-      .split(/[?#]/)[0]
-      .toLowerCase();
-    pathname = withoutOrigin;
+    // 处理像 'yunwu.ai/v1' 这样不完整的 URL
+    const pathPart = raw.split(/[?#]/)[0];
+    const firstSlashIndex = pathPart.indexOf('/');
+    pathname = firstSlashIndex === -1 ? '/' : pathPart.substring(firstSlashIndex);
   }
 
   const path = pathname.replace(/\/+$/, '');
@@ -91,6 +90,57 @@ const hasGeminiBasePathWarning = (baseUrl: string) => {
     path.includes('/chat/completions') ||
     path.includes('/responses')
   );
+};
+
+
+// 检测 yunwu.ai URL 格式是否正确
+// Gemini 类型：应该是 https://yunwu.ai（不带路径）
+// OpenAI 类型：应该是 https://yunwu.ai/v1（必须带 /v1）
+const hasYunwuUrlWarning = (baseUrl: string, providerType: 'gemini' | 'openai'): { hasWarning: boolean; warningType: 'extra_path' | 'missing_v1' | null } => {
+  const raw = String(baseUrl || '').trim().toLowerCase();
+  if (!raw) return { hasWarning: false, warningType: null };
+  if (!raw.includes('yunwu.ai')) return { hasWarning: false, warningType: null };
+
+  let pathname = '';
+  try {
+    pathname = new URL(raw).pathname.toLowerCase();
+  } catch {
+    const withoutOrigin = raw
+      .replace(/^[a-z]+:\/\/[^/]+/i, '')
+      .split(/[?#]/)[0]
+      .toLowerCase();
+    pathname = withoutOrigin;
+  }
+
+  const path = pathname.replace(/\/+$/, '');
+
+  if (providerType === 'gemini') {
+    // Gemini 类型：不应该带路径
+    if (path && path !== '/') {
+      return { hasWarning: true, warningType: 'extra_path' };
+    }
+  } else {
+    // OpenAI 类型：必须带 /v1
+    if (!path || path === '/') {
+      return { hasWarning: true, warningType: 'missing_v1' };
+    }
+    if (path !== '/v1') {
+      return { hasWarning: true, warningType: 'extra_path' };
+    }
+  }
+
+  return { hasWarning: false, warningType: null };
+};
+// Base URL 警告提示组件
+const BaseUrlWarning = ({ yunwuWarn }: { yunwuWarn: ReturnType<typeof hasYunwuUrlWarning> }) => {
+  const { t } = useTranslation();
+  const message = yunwuWarn.hasWarning
+    ? (yunwuWarn.warningType === 'missing_v1'
+        ? t('settings.provider.yunwuMissingV1Hint')
+        : t('settings.provider.yunwuExtraPathHint'))
+    : t('settings.provider.geminiBasePathHint');
+
+  return <p className="text-xs text-amber-600 px-1">{message}</p>;
 };
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
@@ -127,9 +177,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [fetching, setFetching] = useState(false);
-  const imageBaseWarn = isGeminiProvider(imageProvider) && hasGeminiBasePathWarning(imageApiBaseUrl);
-  const visionBaseWarn = isGeminiProvider(visionProvider) && hasGeminiBasePathWarning(visionApiBaseUrl);
-  const chatBaseWarn = isGeminiProvider(chatProvider) && hasGeminiBasePathWarning(chatApiBaseUrl);
+  const imageYunwuWarn = hasYunwuUrlWarning(imageApiBaseUrl, imageProvider === 'gemini' ? 'gemini' : 'openai');
+  const imageBaseWarn = (isGeminiProvider(imageProvider) && hasGeminiBasePathWarning(imageApiBaseUrl)) || imageYunwuWarn.hasWarning;
+
+  const visionYunwuWarn = hasYunwuUrlWarning(visionApiBaseUrl, visionProvider === 'gemini-chat' ? 'gemini' : 'openai');
+  const visionBaseWarn = (isGeminiProvider(visionProvider) && hasGeminiBasePathWarning(visionApiBaseUrl)) || visionYunwuWarn.hasWarning;
+
+  const chatYunwuWarn = hasYunwuUrlWarning(chatApiBaseUrl, chatProvider === 'gemini-chat' ? 'gemini' : 'openai');
+  const chatBaseWarn = (isGeminiProvider(chatProvider) && hasGeminiBasePathWarning(chatApiBaseUrl)) || chatYunwuWarn.hasWarning;
   const [verboseLogs, setVerboseLogs] = useState(getDiagnosticVerbose());
   const [appVersion, setAppVersion] = useState('');
   const checkForUpdates = useUpdaterStore((s) => s.checkForUpdates);
@@ -253,11 +308,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           timeoutSeconds: normalizeTimeout(visionConfig.timeout_seconds)
         });
       } else {
-        // 如果没有独立的识图配置，默认继承生图配置的 base URL 和 key
+        // 如果没有独立的识图配置，默认继承生图配置的 base URL、key 和 model
         const imageCfg = imageConfig || data.find((p) => p.provider_name === imageProvider);
         if (imageCfg) {
           setVisionApiBaseUrl(imageCfg.api_base);
           setVisionApiKey(imageCfg.api_key);
+          // 继承生图配置的模型
+          const modelFromConfig = getDefaultModelId(imageCfg.models);
+          if (modelFromConfig) {
+            setVisionModel(modelFromConfig);
+          }
         }
         setVisionTimeoutSeconds(150);
         setVisionSyncedConfig(null);
@@ -872,9 +932,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 placeholder="https://generativelanguage.googleapis.com"
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
-              {imageBaseWarn && (
-                <p className="text-xs text-amber-600 px-1">{t('settings.provider.geminiBasePathHint')}</p>
-              )}
+              {imageBaseWarn && <BaseUrlWarning yunwuWarn={imageYunwuWarn} />}
               {imageProvider === 'openai' && (
                 <p className="text-xs text-red-500 px-1">{t('settings.provider.openaiImageLimit')}</p>
               )}
@@ -1000,9 +1058,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 }
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
-              {visionBaseWarn && (
-                <p className="text-xs text-amber-600 px-1">{t('settings.provider.geminiBasePathHint')}</p>
-              )}
+              {visionBaseWarn && <BaseUrlWarning yunwuWarn={visionYunwuWarn} />}
               <p className="text-xs text-slate-500 px-1">{t('settings.vision.hint')}</p>
             </div>
 
@@ -1127,9 +1183,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 }
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
-              {chatBaseWarn && (
-                <p className="text-xs text-amber-600 px-1">{t('settings.provider.geminiBasePathHint')}</p>
-              )}
+              {chatBaseWarn && <BaseUrlWarning yunwuWarn={chatYunwuWarn} />}
             </div>
 
             {/* API Key */}

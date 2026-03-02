@@ -153,7 +153,9 @@
       "recommended": "推奨:",
       "yunwu": "Yunwu API",
       "openaiImageLimit": "OpenAI プロバイダーは現在 1K 画像のみ対応しています",
-      "geminiBasePathHint": "Gemini タイプの Base URL はドメインのみを推奨します（/v1 や具体的なエンドポイントは不要）。"
+      "geminiBasePathHint": "Gemini タイプの Base URL はドメインのみを推奨します（/v1 や具体的なエンドポイントは不要）。",
+      "yunwuExtraPathHint": "Yunwu API の場合はドメインのみ入力してください（例: https://yunwu.ai）。/v1 や /v1beta は不要です。バックエンドが自動的に処理します。",
+      "yunwuMissingV1Hint": "Yunwu API（OpenAI タイプ）の場合は /v1 を含む完全な URL を入力してください（例: https://yunwu.ai/v1）。"
     },
     "model": {
       "default": "デフォルトモデル",
