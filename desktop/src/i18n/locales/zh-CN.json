@@ -355,7 +355,8 @@
       "failed": "生成失败",
       "failedWith": "生成失败：{{message}}",
       "partial": "任务部分完成",
-      "recovered": "已恢复生成进度"
+      "recovered": "已恢复生成进度",
+      "timeout": "图片生成超时（{{seconds}}秒），请检查网络或增加超时时间"
     }
   },
   "config": {
