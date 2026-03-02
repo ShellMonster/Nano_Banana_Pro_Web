@@ -4,7 +4,7 @@ import type { PersistedRefImage } from '../types';
 
 // Model options for the dropdown selectors
 export const IMAGE_MODEL_OPTIONS = [
-  { value: 'gemini-3-flash-image-preview', label: 'Flash (gemini-3-flash-image-preview)' },
+  { value: 'gemini-3.1-flash-image-preview', label: 'Flash (gemini-3.1-flash-image-preview)' },
   { value: 'gemini-3-pro-image-preview', label: 'Pro (gemini-3-pro-image-preview)' },
 ] as const;
 
@@ -100,7 +100,7 @@ export const useConfigStore = create<ConfigState>()(
       imageProvider: 'gemini',
       imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
       imageApiKey: '',
-      imageModel: 'gemini-3-flash-image-preview',
+      imageModel: 'gemini-3.1-flash-image-preview',
       imageTimeoutSeconds: 500,
       visionProvider: 'gemini-chat',
       visionApiBaseUrl: '',
@@ -164,7 +164,7 @@ export const useConfigStore = create<ConfigState>()(
 
       reset: () => set({
         imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
-        imageModel: 'gemini-3-flash-image-preview',
+        imageModel: 'gemini-3.1-flash-image-preview',
         imageTimeoutSeconds: 500,
         visionProvider: 'gemini-chat',
         visionApiBaseUrl: '',
@@ -203,7 +203,7 @@ export const useConfigStore = create<ConfigState>()(
             imageProvider: state.imageProvider ?? state.provider ?? 'gemini',
             imageApiBaseUrl: state.imageApiBaseUrl ?? state.apiBaseUrl ?? 'https://generativelanguage.googleapis.com',
             imageApiKey: state.imageApiKey ?? state.apiKey ?? '',
-            imageModel: state.imageModel ?? state.model ?? 'gemini-3-flash-image-preview',
+            imageModel: state.imageModel ?? state.model ?? 'gemini-3.1-flash-image-preview',
             chatApiBaseUrl: state.chatApiBaseUrl ?? 'https://api.openai.com/v1',
             chatApiKey: state.chatApiKey ?? '',
             chatModel: state.chatModel ?? state.textModel ?? '',
