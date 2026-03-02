@@ -78,6 +78,12 @@
       "time": "Time"
     },
     "downloadOriginal": "Download original"
+,
+    "failed": {
+      "title": "Generation Failed",
+      "copyError": "Copy Error Info",
+      "errorCopied": "Error Info Copied"
+    }
   },
   "prompt": {
     "label": "Prompt",

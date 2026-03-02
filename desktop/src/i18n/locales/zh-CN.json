@@ -78,6 +78,12 @@
       "time": "时间"
     },
     "downloadOriginal": "下载高清原图"
+,
+    "failed": {
+      "title": "生成失败",
+      "copyError": "复制错误信息",
+      "errorCopied": "错误信息已复制"
+    }
   },
   "prompt": {
     "label": "提示词 (Prompt)",

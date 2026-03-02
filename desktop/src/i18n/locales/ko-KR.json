@@ -78,6 +78,12 @@
       "time": "시간"
     },
     "downloadOriginal": "원본 다운로드"
+,
+    "failed": {
+      "title": "생성 실패",
+      "copyError": "오류 정보 복사",
+      "errorCopied": "오류 정보가 복사되었습니다"
+    }
   },
   "prompt": {
     "label": "프롬프트",

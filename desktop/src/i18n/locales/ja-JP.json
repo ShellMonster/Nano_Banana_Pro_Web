@@ -78,6 +78,12 @@
       "time": "時間"
     },
     "downloadOriginal": "元画像をダウンロード"
+,
+    "failed": {
+      "title": "生成に失敗しました",
+      "copyError": "エラー情報をコピー",
+      "errorCopied": "エラー情報をコピーしました"
+    }
   },
   "prompt": {
     "label": "プロンプト",
