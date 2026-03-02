@@ -93,9 +93,9 @@ jobs:
           PREV_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || git rev-list --max-parents=0 HEAD)
           echo "Previous tag: $PREV_TAG"
           
-          # 提取 commit 记录，并进行初步的 shell 转义处理
-          # 使用 raw 格式提取，避免特殊的字符干扰
-          LOGS=$(git log $PREV_TAG..${{ github.ref_name }} --pretty=format:"%s")
+          # 提取 commit 记录（不包括 merge commit）
+          # --no-merges: 只显示实际代码变更的 commit，过滤掉 PR merge 产生的合并提交
+          LOGS=$(git log $PREV_TAG..${{ github.ref_name }} --pretty=format:"%s" --no-merges)
           
           # 初始化分类内容
           FEATS=""
