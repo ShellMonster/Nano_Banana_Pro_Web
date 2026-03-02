@@ -150,6 +150,18 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const isPreset = VISION_MODEL_OPTIONS.some(o => o.value === visionModel);
     return isPreset ? visionModel : CUSTOM_MODEL_VALUE;
   });
+
+  // 同步 imageModelSelect：当 imageModel 被外部更新时（如 fetchConfigs、切换 Provider）保持下拉框一致
+  useEffect(() => {
+    const isPreset = IMAGE_MODEL_OPTIONS.some(o => o.value === imageModel);
+    setImageModelSelect(isPreset ? imageModel : CUSTOM_MODEL_VALUE);
+  }, [imageModel]);
+
+  // 同步 visionModelSelect：当 visionModel 被外部更新时保持下拉框一致
+  useEffect(() => {
+    const isPreset = VISION_MODEL_OPTIONS.some(o => o.value === visionModel);
+    setVisionModelSelect(isPreset ? visionModel : CUSTOM_MODEL_VALUE);
+  }, [visionModel]);
   const repoUrl = import.meta.env.VITE_GITHUB_REPO_URL || 'https://github.com/ShellMonster/Nano_Banana_Pro_Web';
   const normalizeTimeout = (value?: number | null, fallback = 150) => {
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return fallback;

@@ -122,6 +122,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
     return CUSTOM_MODEL_VALUE;
   });
+  // 同步 imageModelSelect：当 imageModel 被外部更新时（如 fetchConfigs、切换 Provider）保持下拉框一致
+  useEffect(() => {
+    const isPreset = IMAGE_MODEL_OPTIONS.some(o => o.value === imageModel);
+    setImageModelSelect(isPreset ? imageModel : CUSTOM_MODEL_VALUE);
+  }, [imageModel]);
   const imageBaseWarn = isGeminiProvider(imageProvider) && hasGeminiBasePathWarning(imageApiBaseUrl);
   const chatBaseWarn = isGeminiProvider(chatProvider) && hasGeminiBasePathWarning(chatApiBaseUrl);
 

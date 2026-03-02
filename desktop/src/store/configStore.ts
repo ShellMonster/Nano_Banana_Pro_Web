@@ -164,7 +164,7 @@ export const useConfigStore = create<ConfigState>()(
 
       reset: () => set({
         imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
-        imageModel: 'gemini-3-pro-image-preview',
+        imageModel: 'gemini-3-flash-image-preview',
         imageTimeoutSeconds: 500,
         visionProvider: 'gemini-chat',
         visionApiBaseUrl: '',
@@ -203,7 +203,7 @@ export const useConfigStore = create<ConfigState>()(
             imageProvider: state.imageProvider ?? state.provider ?? 'gemini',
             imageApiBaseUrl: state.imageApiBaseUrl ?? state.apiBaseUrl ?? 'https://generativelanguage.googleapis.com',
             imageApiKey: state.imageApiKey ?? state.apiKey ?? '',
-            imageModel: state.imageModel ?? state.model ?? 'gemini-3-pro-image-preview',
+            imageModel: state.imageModel ?? state.model ?? 'gemini-3-flash-image-preview',
             chatApiBaseUrl: state.chatApiBaseUrl ?? 'https://api.openai.com/v1',
             chatApiKey: state.chatApiKey ?? '',
             chatModel: state.chatModel ?? state.textModel ?? '',
@@ -277,10 +277,7 @@ export const useConfigStore = create<ConfigState>()(
             showOnboarding: true
           };
         }
-        // 版本 12: 仅版本号升级，无需数据迁移
-        if (version < 12) {
-          // No changes needed, version bump only
-        }
+
         return next;
       },
     }

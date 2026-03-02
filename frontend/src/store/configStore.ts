@@ -123,7 +123,7 @@ export const useConfigStore = create<ConfigState>()(
 
       reset: () => set({
         imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
-        imageModel: 'gemini-3-pro-image-preview',
+        imageModel: 'gemini-3-flash-image-preview',
         imageTimeoutSeconds: 500,
         chatProvider: 'openai-chat',
         chatApiBaseUrl: 'https://api.openai.com/v1',
@@ -156,7 +156,7 @@ export const useConfigStore = create<ConfigState>()(
             imageProvider: state.imageProvider ?? state.provider ?? 'gemini',
             imageApiBaseUrl: state.imageApiBaseUrl ?? state.apiBaseUrl ?? 'https://generativelanguage.googleapis.com',
             imageApiKey: state.imageApiKey ?? state.apiKey ?? '',
-            imageModel: state.imageModel ?? state.model ?? 'gemini-3-pro-image-preview',
+            imageModel: state.imageModel ?? state.model ?? 'gemini-3-flash-image-preview',
             chatApiBaseUrl: state.chatApiBaseUrl ?? 'https://api.openai.com/v1',
             chatApiKey: state.chatApiKey ?? '',
             chatModel: state.chatModel ?? state.textModel ?? '',
@@ -211,11 +211,7 @@ export const useConfigStore = create<ConfigState>()(
             };
           }
         }
-        // Version 10: only version bump for frontend
-        // (frontend doesn't have vision model, so no vision-related changes)
-        if (version < 10) {
-          // No changes needed
-        }
+
 
         return next;
       },
