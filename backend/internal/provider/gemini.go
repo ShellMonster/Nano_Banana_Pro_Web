@@ -20,13 +20,15 @@ type GeminiProvider struct {
 	// 不再持有 client，每次请求时新建，避免连接空闲失效导致 EOF
 }
 
+// NewGeminiProvider 初始化一个新的 Gemini Provider 实例。
+// 它只保存配置，不创建 API client；实际的 client 在每次 Generate() 调用时
+// 按需创建并在请求结束后丢弃，以避免连接空闲失效（EOF）问题。
 func NewGeminiProvider(config *model.ProviderConfig) (*GeminiProvider, error) {
-	log.Printf("[Gemini] 正在初始化 Provider: BaseURL=%s, KeyLen=%d\n", config.APIBase, len(config.APIKey))
-
+	// nil 检查必须放在最前面，否则后续访问 config 字段会 panic
 	if config == nil {
 		return nil, fmt.Errorf("config 不能为空")
 	}
-
+	log.Printf("[Gemini] 正在初始化 Provider: BaseURL=%s, KeyLen=%d\n", config.APIBase, len(config.APIKey))
 	log.Printf("[Gemini] Provider 初始化成功\n")
 	return &GeminiProvider{config: config}, nil
 }
@@ -77,6 +79,9 @@ func (p *GeminiProvider) newClient(ctx context.Context) (*genai.Client, error) {
 func (p *GeminiProvider) Name() string {
 	return "gemini"
 }
+
+// Generate 使用 Gemini API 生成图片。
+// 每次调用都会创建新的 API client，以解决上游服务空闲连接超时问题。
 
 func (p *GeminiProvider) Generate(ctx context.Context, params map[string]interface{}) (*ProviderResult, error) {
 	// 每次请求创建新的 client，避免连接空闲失效导致 EOF
