@@ -227,7 +227,7 @@ export function ReferenceImageUpload() {
     if (!normalized || isUrlLike(normalized)) return null;
     try {
       const { invoke } = await import('@tauri-apps/api/core');
-      const relativePath = await invoke<string>('persist_ref_image', { path: normalized, dest_name: destName });
+      const relativePath = await invoke<string>('persist_ref_image', { path: normalized, destName: destName });
       if (typeof relativePath === 'string' && relativePath.trim()) {
         return relativePath.trim();
       }
