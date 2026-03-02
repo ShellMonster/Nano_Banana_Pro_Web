@@ -2,9 +2,12 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { PersistedRefImage } from '../types';
 
+// 默认生图模型名称
+export const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
+
 // Model options for the dropdown selectors
 export const IMAGE_MODEL_OPTIONS = [
-  { value: 'gemini-3.1-flash-image-preview', label: 'Flash (gemini-3.1-flash-image-preview)' },
+  { value: DEFAULT_IMAGE_MODEL, label: `Flash (${DEFAULT_IMAGE_MODEL})` },
   { value: 'gemini-3-pro-image-preview', label: 'Pro (gemini-3-pro-image-preview)' },
 ] as const;
 
@@ -100,7 +103,7 @@ export const useConfigStore = create<ConfigState>()(
       imageProvider: 'gemini',
       imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
       imageApiKey: '',
-      imageModel: 'gemini-3.1-flash-image-preview',
+      imageModel: DEFAULT_IMAGE_MODEL,
       imageTimeoutSeconds: 500,
       visionProvider: 'gemini-chat',
       visionApiBaseUrl: '',
@@ -164,7 +167,7 @@ export const useConfigStore = create<ConfigState>()(
 
       reset: () => set({
         imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
-        imageModel: 'gemini-3.1-flash-image-preview',
+        imageModel: DEFAULT_IMAGE_MODEL,
         imageTimeoutSeconds: 500,
         visionProvider: 'gemini-chat',
         visionApiBaseUrl: '',
@@ -203,7 +206,7 @@ export const useConfigStore = create<ConfigState>()(
             imageProvider: state.imageProvider ?? state.provider ?? 'gemini',
             imageApiBaseUrl: state.imageApiBaseUrl ?? state.apiBaseUrl ?? 'https://generativelanguage.googleapis.com',
             imageApiKey: state.imageApiKey ?? state.apiKey ?? '',
-            imageModel: state.imageModel ?? state.model ?? 'gemini-3.1-flash-image-preview',
+            imageModel: state.imageModel ?? state.model ?? DEFAULT_IMAGE_MODEL,
             chatApiBaseUrl: state.chatApiBaseUrl ?? 'https://api.openai.com/v1',
             chatApiKey: state.chatApiKey ?? '',
             chatModel: state.chatModel ?? state.textModel ?? '',
