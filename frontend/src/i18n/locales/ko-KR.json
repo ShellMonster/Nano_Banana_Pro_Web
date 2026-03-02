@@ -157,7 +157,9 @@
     },
     "model": {
       "default": "기본 모델",
-      "chat": "채팅 모델"
+      "chat": "채팅 모델",
+      "custom": "사용자 정의",
+      "customPlaceholder": "사용자 정의 모델 ID 입력"
     },
     "timeout": {
       "image": "이미지 시간 제한(초)",

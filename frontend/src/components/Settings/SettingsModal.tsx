@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, Languages, MessageSquare } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useConfigStore } from '../../store/configStore';
+import { useConfigStore, IMAGE_MODEL_OPTIONS, CUSTOM_MODEL_VALUE } from '../../store/configStore';
 import { Input } from '../common/Input';
 import { Select } from '../common/Select';
 import { Button } from '../common/Button';
@@ -115,8 +115,21 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [fetching, setFetching] = useState(false);
+  const [imageModelSelect, setImageModelSelect] = useState<string>(() => {
+    const current = imageModel;
+    if (IMAGE_MODEL_OPTIONS.some(opt => opt.value === current)) {
+      return current;
+    }
+    return CUSTOM_MODEL_VALUE;
+  });
+  // 同步 imageModelSelect：当 imageModel 被外部更新时（如 fetchConfigs、切换 Provider）保持下拉框一致
+  useEffect(() => {
+    const isPreset = IMAGE_MODEL_OPTIONS.some(o => o.value === imageModel);
+    setImageModelSelect(isPreset ? imageModel : CUSTOM_MODEL_VALUE);
+  }, [imageModel]);
   const imageBaseWarn = isGeminiProvider(imageProvider) && hasGeminiBasePathWarning(imageApiBaseUrl);
   const chatBaseWarn = isGeminiProvider(chatProvider) && hasGeminiBasePathWarning(chatApiBaseUrl);
+
   const normalizeTimeout = (value?: number | null, fallback = 150) => {
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return fallback;
     return Math.round(value);
@@ -327,6 +340,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
+  const handleImageModelSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selected = e.target.value;
+    setImageModelSelect(selected);
+    if (selected !== CUSTOM_MODEL_VALUE) {
+      setImageModel(selected);
+    }
+  };
+
   const tabClass = (tab: SettingsTab) => {
     const isActive = activeTab === tab;
     return [
@@ -484,12 +505,25 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <Box className="w-4 h-4 text-blue-600" />
                 {t('settings.model.default')}
               </label>
-              <Input
-                type="text"
-                value={imageModel}
-                onChange={(e) => setImageModel(e.target.value)}
-                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
-              />
+              <Select
+                value={imageModelSelect}
+                onChange={handleImageModelSelectChange}
+                className="h-10 bg-slate-100 text-slate-900 font-bold rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              >
+                {IMAGE_MODEL_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+                <option value={CUSTOM_MODEL_VALUE}>{t('settings.model.custom')}</option>
+              </Select>
+              {imageModelSelect === CUSTOM_MODEL_VALUE && (
+                <Input
+                  type="text"
+                  value={imageModel}
+                  onChange={(e) => setImageModel(e.target.value)}
+                  placeholder={t('settings.model.customPlaceholder')}
+                  className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none mt-2"
+                />
+              )}
             </div>
 
             {/* Timeout */}
@@ -646,3 +680,4 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     </Modal>
   );
 }
+

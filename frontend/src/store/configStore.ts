@@ -2,6 +2,14 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { PersistedRefImage } from '../types';
 
+// Model options for the dropdown selectors
+export const IMAGE_MODEL_OPTIONS = [
+  { value: 'gemini-3-flash-image-preview', label: 'Flash (gemini-3-flash-image-preview)' },
+  { value: 'gemini-3-pro-image-preview', label: 'Pro (gemini-3-pro-image-preview)' },
+] as const;
+
+export const CUSTOM_MODEL_VALUE = '__custom__';
+
 interface ConfigState {
   // 生图配置
   imageProvider: string;
@@ -65,7 +73,7 @@ export const useConfigStore = create<ConfigState>()(
       imageProvider: 'gemini',
       imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
       imageApiKey: '',
-      imageModel: 'gemini-3-pro-image-preview',
+      imageModel: 'gemini-3-flash-image-preview',
       imageTimeoutSeconds: 500,
       chatProvider: 'openai-chat',
       chatApiBaseUrl: 'https://api.openai.com/v1',
@@ -115,7 +123,7 @@ export const useConfigStore = create<ConfigState>()(
 
       reset: () => set({
         imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
-        imageModel: 'gemini-3-pro-image-preview',
+        imageModel: 'gemini-3-flash-image-preview',
         imageTimeoutSeconds: 500,
         chatProvider: 'openai-chat',
         chatApiBaseUrl: 'https://api.openai.com/v1',
@@ -133,7 +141,7 @@ export const useConfigStore = create<ConfigState>()(
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 9,
+      version: 10,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;
@@ -148,7 +156,7 @@ export const useConfigStore = create<ConfigState>()(
             imageProvider: state.imageProvider ?? state.provider ?? 'gemini',
             imageApiBaseUrl: state.imageApiBaseUrl ?? state.apiBaseUrl ?? 'https://generativelanguage.googleapis.com',
             imageApiKey: state.imageApiKey ?? state.apiKey ?? '',
-            imageModel: state.imageModel ?? state.model ?? 'gemini-3-pro-image-preview',
+            imageModel: state.imageModel ?? state.model ?? 'gemini-3-flash-image-preview',
             chatApiBaseUrl: state.chatApiBaseUrl ?? 'https://api.openai.com/v1',
             chatApiKey: state.chatApiKey ?? '',
             chatModel: state.chatModel ?? state.textModel ?? '',
@@ -203,6 +211,8 @@ export const useConfigStore = create<ConfigState>()(
             };
           }
         }
+
+
         return next;
       },
     }

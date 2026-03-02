@@ -13,6 +13,7 @@ import { useUpdaterStore } from '../../store/updaterStore';
 import i18n, { DEFAULT_LANGUAGE } from '../../i18n';
 import { getSystemLocale } from '../../i18n/systemLocale';
 import appIcon from '../../assets/app-icon.png';
+import { IMAGE_MODEL_OPTIONS, VISION_MODEL_OPTIONS, CUSTOM_MODEL_VALUE } from '../../store/configStore';
 
 const CHAT_PROVIDER_OPTIONS = [
   { value: 'gemini-chat', label: 'Gemini(/v1beta)', defaultBase: 'https://generativelanguage.googleapis.com' },
@@ -139,6 +140,28 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [updateHint, setUpdateHint] = useState<{ type: 'checking' | 'latest' | 'available' | 'error'; message: string } | null>(null);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const [showOnboardingConfirm, setShowOnboardingConfirm] = useState(false);
+  // Model Select state for UI - 'custom' when value not in preset
+  const [imageModelSelect, setImageModelSelect] = useState<string>(() => {
+    const isPreset = IMAGE_MODEL_OPTIONS.some(o => o.value === imageModel);
+    return isPreset ? imageModel : CUSTOM_MODEL_VALUE;
+  });
+
+  const [visionModelSelect, setVisionModelSelect] = useState<string>(() => {
+    const isPreset = VISION_MODEL_OPTIONS.some(o => o.value === visionModel);
+    return isPreset ? visionModel : CUSTOM_MODEL_VALUE;
+  });
+
+  // 同步 imageModelSelect：当 imageModel 被外部更新时（如 fetchConfigs、切换 Provider）保持下拉框一致
+  useEffect(() => {
+    const isPreset = IMAGE_MODEL_OPTIONS.some(o => o.value === imageModel);
+    setImageModelSelect(isPreset ? imageModel : CUSTOM_MODEL_VALUE);
+  }, [imageModel]);
+
+  // 同步 visionModelSelect：当 visionModel 被外部更新时保持下拉框一致
+  useEffect(() => {
+    const isPreset = VISION_MODEL_OPTIONS.some(o => o.value === visionModel);
+    setVisionModelSelect(isPreset ? visionModel : CUSTOM_MODEL_VALUE);
+  }, [visionModel]);
   const repoUrl = import.meta.env.VITE_GITHUB_REPO_URL || 'https://github.com/ShellMonster/Nano_Banana_Pro_Web';
   const normalizeTimeout = (value?: number | null, fallback = 150) => {
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return fallback;
@@ -606,6 +629,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       toast.error(t('settings.toast.openLinkFailed'));
     }
   };
+  const handleImageModelSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setImageModelSelect(val);
+    if (val !== CUSTOM_MODEL_VALUE) {
+      setImageModel(val); // Preset value - save directly
+    }
+    // If custom, wait for user to type in the Input
+  };
+
+  const handleVisionModelSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setVisionModelSelect(val);
+    if (val !== CUSTOM_MODEL_VALUE) {
+      setVisionModel(val);
+    }
+  };
 
   const handleOpenRepo = async () => {
     if (!repoUrl) return;
@@ -871,12 +910,25 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <Box className="w-4 h-4 text-blue-600" />
                 {t('settings.model.default')}
               </label>
-              <Input
-                type="text"
-                value={imageModel}
-                onChange={(e) => setImageModel(e.target.value)}
-                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
-              />
+              <Select
+                value={imageModelSelect}
+                onChange={handleImageModelSelectChange}
+                className="h-10 bg-slate-100 text-slate-900 font-bold rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              >
+                {IMAGE_MODEL_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+                <option value={CUSTOM_MODEL_VALUE}>{t('settings.model.custom')}</option>
+              </Select>
+              {imageModelSelect === CUSTOM_MODEL_VALUE && (
+                <Input
+                  type="text"
+                  value={imageModel}
+                  onChange={(e) => setImageModel(e.target.value)}
+                  placeholder={t('settings.model.customPlaceholder')}
+                  className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none mt-2"
+                />
+              )}
             </div>
 
             {/* Timeout */}
@@ -985,13 +1037,25 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <Box className="w-4 h-4 text-blue-600" />
                 {t('settings.model.vision')}
               </label>
-              <Input
-                type="text"
-                value={visionModel}
-                onChange={(e) => setVisionModel(e.target.value)}
-                placeholder="gemini-3-flash-preview"
-                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
-              />
+              <Select
+                value={visionModelSelect}
+                onChange={handleVisionModelSelectChange}
+                className="h-10 bg-slate-100 text-slate-900 font-bold rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              >
+                {VISION_MODEL_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+                <option value={CUSTOM_MODEL_VALUE}>{t('settings.model.custom')}</option>
+              </Select>
+              {visionModelSelect === CUSTOM_MODEL_VALUE && (
+                <Input
+                  type="text"
+                  value={visionModel}
+                  onChange={(e) => setVisionModel(e.target.value)}
+                  placeholder={t('settings.model.customPlaceholder')}
+                  className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none mt-2"
+                />
+              )}
             </div>
 
             {/* Timeout */}
