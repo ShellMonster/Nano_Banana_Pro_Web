@@ -2,13 +2,18 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { PersistedRefImage } from '../types';
 
+const IMAGE_MODELS = {
+  FLASH: { value: 'gemini-3.1-flash-image-preview', label: 'Flash' },
+  PRO: { value: 'gemini-3-pro-image-preview', label: 'Pro' },
+} as const;
+
 // 默认生图模型名称
-export const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
+export const DEFAULT_IMAGE_MODEL = IMAGE_MODELS.FLASH.value;
 
 // Model options for the dropdown selectors
 export const IMAGE_MODEL_OPTIONS = [
-  { value: DEFAULT_IMAGE_MODEL, label: `Flash (${DEFAULT_IMAGE_MODEL})` },
-  { value: 'gemini-3-pro-image-preview', label: 'Pro (gemini-3-pro-image-preview)' },
+  { value: IMAGE_MODELS.FLASH.value, label: `${IMAGE_MODELS.FLASH.label} (${IMAGE_MODELS.FLASH.value})` },
+  { value: IMAGE_MODELS.PRO.value, label: `${IMAGE_MODELS.PRO.label} (${IMAGE_MODELS.PRO.value})` },
 ] as const;
 
 export const VISION_MODEL_OPTIONS = [
