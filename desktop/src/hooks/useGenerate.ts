@@ -97,7 +97,8 @@ export function useGenerate() {
     // 批量任务不启动主动同步（已有独立轮询逻辑）
     if (isBatchTaskId(currentTaskId)) return;
 
-    // 记录任务开始时间，    const startTime = Date.now();
+    // 记录任务开始时间
+    const startTime = Date.now();
     const timeoutMs = (config.imageTimeoutSeconds || 500) * 1000;
 
     const doSync = async () => {
