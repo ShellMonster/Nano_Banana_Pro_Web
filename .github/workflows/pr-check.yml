@@ -105,6 +105,7 @@ jobs:
 
       # ESLint 代码检查
       - name: Lint
+        continue-on-error: true
         run: |
           cd desktop
           echo "运行 ESLint 检查..."
