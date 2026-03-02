@@ -33,6 +33,14 @@ code_review:
     # 不包含草稿 PR(避免重复审查)
     include_drafts: false
 
+  # Pull Request 有新 commit 时的行为 (synchronize 事件)
+  # 关键配置：确保每次 PR 更新都会重新审查
+  pull_request_synchronize:
+    # 重新生成 PR 变更摘要
+    summary: true
+    # 重新进行代码审查
+    code_review: true
+
 # 忽略审查的文件模式
 # 这些文件的变更不会触发代码审查
 ignore_patterns:
