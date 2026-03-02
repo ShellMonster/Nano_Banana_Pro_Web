@@ -97,8 +97,21 @@ export function useGenerate() {
     // 批量任务不启动主动同步（已有独立轮询逻辑）
     if (isBatchTaskId(currentTaskId)) return;
 
+    // 记录任务开始时间
+    const startTime = Date.now();
+    const timeoutMs = (config.imageTimeoutSeconds || 500) * 1000;
+
     const doSync = async () => {
       try {
+        // 超时检测
+        const elapsed = Date.now() - startTime;
+        if (elapsed > timeoutMs) {
+          console.log('[active sync] Timeout detected, marking task as failed');
+          storeRef.current.failTask(i18n.t('generate.toast.timeout', { seconds: Math.round(timeoutMs / 1000) }));
+          stopActiveSync();
+          return;
+        }
+
         // 检查当前状态是否仍在处理中
         const currentState = useGenerateStore.getState();
         if (currentState.status !== 'processing' || currentState.taskId !== currentTaskId) {
@@ -154,7 +167,7 @@ export function useGenerate() {
 
     // 启动同步
     activeSyncTimerRef.current = setTimeout(doSync, ACTIVE_SYNC_INTERVAL);
-  }, [stopActiveSync]);
+  }, [stopActiveSync, config.imageTimeoutSeconds]);
 
   // 轮询函数：检查任务状态
   const startPolling = useCallback(async (currentTaskId: string) => {
@@ -370,8 +383,14 @@ export function useGenerate() {
       };
 
       const pollTaskUntilFinished = async (singleTaskId: string) => {
+        const startTime = Date.now();
+        const timeoutMs = (config.imageTimeoutSeconds || 500) * 1000;
         let retry = 0;
         while (true) {
+          // 超时检测
+          if (Date.now() - startTime > timeoutMs) {
+            throw new Error(i18n.t('generate.toast.timeout', { seconds: Math.round(timeoutMs / 1000) }));
+          }
           try {
             const taskData = await getTaskStatus(singleTaskId);
             retry = 0;

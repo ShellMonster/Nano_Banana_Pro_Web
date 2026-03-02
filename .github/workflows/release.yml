@@ -147,10 +147,10 @@ jobs:
         run: |
           mkdir -p desktop/src-tauri/bin
           if [ "${{ matrix.platform }}" = "windows-latest" ]; then
-            cd backend && GOOS=windows GOARCH=amd64 go build -o ../desktop/src-tauri/bin/server-x86_64-pc-windows-msvc.exe cmd/server/main.go
+            cd backend && CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -o ../desktop/src-tauri/bin/server-x86_64-pc-windows-msvc.exe cmd/server/main.go
           else
-            cd backend && GOOS=darwin GOARCH=arm64 go build -o ../desktop/src-tauri/bin/server-aarch64-apple-darwin cmd/server/main.go
-            cd .. && cd backend && GOOS=darwin GOARCH=amd64 go build -o ../desktop/src-tauri/bin/server-x86_64-apple-darwin cmd/server/main.go
+            cd backend && CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o ../desktop/src-tauri/bin/server-aarch64-apple-darwin cmd/server/main.go
+            cd .. && cd backend && CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -o ../desktop/src-tauri/bin/server-x86_64-apple-darwin cmd/server/main.go
 
             # Universal target 是“虚拟 target”，Tauri 期望用户提供一个通用的 sidecar（二进制需自行 lipo 合并）
             if [ "${{ matrix.name }}" = "macOS (Universal)" ]; then

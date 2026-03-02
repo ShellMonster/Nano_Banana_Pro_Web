@@ -343,7 +343,8 @@
       "failed": "생성 실패",
       "failedWith": "생성 실패: {{message}}",
       "partial": "작업이 일부 완료되었습니다",
-      "recovered": "생성 진행 상황을 복원했습니다"
+      "recovered": "생성 진행 상황을 복원했습니다",
+      "timeout": "이미지 생성 시간 초과 ({{seconds}}초), 네트워크를 확인하거나 시간 제한을 늘리세요"
     }
   },
   "config": {

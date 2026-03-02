@@ -355,7 +355,8 @@
       "failed": "Generation failed",
       "failedWith": "Generation failed: {{message}}",
       "partial": "Task partially completed",
-      "recovered": "Generation progress restored"
+      "recovered": "Generation progress restored",
+      "timeout": "Image generation timed out ({{seconds}}s), please check your network or increase timeout"
     }
   },
   "config": {
