@@ -157,7 +157,8 @@
     },
     "model": {
       "default": "默认模型",
-      "chat": "对话模型"
+      "chat": "对话模型",
+      "custom": "自定义"
     },
     "timeout": {
       "image": "生图超时(秒)",

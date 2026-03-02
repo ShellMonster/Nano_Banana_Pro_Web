@@ -157,7 +157,8 @@
     },
     "model": {
       "default": "Default Model",
-      "chat": "Chat Model"
+      "chat": "Chat Model",
+      "custom": "Custom"
     },
     "timeout": {
       "image": "Image timeout (s)",
