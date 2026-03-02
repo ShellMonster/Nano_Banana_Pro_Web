@@ -104,15 +104,15 @@ type Options struct {
 }
 
 type Store struct {
-	mu        sync.RWMutex
-	payload   TemplatePayload
-	source    string
-	updatedAt time.Time
-	remoteURL string
-	cachePath string
-	timeout   time.Duration
-	cacheMeta cacheMeta
-	refreshMu sync.Mutex
+	mu          sync.RWMutex
+	payload     TemplatePayload
+	source      string
+	updatedAt   time.Time
+	remoteURL   string
+	cachePath   string
+	timeout     time.Duration
+	cacheMeta   cacheMeta
+	refreshMu   sync.Mutex
 	refreshOnce sync.Once
 }
 

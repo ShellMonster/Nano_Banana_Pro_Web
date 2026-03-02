@@ -276,17 +276,17 @@ func (p *OpenAIProvider) extractImagesFromContent(ctx context.Context, content i
 		}
 	case map[string]interface{}:
 		if partType, _ := v["type"].(string); partType == "image_url" {
-		if imgMap, ok := v["image_url"].(map[string]interface{}); ok {
-			if url, _ := imgMap["url"].(string); url != "" {
-				imgBytes, err := p.decodeImageURL(ctx, url)
-				if err != nil {
-					log.Printf("[OpenAI] choices路径下载图片失败: url=%s, err=%v", url, err)
-				} else {
-					images = append(images, imgBytes)
+			if imgMap, ok := v["image_url"].(map[string]interface{}); ok {
+				if url, _ := imgMap["url"].(string); url != "" {
+					imgBytes, err := p.decodeImageURL(ctx, url)
+					if err != nil {
+						log.Printf("[OpenAI] choices路径下载图片失败: url=%s, err=%v", url, err)
+					} else {
+						images = append(images, imgBytes)
+					}
 				}
 			}
 		}
-	}
 		if partType, _ := v["type"].(string); partType == "text" {
 			if text, _ := v["text"].(string); text != "" {
 				texts = append(texts, text)

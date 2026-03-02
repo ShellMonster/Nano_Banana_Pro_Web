@@ -37,14 +37,14 @@ const (
 
 // 错误定义
 var (
-	ErrImageTooLarge   = errors.New("图片文件大小超过限制 (100MB)")
-	ErrUnknownFormat   = errors.New("无法识别的图片格式")
-	ErrInvalidImage    = errors.New("无效的图片数据")
+	ErrImageTooLarge = errors.New("图片文件大小超过限制 (100MB)")
+	ErrUnknownFormat = errors.New("无法识别的图片格式")
+	ErrInvalidImage  = errors.New("无效的图片数据")
 )
 
 // Storage 定义存储接口
 type Storage interface {
-	Save(name string, reader io.Reader) (string, string, error)                                                               // 返回 (localPath, remoteURL, error)
+	Save(name string, reader io.Reader) (string, string, error)                                        // 返回 (localPath, remoteURL, error)
 	SaveWithThumbnail(name string, reader io.Reader) (string, string, string, string, int, int, error) // 返回 (localPath, remoteURL, thumbLocalPath, thumbRemoteURL, width, height, error)
 	Delete(name string) error
 }
