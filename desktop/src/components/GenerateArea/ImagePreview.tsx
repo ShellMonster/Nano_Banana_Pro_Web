@@ -892,7 +892,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                         <div className="px-8 py-5 space-y-4 border-t border-slate-50 bg-white">
                             <div className="flex items-center justify-between text-sm">
                                 <span className="text-slate-400 font-medium flex items-center gap-2.5"><Box className="w-4 h-4" /> {t('preview.meta.model')}</span>
-                                <span className="font-bold text-slate-900 truncate max-w-[200px]">{image.model || t('preview.meta.unknown')}</span>
+                                <span className="font-bold text-slate-900 truncate max-w-[200px]" title={image.model || t('preview.meta.unknown')}>{image.model || t('preview.meta.unknown')}</span>
                             </div>
                             <div className="flex items-center justify-between text-sm">
                                 <span className="text-slate-400 font-medium flex items-center gap-2.5"><Maximize2 className="w-4 h-4" /> {t('preview.meta.size')}</span>
