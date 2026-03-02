@@ -158,7 +158,9 @@
       "recommended": "推荐平台：",
       "yunwu": "云雾API",
       "openaiImageLimit": "OpenAI 类型当前仅支持生成 1K 图片",
-      "geminiBasePathHint": "Gemini 类型建议 Base URL 仅填写域名，不要带 /v1 或具体接口路径"
+      "geminiBasePathHint": "Gemini 类型建议 Base URL 仅填写域名，不要带 /v1 或具体接口路径",
+      "yunwuExtraPathHint": "云雾 API 建议仅填写域名（如 https://yunwu.ai），无需带 /v1 或 /v1beta 路径，后端会自动处理",
+      "yunwuMissingV1Hint": "云雾 API（OpenAI 类型）需要填写完整地址（如 https://yunwu.ai/v1）"
     },
     "vision": {
       "hint": "识图配置用于逆向提示词功能，留空则自动使用生图配置",
