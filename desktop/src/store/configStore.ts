@@ -2,10 +2,18 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { PersistedRefImage } from '../types';
 
+const IMAGE_MODELS = {
+  FLASH: { value: 'gemini-3.1-flash-image-preview', label: 'Flash' },
+  PRO: { value: 'gemini-3-pro-image-preview', label: 'Pro' },
+} as const;
+
+// 默认生图模型名称
+export const DEFAULT_IMAGE_MODEL = IMAGE_MODELS.FLASH.value;
+
 // Model options for the dropdown selectors
 export const IMAGE_MODEL_OPTIONS = [
-  { value: 'gemini-3.1-flash-image-preview', label: 'Flash (gemini-3.1-flash-image-preview)' },
-  { value: 'gemini-3-pro-image-preview', label: 'Pro (gemini-3-pro-image-preview)' },
+  { value: IMAGE_MODELS.FLASH.value, label: `${IMAGE_MODELS.FLASH.label} (${IMAGE_MODELS.FLASH.value})` },
+  { value: IMAGE_MODELS.PRO.value, label: `${IMAGE_MODELS.PRO.label} (${IMAGE_MODELS.PRO.value})` },
 ] as const;
 
 export const VISION_MODEL_OPTIONS = [
@@ -100,7 +108,7 @@ export const useConfigStore = create<ConfigState>()(
       imageProvider: 'gemini',
       imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
       imageApiKey: '',
-      imageModel: 'gemini-3.1-flash-image-preview',
+      imageModel: DEFAULT_IMAGE_MODEL,
       imageTimeoutSeconds: 500,
       visionProvider: 'gemini-chat',
       visionApiBaseUrl: '',
@@ -164,7 +172,7 @@ export const useConfigStore = create<ConfigState>()(
 
       reset: () => set({
         imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
-        imageModel: 'gemini-3.1-flash-image-preview',
+        imageModel: DEFAULT_IMAGE_MODEL,
         imageTimeoutSeconds: 500,
         visionProvider: 'gemini-chat',
         visionApiBaseUrl: '',
@@ -203,7 +211,7 @@ export const useConfigStore = create<ConfigState>()(
             imageProvider: state.imageProvider ?? state.provider ?? 'gemini',
             imageApiBaseUrl: state.imageApiBaseUrl ?? state.apiBaseUrl ?? 'https://generativelanguage.googleapis.com',
             imageApiKey: state.imageApiKey ?? state.apiKey ?? '',
-            imageModel: state.imageModel ?? state.model ?? 'gemini-3.1-flash-image-preview',
+            imageModel: state.imageModel ?? state.model ?? DEFAULT_IMAGE_MODEL,
             chatApiBaseUrl: state.chatApiBaseUrl ?? 'https://api.openai.com/v1',
             chatApiKey: state.chatApiKey ?? '',
             chatModel: state.chatModel ?? state.textModel ?? '',
