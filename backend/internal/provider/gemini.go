@@ -28,16 +28,18 @@ func NewGeminiProvider(config *model.ProviderConfig) (*GeminiProvider, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config 不能为空")
 	}
-	log.Printf("[Gemini] 正在初始化 Provider: BaseURL=%s, KeyLen=%d\n", config.APIBase, len(config.APIKey))
+	// 复制配置，避免调用方循环变量复用导致所有实例共享同一指针
+	cfgCopy := *config
+	log.Printf("[Gemini] 正在初始化 Provider: BaseURL=%s, KeyLen=%d\n", cfgCopy.APIBase, len(cfgCopy.APIKey))
 	log.Printf("[Gemini] Provider 初始化成功\n")
-	return &GeminiProvider{config: config}, nil
+	return &GeminiProvider{config: &cfgCopy}, nil
 }
 
 // newClient 为每次请求创建全新的 genai.Client，避免连接复用导致 EOF
 func (p *GeminiProvider) newClient(ctx context.Context) (*genai.Client, error) {
 	timeout := time.Duration(p.config.TimeoutSeconds) * time.Second
 	if timeout <= 0 {
-		timeout = 500 * time.Second
+		timeout = time.Duration(defaultTimeoutSeconds(p.Name())) * time.Second
 	}
 
 	httpClient := &http.Client{
@@ -89,7 +91,6 @@ func (p *GeminiProvider) Generate(ctx context.Context, params map[string]interfa
 	if err != nil {
 		return nil, err
 	}
-
 	// 记录日志时排除大数据字段
 	logParams := make(map[string]interface{})
 	for k, v := range params {
