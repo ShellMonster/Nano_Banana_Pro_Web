@@ -1,10 +1,10 @@
 package provider
 
 import (
-	"errors"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"image-gen-service/internal/model"
 	"log"
