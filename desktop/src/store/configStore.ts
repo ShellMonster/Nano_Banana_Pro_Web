@@ -2,6 +2,18 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { PersistedRefImage } from '../types';
 
+// Model options for the dropdown selectors
+export const IMAGE_MODEL_OPTIONS = [
+  { value: 'gemini-3-flash-image-preview', label: 'Flash (gemini-3-flash-image-preview)' },
+  { value: 'gemini-3-pro-image-preview', label: 'Pro (gemini-3-pro-image-preview)' },
+] as const;
+
+export const VISION_MODEL_OPTIONS = [
+  { value: 'gemini-3-flash-preview', label: 'Flash (gemini-3-flash-preview)' },
+] as const;
+
+export const CUSTOM_MODEL_VALUE = '__custom__';
+
 interface ConfigState {
   // 生图配置
   imageProvider: string;
@@ -88,7 +100,7 @@ export const useConfigStore = create<ConfigState>()(
       imageProvider: 'gemini',
       imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
       imageApiKey: '',
-      imageModel: 'gemini-3-pro-image-preview',
+      imageModel: 'gemini-3-flash-image-preview',
       imageTimeoutSeconds: 500,
       visionProvider: 'gemini-chat',
       visionApiBaseUrl: '',
@@ -176,7 +188,7 @@ export const useConfigStore = create<ConfigState>()(
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 11,
+      version: 12,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;
@@ -264,6 +276,10 @@ export const useConfigStore = create<ConfigState>()(
             ...next,
             showOnboarding: true
           };
+        }
+        // 版本 12: 仅版本号升级，无需数据迁移
+        if (version < 12) {
+          // No changes needed, version bump only
         }
         return next;
       },
