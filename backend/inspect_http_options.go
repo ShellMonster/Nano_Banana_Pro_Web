@@ -5,8 +5,8 @@ package main
 
 import (
 	"fmt"
-	"reflect"
 	"google.golang.org/genai"
+	"reflect"
 )
 
 func main() {

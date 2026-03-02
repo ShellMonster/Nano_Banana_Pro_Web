@@ -18,7 +18,6 @@ import (
 // defaultGeminiAPIBase 是 Google Gemini API 的默认基础 URL
 const defaultGeminiAPIBase = "https://generativelanguage.googleapis.com"
 
-
 type GeminiProvider struct {
 	config *model.ProviderConfig
 	// 不再持有 client，每次请求时新建，避免连接空闲失效导致 EOF
