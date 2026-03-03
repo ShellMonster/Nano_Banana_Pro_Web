@@ -60,6 +60,13 @@ const getRatioLabel = (w: number, h: number) => {
   return `${w}:${h}`;
 };
 
+const getSafeArrayItem = <T,>(items: T[], idx: number): T | undefined => {
+  if (!Number.isInteger(idx) || idx < 0 || idx >= items.length) {
+    return undefined;
+  }
+  return items[idx];
+};
+
 export interface AlbumViewRef {
   refresh: () => void;
 }
@@ -105,7 +112,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
 
     const nextImages: FlattenedImage[] = [];
     list.forEach((task) => {
-      if (!task.images || task.images.length === 0) return;
+      if (task.images.length === 0) return;
       task.images.forEach((img) => {
         const normalizedUrl = img.url || img.filePath || img.thumbnailPath;
         const normalizedThumbnailUrl = img.thumbnailUrl || img.thumbnailPath || img.filePath || normalizedUrl;
@@ -223,7 +230,10 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
       return <div {...ariaAttributes} style={cellStyle} />;
     }
 
-    const folder = folderData[index];
+    const folder = getSafeArrayItem(folderData, index);
+    if (!folder) {
+      return <div {...ariaAttributes} style={cellStyle} />;
+    }
     return (
       <div {...ariaAttributes} style={cellStyle}>
         <div style={{ width: itemWidth, height: itemHeight }}>
@@ -263,7 +273,10 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
       return <div {...ariaAttributes} style={cellStyle} />;
     }
 
-    const image = images[index];
+    const image = getSafeArrayItem(images, index);
+    if (!image) {
+      return <div {...ariaAttributes} style={cellStyle} />;
+    }
     return (
       <div {...ariaAttributes} style={cellStyle}>
         <div style={{ width: itemWidth, height: itemHeight }}>
@@ -431,7 +444,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
           image={selectedImage}
           images={folderImages}
           onImageChange={setSelectedImage}
-          onClose={() => setSelectedImage(null)}
+          onClose={() => { setSelectedImage(null); }}
         />
       )}
     </div>
