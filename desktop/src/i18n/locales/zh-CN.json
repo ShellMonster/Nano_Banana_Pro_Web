@@ -464,16 +464,6 @@
       "imageDeleted": "图片已删除",
       "imageDeleteFailed": "图片删除失败"
     },
-    "toast": {
-      "updated": "历史记录已更新",
-      "loadFailed": "加载历史记录失败",
-      "deleted": "记录已删除",
-      "deleteFailed": "删除失败",
-      "batchDeleted": "已删除 {{count}} 条记录",
-      "batchDeleteFailed": "批量删除失败",
-      "imageDeleted": "图片已删除",
-      "imageDeleteFailed": "图片删除失败"
-    },
     "folder": {
       "title": "文件夹",
       "create": "创建文件夹",

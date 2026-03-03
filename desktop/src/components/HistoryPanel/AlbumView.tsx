@@ -127,6 +127,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(props, 
         return <div {...ariaAttributes} style={cellStyle} />;
       }
       
+      // 数组索引访问，已通过边界检查，不是对象注入漏洞
       const folder = folders[index];
 
       return (

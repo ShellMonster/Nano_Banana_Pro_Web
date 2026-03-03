@@ -55,11 +55,13 @@ export function MoveImageDialog({
 
   // 弹窗打开时获取文件夹列表
   useEffect(() => {
-    if (isOpen) {
-      loadFolders();
-      setSelectedFolderId(null);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    const init = async () => {
+      if (isOpen) {
+        await loadFolders();
+        setSelectedFolderId(null);
+      }
+    };
+    init();
   }, [isOpen, loadFolders]);
 
   // 处理文件夹选择
@@ -147,7 +149,7 @@ export function MoveImageDialog({
                 return (
                   <button
                     key={folder.id}
-                    onClick={() => handleSelectFolder(folder.id)}
+                    onClick={() => { handleSelectFolder(folder.id); }}
                     disabled={isMoving}
                     className={`
                       w-full flex items-center gap-3 p-3 rounded-xl text-left
