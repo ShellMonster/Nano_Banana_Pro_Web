@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"image-gen-service/internal/model"
@@ -56,19 +57,102 @@ func CreateFolderHandler(c *gin.Context) {
 	Success(c, folder)
 }
 
+// FolderResponse 文件夹响应（包含图片数量）
+type FolderResponse struct {
+	ID         uint   `json:"id"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Year       int    `json:"year"`
+	Month      int    `json:"month"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
+	ImageCount int64  `json:"image_count"`
+}
+
 // GetFoldersHandler 获取所有文件夹
 func GetFoldersHandler(c *gin.Context) {
 	var folders []model.Folder
 
 	// 按创建时间降序排列
 	if err := model.DB.Order("created_at DESC").Find(&folders).Error; err != nil {
-		log.Printf("[API] 获取文件夹列表失败: %v\n", err)
-		Error(c, http.StatusInternalServerError, 500, "获取文件夹列表失败")
+		c.JSON(http.StatusOK, []FolderResponse{})
 		return
 	}
 
+	// 构建响应，包含图片数量
+	responses := make([]FolderResponse, len(folders))
+	for i, folder := range folders {
+		responses[i] = FolderResponse{
+			ID:        folder.ID,
+			Name:      folder.Name,
+			Type:      folder.Type,
+			Year:      folder.Year,
+			Month:     folder.Month,
+			CreatedAt: folder.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt: folder.UpdatedAt.Format("2006-01-02 15:04:05"),
+		}
+		// 统计该文件夹下的图片数量（未删除的）
+		model.DB.Model(&model.Task{}).Where("folder_id = ? AND deleted_at IS NULL",
+			strconv.FormatUint(uint64(folder.ID), 10)).Count(&responses[i].ImageCount)
+	}
+
 	log.Printf("[API] 获取文件夹列表成功: 共 %d 个文件夹\n", len(folders))
-	Success(c, folders)
+	c.JSON(http.StatusOK, responses)
+}
+
+// GetFolderImagesHandler 获取指定文件夹下的图片列表（分页）
+func GetFolderImagesHandler(c *gin.Context) {
+	folderID := strings.TrimSpace(c.Param("id"))
+	if folderID == "" {
+		Error(c, http.StatusBadRequest, 400, "文件夹ID不能为空")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if page <= 0 {
+		page = 1
+	}
+
+	pageSizeStr := strings.TrimSpace(c.Query("page_size"))
+	if pageSizeStr == "" {
+		pageSizeStr = strings.TrimSpace(c.Query("pageSize"))
+	}
+	if pageSizeStr == "" {
+		pageSizeStr = "20"
+	}
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	if pageSize <= 0 {
+		pageSize = 20
+	} else if pageSize > 100 {
+		pageSize = 100
+	}
+
+	// 先校验文件夹是否存在（不存在时返回 404，避免误导为“空文件夹”）
+	var folder model.Folder
+	if err := model.DB.Where("id = ?", folderID).First(&folder).Error; err != nil {
+		Error(c, http.StatusNotFound, 404, "文件夹不存在")
+		return
+	}
+
+	query := model.DB.Model(&model.Task{}).Where("folder_id = ?", folderID)
+
+	var total int64
+	query.Count(&total)
+
+	var tasks []model.Task
+	offset := (page - 1) * pageSize
+	if err := query.Order("status='processing' DESC, status='pending' DESC, created_at DESC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&tasks).Error; err != nil {
+		Error(c, http.StatusInternalServerError, 500, "查询文件夹图片失败")
+		return
+	}
+
+	Success(c, gin.H{
+		"total": total,
+		"list":  tasks,
+	})
 }
 
 // UpdateFolderRequest 更新文件夹请求
