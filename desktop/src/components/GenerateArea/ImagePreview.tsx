@@ -571,16 +571,27 @@ export const ImagePreview = React.memo(function ImagePreview({
     }, [copyText, image]);
 
     const handleDownload = useCallback(async () => {
-        if (!image?.filePath) {
-            toast.error(t('toast.noLocalPath'));
-            return;
-        }
+        if (!image?.id) return;
 
         try {
             // 检测是否在 Tauri 环境
             if (window.__TAURI_INTERNALS__) {
                 const { save } = await import('@tauri-apps/plugin-dialog');
-                const { readFile, writeFile } = await import('@tauri-apps/plugin-fs');
+                const { readFile, writeFile, BaseDirectory } = await import('@tauri-apps/plugin-fs');
+                const { invoke } = await import('@tauri-apps/api/core');
+                
+                // 检查本地文件路径
+                if (!image.filePath) {
+                    toast.error(t('toast.noLocalPath'));
+                    return;
+                }
+
+                // 检查文件大小，防止 DoS（最大 100MB）
+                const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+                if (image.fileSize && image.fileSize > MAX_FILE_SIZE) {
+                    toast.error(t('toast.fileTooLarge'));
+                    return;
+                }
                 
                 // 根据 mimeType 确定扩展名
                 const ext = image.mimeType?.split('/')[1] || 'png';
@@ -589,13 +600,21 @@ export const ImagePreview = React.memo(function ImagePreview({
                 // 显示保存对话框
                 const destPath = await save({
                     defaultPath: defaultName,
-                    filters: [{ name: 'Image', extensions: [ext, '*'] }]
+                    filters: [{ name: 'Image', extensions: [ext] }]
                 });
                 
                 if (!destPath) return; // 用户取消
                 
+                // 将绝对路径转换为相对于 AppData 的相对路径（安全读取）
+                const appDataDir = await invoke<string>('get_app_data_dir');
+                const appData = appDataDir.replace(/\\/g, '/').replace(/\/+$/, '');
+                const normalized = image.filePath.replace(/\\/g, '/').replace(/\/+/g, '/');
+                const relative = normalized.startsWith(appData + '/') 
+                    ? normalized.slice(appData.length + 1) 
+                    : normalized.replace(/^\/+/, '');
+                
                 // 读取本地文件并写入目标位置
-                const bytes = await readFile(image.filePath);
+                const bytes = await readFile(relative, { baseDir: BaseDirectory.AppData });
                 await writeFile(destPath, bytes);
                 
                 toast.success(t('toast.downloadSuccess'));
