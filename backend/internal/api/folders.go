@@ -9,7 +9,15 @@ import (
 	"image-gen-service/internal/model"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
+
+// 文件夹类型常量
+const (
+	FolderTypeManual = "manual" // 手动创建的文件夹
+	FolderTypeMonth   = "month"   // 自动创建的月份文件夹
+)
+
 
 // CreateFolderRequest 创建文件夹请求
 type CreateFolderRequest struct {
@@ -27,7 +35,7 @@ func CreateFolderHandler(c *gin.Context) {
 
 	// 检查是否已存在同名文件夹
 	var existingFolder model.Folder
-	if err := model.DB.Where("name = ? AND type = ?", req.Name, "manual").First(&existingFolder).Error; err == nil {
+	if err := model.DB.Where("name = ? AND type = ?", req.Name, FolderTypeManual).First(&existingFolder).Error; err == nil {
 		log.Printf("[API] 创建文件夹失败：已存在同名文件夹 %s\n", req.Name)
 		Error(c, http.StatusBadRequest, 400, "已存在同名文件夹")
 		return
@@ -36,7 +44,7 @@ func CreateFolderHandler(c *gin.Context) {
 	// 创建新文件夹
 	folder := model.Folder{
 		Name: req.Name,
-		Type: "manual", // 手动创建的文件夹
+		Type: FolderTypeManual, // 手动创建的文件夹
 	}
 
 	if err := model.DB.Create(&folder).Error; err != nil {
@@ -89,7 +97,7 @@ func UpdateFolderHandler(c *gin.Context) {
 	}
 
 	// 检查是否为月份文件夹（不允许修改）
-	if folder.Type == "month" {
+	if folder.Type == FolderTypeMonth {
 		log.Printf("[API] 更新文件夹失败：不允许修改月份文件夹 ID=%s\n", folderID)
 		Error(c, http.StatusBadRequest, 400, "不允许修改月份文件夹")
 		return
@@ -97,7 +105,7 @@ func UpdateFolderHandler(c *gin.Context) {
 
 	// 检查是否已存在同名文件夹（排除自己）
 	var existingFolder model.Folder
-	if err := model.DB.Where("name = ? AND type = ? AND id != ?", req.Name, "manual", folderID).First(&existingFolder).Error; err == nil {
+	if err := model.DB.Where("name = ? AND type = ? AND id != ?", req.Name, FolderTypeManual, folderID).First(&existingFolder).Error; err == nil {
 		log.Printf("[API] 更新文件夹失败：已存在同名文件夹 %s\n", req.Name)
 		Error(c, http.StatusBadRequest, 400, "已存在同名文件夹")
 		return
@@ -127,7 +135,7 @@ func DeleteFolderHandler(c *gin.Context) {
 	}
 
 	// 检查是否为月份文件夹（不允许删除）
-	if folder.Type == "month" {
+	if folder.Type == FolderTypeMonth {
 		log.Printf("[API] 删除文件夹失败：不允许删除月份文件夹 ID=%s\n", folderID)
 		Error(c, http.StatusBadRequest, 400, "不允许删除月份文件夹")
 		return
@@ -141,19 +149,49 @@ func DeleteFolderHandler(c *gin.Context) {
 		return
 	}
 
-	// 将图片移回对应的月份文件夹
-	for _, task := range tasks {
-		// 获取或创建对应的月份文件夹
-		monthFolder := getOrCreateMonthFolder(task.CreatedAt)
-		if monthFolder != nil {
-			// 更新图片的 folder_id
-			model.DB.Model(&task).Update("folder_id", strconv.FormatUint(uint64(monthFolder.ID), 10))
+	// 使用事务包装所有数据库操作
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		// 按月份分组图片，用于批量更新
+		monthGroups := make(map[string][]uint)
+		for _, task := range tasks {
+			monthKey := task.CreatedAt.Format("2006-01")
+			monthGroups[monthKey] = append(monthGroups[monthKey], task.ID)
 		}
-	}
 
-	// 删除文件夹
-	if err := model.DB.Delete(&folder).Error; err != nil {
-		log.Printf("[API] 删除文件夹失败: %v\n", err)
+		// 批量更新每个月份的图片
+		for monthKey, taskIDs := range monthGroups {
+			// 解析年月
+			t, err := time.Parse("2006-01", monthKey)
+			if err != nil {
+				log.Printf("[API] 解析月份失败: %v\n", err)
+				continue
+			}
+
+			// 获取或创建对应的月份文件夹
+			monthFolder := getOrCreateMonthFolder(t)
+			if monthFolder == nil {
+				log.Printf("[API] 获取或创建月份文件夹失败: %s\n", monthKey)
+				continue
+			}
+
+			// 批量更新该月份的所有图片的 folder_id
+			newFolderID := strconv.FormatUint(uint64(monthFolder.ID), 10)
+			if err := tx.Model(&model.Task{}).Where("id IN ?", taskIDs).Update("folder_id", newFolderID).Error; err != nil {
+				log.Printf("[API] 批量更新图片失败: %v\n", err)
+				return err
+			}
+		}
+
+		// 删除文件夹
+		if err := tx.Delete(&folder).Error; err != nil {
+			log.Printf("[API] 删除文件夹失败: %v\n", err)
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		Error(c, http.StatusInternalServerError, 500, "删除文件夹失败")
 		return
 	}
@@ -175,7 +213,7 @@ func getOrCreateMonthFolder(t time.Time) *model.Folder {
 
 	// 查找是否已存在该月份文件夹
 	var folder model.Folder
-	err := model.DB.Where("type = ? AND year = ? AND month = ?", "month", year, month).First(&folder).Error
+	err := model.DB.Where("type = ? AND year = ? AND month = ?", FolderTypeMonth, year, month).First(&folder).Error
 	if err == nil {
 		return &folder
 	}
@@ -183,7 +221,7 @@ func getOrCreateMonthFolder(t time.Time) *model.Folder {
 	// 不存在则创建
 	folder = model.Folder{
 		Name:  folderName,
-		Type:  "month", // 自动月份文件夹
+		Type:  FolderTypeMonth, // 自动月份文件夹
 		Year:  year,
 		Month: month,
 	}
