@@ -109,7 +109,7 @@ export function CreateFolderDialog({
   // 处理键盘事件（回车创建）
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && canCreate) {
-      handleCreate();
+      void handleCreate();
     }
   }, [canCreate, handleCreate]);
 
