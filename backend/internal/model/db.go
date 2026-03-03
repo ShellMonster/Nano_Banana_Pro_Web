@@ -64,7 +64,7 @@ func migrateOldTasksToMonthFolders() {
 
 	// 查询所有未归类的任务（folder_id 为空或空字符串）
 	var tasks []Task
-	if err := DB.Where("folder_id = ? OR folder_id IS NULL OR folder_id = ?", "", "").Find(&tasks).Error; err != nil {
+	if err := DB.Where("folder_id = ? OR folder_id IS NULL", "").Find(&tasks).Error; err != nil {
 		log.Printf("[Migration] 查询未归类任务失败: %v\n", err)
 		return
 	}
@@ -76,39 +76,47 @@ func migrateOldTasksToMonthFolders() {
 
 	log.Printf("[Migration] 发现 %d 个需要迁移的任务\n", len(tasks))
 
-	// 迁移每个任务
+	// 迁移每个任务（每个任务使用独立事务）
 	migratedCount := 0
 	for _, task := range tasks {
-		// 根据任务创建时间获取或创建月份文件夹
-		year := task.CreatedAt.Year()
-		month := int(task.CreatedAt.Month())
-		folderName := task.CreatedAt.Format("2006-01")
+		// 使用事务确保每个任务的迁移是原子操作
+		err := DB.Transaction(func(tx *gorm.DB) error {
+			// 根据任务创建时间获取或创建月份文件夹
+			year := task.CreatedAt.Year()
+			month := int(task.CreatedAt.Month())
+			folderName := task.CreatedAt.Format("2006-01")
 
-		folder := Folder{
-			Type:  "month",
-			Year:  year,
-			Month: month,
-		}
+			folder := Folder{
+				Type:  "month",
+				Year:  year,
+				Month: month,
+			}
 
-		// 使用 FirstOrCreate 确保文件夹存在
-		result := DB.Where(Folder{
-			Type:  "month",
-			Year:  year,
-			Month: month,
-		}).Attrs(Folder{
-			Name: folderName,
-		}).FirstOrCreate(&folder)
+			// 使用 FirstOrCreate 确保文件夹存在（在事务内）
+			result := tx.Where(Folder{
+				Type:  "month",
+				Year:  year,
+				Month: month,
+			}).Attrs(Folder{
+				Name: folderName,
+			}).FirstOrCreate(&folder)
 
-		if result.Error != nil {
-			log.Printf("[Migration] 创建文件夹失败 %s: %v\n", folderName, result.Error)
-			continue
-		}
+			if result.Error != nil {
+				return result.Error // 返回错误会自动回滚事务
+			}
 
-		// 更新任务的 folder_id
-		folderIDStr := strconv.FormatUint(uint64(folder.ID), 10)
-		if err := DB.Model(&task).Update("folder_id", folderIDStr).Error; err != nil {
-			log.Printf("[Migration] 更新任务 %s 失败: %v\n", task.TaskID, err)
-			continue
+			// 更新任务的 folder_id（在事务内）
+			folderIDStr := strconv.FormatUint(uint64(folder.ID), 10)
+			if err := tx.Model(&task).Update("folder_id", folderIDStr).Error; err != nil {
+				return err // 返回错误会自动回滚事务
+			}
+
+			return nil // 返回 nil 会自动提交事务
+		})
+
+		if err != nil {
+			log.Printf("[Migration] 迁移任务 %s 失败: %v\n", task.TaskID, err)
+			continue // 单个任务失败不影响其他任务
 		}
 
 		migratedCount++

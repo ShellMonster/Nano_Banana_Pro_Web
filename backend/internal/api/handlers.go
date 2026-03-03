@@ -372,7 +372,12 @@ func GenerateHandler(c *gin.Context) {
 		log.Printf("[API] 警告: 获取或创建月份文件夹失败: %v\n", err)
 	} else {
 		taskModel.FolderID = strconv.FormatUint(uint64(monthFolder.ID), 10)
-		log.Printf("[API] 任务自动关联到月份文件夹: %s (ID: %d)\n", monthFolder.Name, monthFolder.ID)
+		// 保存 folder_id 到数据库
+		if err := model.DB.Model(taskModel).Update("folder_id", taskModel.FolderID).Error; err != nil {
+			log.Printf("[API] 警告: 更新任务文件夹ID失败: %v\n", err)
+		} else {
+			log.Printf("[API] 任务自动关联到月份文件夹: %s (ID: %d)\n", monthFolder.Name, monthFolder.ID)
+		}
 	}
 
 
@@ -479,7 +484,12 @@ func GenerateWithImagesHandler(c *gin.Context) {
 		log.Printf("[API] 警告: 获取或创建月份文件夹失败: %v\n", err)
 	} else {
 		taskModel.FolderID = strconv.FormatUint(uint64(monthFolder.ID), 10)
-		log.Printf("[API] 任务自动关联到月份文件夹: %s (ID: %d)\n", monthFolder.Name, monthFolder.ID)
+		// 保存 folder_id 到数据库
+		if err := model.DB.Model(taskModel).Update("folder_id", taskModel.FolderID).Error; err != nil {
+			log.Printf("[API] 警告: 更新任务文件夹ID失败: %v\n", err)
+		} else {
+			log.Printf("[API] 任务自动关联到月份文件夹: %s (ID: %d)\n", monthFolder.Name, monthFolder.ID)
+		}
 	}
 
 
