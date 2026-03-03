@@ -116,6 +116,7 @@ func UpdateFolderHandler(c *gin.Context) {
 		Error(c, http.StatusInternalServerError, 500, "更新文件夹失败")
 		return
 	}
+	folder.Name = req.Name // 更新内存中的名称，确保返回正确值
 
 	log.Printf("[API] 更新文件夹成功: ID=%s, Name=%s\n", folderID, req.Name)
 	Success(c, folder)
@@ -204,33 +205,34 @@ func DeleteFolderHandler(c *gin.Context) {
 }
 
 // getOrCreateMonthFolder 获取或创建自动月份文件夹
-// 根据给定的时间获取或创建对应的月份文件夹
+// 使用 FirstOrCreate 确保并发安全
 func getOrCreateMonthFolder(t time.Time) *model.Folder {
 	year := t.Year()
 	month := int(t.Month())
 	folderName := t.Format("2006-01") // 格式: 2024-01
 
-	// 查找是否已存在该月份文件夹
-	var folder model.Folder
-	err := model.DB.Where("type = ? AND year = ? AND month = ?", FolderTypeMonth, year, month).First(&folder).Error
-	if err == nil {
-		return &folder
-	}
-
-	// 不存在则创建
-	folder = model.Folder{
-		Name:  folderName,
-		Type:  FolderTypeMonth, // 自动月份文件夹
+	// 使用 FirstOrCreate 原子性地获取或创建记录
+	folder := model.Folder{
+		Type:  FolderTypeMonth,
 		Year:  year,
 		Month: month,
 	}
 
-	if err := model.DB.Create(&folder).Error; err != nil {
-		log.Printf("[API] 创建月份文件夹失败: %v\n", err)
+	// Attrs 设置创建时的默认值
+	result := model.DB.Where(&model.Folder{
+		Type: FolderTypeMonth,
+		Year: year,
+		Month: month,
+	}).Attrs(model.Folder{
+		Name: folderName,
+	}).FirstOrCreate(&folder)
+
+	if result.Error != nil {
+		log.Printf("[API] 获取或创建月份文件夹失败: %v\n", result.Error)
 		return nil
 	}
 
-	log.Printf("[API] 创建月份文件夹成功: ID=%d, Name=%s\n", folder.ID, folder.Name)
+	log.Printf("[API] 获取或创建月份文件夹成功: ID=%d, Name=%s\n", folder.ID, folder.Name)
 	return &folder
 }
 

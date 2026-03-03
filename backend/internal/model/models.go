@@ -50,7 +50,7 @@ type Task struct {
 type Folder struct {
 	ID        uint           `gorm:"primaryKey" json:"id"`
 	Name      string         `gorm:"not null" json:"name"` // 文件夹名称
-	Type      string         `gorm:"not null" json:"type"` // 文件夹类型：auto（自动月份）或 manual（手动创建）
+	Type      string         `gorm:"not null" json:"type"` // 文件夹类型：month（自动月份）或 manual（手动创建）
 	Year      int            `json:"year"`                 // 年份（仅 auto 类型）
 	Month     int            `json:"month"`                // 月份（仅 auto 类型）
 	CreatedAt time.Time      `json:"created_at"`

@@ -181,7 +181,7 @@ func main() {
 		v1.GET("/folders", api.GetFoldersHandler)                   // 查询所有文件夹
 		v1.PUT("/folders/:id", api.UpdateFolderHandler)             // 重命名文件夹
 		v1.DELETE("/folders/:id", api.DeleteFolderHandler)          // 删除手动文件夹
-		v1.GET("/folders/month", api.GetOrCreateMonthFolderHandler) // 按需获取或创建月份文件夹
+		v1.POST("/folders/month", api.GetOrCreateMonthFolderHandler) // 按需获取或创建月份文件夹
 		v1.POST("/folders/move-image", api.MoveImageHandler)        // 移动图片
 	}
 
