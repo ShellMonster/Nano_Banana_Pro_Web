@@ -2,6 +2,7 @@ package model
 
 import (
 	"log"
+	"strconv"
 	"time"
 
 	"gorm.io/driver/sqlite"
@@ -48,4 +49,70 @@ func InitDB(dbPath string) {
 	}
 
 	log.Println("数据库初始化成功")
+
+	// 异步迁移旧任务到月份文件夹
+	go migrateOldTasksToMonthFolders()
+}
+
+
+// migrateOldTasksToMonthFolders 将旧版本未归类的任务自动迁移到月份文件夹
+func migrateOldTasksToMonthFolders() {
+	// 延迟几秒等待数据库完全初始化
+	time.Sleep(2 * time.Second)
+
+	log.Println("[Migration] 开始迁移旧任务到月份文件夹...")
+
+	// 查询所有未归类的任务（folder_id 为空或空字符串）
+	var tasks []Task
+	if err := DB.Where("folder_id = ? OR folder_id IS NULL OR folder_id = ?", "", "").Find(&tasks).Error; err != nil {
+		log.Printf("[Migration] 查询未归类任务失败: %v\n", err)
+		return
+	}
+
+	if len(tasks) == 0 {
+		log.Println("[Migration] 没有需要迁移的任务")
+		return
+	}
+
+	log.Printf("[Migration] 发现 %d 个需要迁移的任务\n", len(tasks))
+
+	// 迁移每个任务
+	migratedCount := 0
+	for _, task := range tasks {
+		// 根据任务创建时间获取或创建月份文件夹
+		year := task.CreatedAt.Year()
+		month := int(task.CreatedAt.Month())
+		folderName := task.CreatedAt.Format("2006-01")
+
+		folder := Folder{
+			Type:  "month",
+			Year:  year,
+			Month: month,
+		}
+
+		// 使用 FirstOrCreate 确保文件夹存在
+		result := DB.Where(Folder{
+			Type:  "month",
+			Year:  year,
+			Month: month,
+		}).Attrs(Folder{
+			Name: folderName,
+		}).FirstOrCreate(&folder)
+
+		if result.Error != nil {
+			log.Printf("[Migration] 创建文件夹失败 %s: %v\n", folderName, result.Error)
+			continue
+		}
+
+		// 更新任务的 folder_id
+		folderIDStr := strconv.FormatUint(uint64(folder.ID), 10)
+		if err := DB.Model(&task).Update("folder_id", folderIDStr).Error; err != nil {
+			log.Printf("[Migration] 更新任务 %s 失败: %v\n", task.TaskID, err)
+			continue
+		}
+
+		migratedCount++
+	}
+
+	log.Printf("[Migration] 迁移完成: %d/%d 个任务已归类\n", migratedCount, len(tasks))
 }
