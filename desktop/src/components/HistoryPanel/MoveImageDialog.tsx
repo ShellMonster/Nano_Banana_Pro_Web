@@ -69,7 +69,7 @@ export function MoveImageDialog({
 
   // 处理移动图片
   const handleMove = useCallback(async () => {
-    if (!selectedFolderId || !taskId) return;
+    if (selectedFolderId === null || !taskId) return;
 
     setIsMoving(true);
     try {
