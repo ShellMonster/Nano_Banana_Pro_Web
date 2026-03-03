@@ -450,6 +450,10 @@
         "description": "Unknown task status"
       }
     },
+    "viewMode": {
+      "timeline": "Timeline",
+      "album": "Album"
+    },
     "toast": {
       "updated": "History updated",
       "loadFailed": "Failed to load history",

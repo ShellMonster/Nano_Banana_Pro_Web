@@ -438,6 +438,10 @@
         "description": "알 수 없는 작업 상태"
       }
     },
+    "viewMode": {
+      "timeline": "타임라인",
+      "album": "앨범"
+    },
     "toast": {
       "updated": "기록이 업데이트되었습니다",
       "loadFailed": "기록 불러오기 실패",

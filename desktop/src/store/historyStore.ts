@@ -15,6 +15,7 @@ interface HistoryState {
   total: number;
   searchKeyword: string;
   lastLoadedAt: number | null;
+  viewMode: 'timeline' | 'album';
 
   loadHistory: (reset?: boolean, options?: { silent?: boolean }) => Promise<void>;
   loadMore: () => Promise<void>;
@@ -24,6 +25,7 @@ interface HistoryState {
   deleteImage: (image: GeneratedImage, options?: { source?: 'generate' | 'history' | 'preview' }) => Promise<void>;
   getDetail: (id: string) => Promise<HistoryItem>;
   upsertTask: (task: HistoryTaskUpdate) => void;
+  setViewMode: (mode: 'timeline' | 'album') => void;
 }
 
 let latestHistoryRequestId = 0;
@@ -99,6 +101,7 @@ export const useHistoryStore = create<HistoryState>()(
       total: 0,
       searchKeyword: '',
       lastLoadedAt: null,
+      viewMode: 'timeline',
 
       loadHistory: async (reset = false, options) => {
         // 请求序号：防止慢请求覆盖快请求（搜索/翻页/重置时常见）
@@ -353,6 +356,11 @@ export const useHistoryStore = create<HistoryState>()(
           console.error('Failed to fetch detail:', error);
           throw error;
         }
+      }
+,
+
+      setViewMode: (viewMode) => {
+        set({ viewMode });
       }
     }),
     {

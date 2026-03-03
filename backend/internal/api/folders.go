@@ -1,0 +1,260 @@
+package api
+
+import (
+	"log"
+	"net/http"
+	"strconv"
+	"time"
+
+	"image-gen-service/internal/model"
+
+	"github.com/gin-gonic/gin"
+)
+
+// CreateFolderRequest 创建文件夹请求
+type CreateFolderRequest struct {
+	Name string `json:"name" binding:"required"` // 文件夹名称
+}
+
+// CreateFolderHandler 创建手动文件夹
+func CreateFolderHandler(c *gin.Context) {
+	var req CreateFolderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("[API] CreateFolder 参数绑定失败: %v\n", err)
+		Error(c, http.StatusBadRequest, 400, "参数验证失败: "+err.Error())
+		return
+	}
+
+	// 检查是否已存在同名文件夹
+	var existingFolder model.Folder
+	if err := model.DB.Where("name = ? AND type = ?", req.Name, "manual").First(&existingFolder).Error; err == nil {
+		log.Printf("[API] 创建文件夹失败：已存在同名文件夹 %s\n", req.Name)
+		Error(c, http.StatusBadRequest, 400, "已存在同名文件夹")
+		return
+	}
+
+	// 创建新文件夹
+	folder := model.Folder{
+		Name: req.Name,
+		Type: "manual", // 手动创建的文件夹
+	}
+
+	if err := model.DB.Create(&folder).Error; err != nil {
+		log.Printf("[API] 创建文件夹失败: %v\n", err)
+		Error(c, http.StatusInternalServerError, 500, "创建文件夹失败")
+		return
+	}
+
+	log.Printf("[API] 创建文件夹成功: ID=%d, Name=%s\n", folder.ID, folder.Name)
+	Success(c, folder)
+}
+
+// GetFoldersHandler 获取所有文件夹
+func GetFoldersHandler(c *gin.Context) {
+	var folders []model.Folder
+
+	// 按创建时间降序排列
+	if err := model.DB.Order("created_at DESC").Find(&folders).Error; err != nil {
+		log.Printf("[API] 获取文件夹列表失败: %v\n", err)
+		Error(c, http.StatusInternalServerError, 500, "获取文件夹列表失败")
+		return
+	}
+
+	log.Printf("[API] 获取文件夹列表成功: 共 %d 个文件夹\n", len(folders))
+	Success(c, folders)
+}
+
+// UpdateFolderRequest 更新文件夹请求
+type UpdateFolderRequest struct {
+	Name string `json:"name" binding:"required"` // 新的文件夹名称
+}
+
+// UpdateFolderHandler 更新文件夹名称
+func UpdateFolderHandler(c *gin.Context) {
+	folderID := c.Param("id")
+
+	var req UpdateFolderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("[API] UpdateFolder 参数绑定失败: %v\n", err)
+		Error(c, http.StatusBadRequest, 400, "参数验证失败: "+err.Error())
+		return
+	}
+
+	// 查找文件夹
+	var folder model.Folder
+	if err := model.DB.Where("id = ?", folderID).First(&folder).Error; err != nil {
+		log.Printf("[API] 更新文件夹失败：文件夹不存在 ID=%s\n", folderID)
+		Error(c, http.StatusNotFound, 404, "文件夹不存在")
+		return
+	}
+
+	// 检查是否为月份文件夹（不允许修改）
+	if folder.Type == "month" {
+		log.Printf("[API] 更新文件夹失败：不允许修改月份文件夹 ID=%s\n", folderID)
+		Error(c, http.StatusBadRequest, 400, "不允许修改月份文件夹")
+		return
+	}
+
+	// 检查是否已存在同名文件夹（排除自己）
+	var existingFolder model.Folder
+	if err := model.DB.Where("name = ? AND type = ? AND id != ?", req.Name, "manual", folderID).First(&existingFolder).Error; err == nil {
+		log.Printf("[API] 更新文件夹失败：已存在同名文件夹 %s\n", req.Name)
+		Error(c, http.StatusBadRequest, 400, "已存在同名文件夹")
+		return
+	}
+
+	// 更新文件夹名称
+	if err := model.DB.Model(&folder).Update("name", req.Name).Error; err != nil {
+		log.Printf("[API] 更新文件夹失败: %v\n", err)
+		Error(c, http.StatusInternalServerError, 500, "更新文件夹失败")
+		return
+	}
+
+	log.Printf("[API] 更新文件夹成功: ID=%s, Name=%s\n", folderID, req.Name)
+	Success(c, folder)
+}
+
+// DeleteFolderHandler 删除手动文件夹，图片移回月份文件夹
+func DeleteFolderHandler(c *gin.Context) {
+	folderID := c.Param("id")
+
+	// 查找文件夹
+	var folder model.Folder
+	if err := model.DB.Where("id = ?", folderID).First(&folder).Error; err != nil {
+		log.Printf("[API] 删除文件夹失败：文件夹不存在 ID=%s\n", folderID)
+		Error(c, http.StatusNotFound, 404, "文件夹不存在")
+		return
+	}
+
+	// 检查是否为月份文件夹（不允许删除）
+	if folder.Type == "month" {
+		log.Printf("[API] 删除文件夹失败：不允许删除月份文件夹 ID=%s\n", folderID)
+		Error(c, http.StatusBadRequest, 400, "不允许删除月份文件夹")
+		return
+	}
+
+	// 查找该文件夹中的所有图片
+	var tasks []model.Task
+	if err := model.DB.Where("folder_id = ?", folderID).Find(&tasks).Error; err != nil {
+		log.Printf("[API] 删除文件夹失败：查询图片失败 %v\n", err)
+		Error(c, http.StatusInternalServerError, 500, "查询图片失败")
+		return
+	}
+
+	// 将图片移回对应的月份文件夹
+	for _, task := range tasks {
+		// 获取或创建对应的月份文件夹
+		monthFolder := getOrCreateMonthFolder(task.CreatedAt)
+		if monthFolder != nil {
+			// 更新图片的 folder_id
+			model.DB.Model(&task).Update("folder_id", strconv.FormatUint(uint64(monthFolder.ID), 10))
+		}
+	}
+
+	// 删除文件夹
+	if err := model.DB.Delete(&folder).Error; err != nil {
+		log.Printf("[API] 删除文件夹失败: %v\n", err)
+		Error(c, http.StatusInternalServerError, 500, "删除文件夹失败")
+		return
+	}
+
+	log.Printf("[API] 删除文件夹成功: ID=%s, Name=%s, 已移动 %d 张图片\n", folderID, folder.Name, len(tasks))
+	Success(c, gin.H{
+		"message":        "删除成功",
+		"moved_images":   len(tasks),
+		"deleted_folder": folder,
+	})
+}
+
+// getOrCreateMonthFolder 获取或创建自动月份文件夹
+// 根据给定的时间获取或创建对应的月份文件夹
+func getOrCreateMonthFolder(t time.Time) *model.Folder {
+	year := t.Year()
+	month := int(t.Month())
+	folderName := t.Format("2006-01") // 格式: 2024-01
+
+	// 查找是否已存在该月份文件夹
+	var folder model.Folder
+	err := model.DB.Where("type = ? AND year = ? AND month = ?", "month", year, month).First(&folder).Error
+	if err == nil {
+		return &folder
+	}
+
+	// 不存在则创建
+	folder = model.Folder{
+		Name:  folderName,
+		Type:  "month", // 自动月份文件夹
+		Year:  year,
+		Month: month,
+	}
+
+	if err := model.DB.Create(&folder).Error; err != nil {
+		log.Printf("[API] 创建月份文件夹失败: %v\n", err)
+		return nil
+	}
+
+	log.Printf("[API] 创建月份文件夹成功: ID=%d, Name=%s\n", folder.ID, folder.Name)
+	return &folder
+}
+
+// GetOrCreateMonthFolderHandler 获取或创建自动月份文件夹 API 接口
+func GetOrCreateMonthFolderHandler(c *gin.Context) {
+	// 使用当前时间
+	now := time.Now()
+	folder := getOrCreateMonthFolder(now)
+
+	if folder == nil {
+		log.Printf("[API] 获取或创建月份文件夹失败\n")
+		Error(c, http.StatusInternalServerError, 500, "获取或创建月份文件夹失败")
+		return
+	}
+
+	log.Printf("[API] 获取或创建月份文件夹成功: ID=%d, Name=%s\n", folder.ID, folder.Name)
+	Success(c, folder)
+}
+
+// MoveImageRequest 移动图片请求
+type MoveImageRequest struct {
+	TaskID   string `json:"task_id" binding:"required"`   // 图片任务 ID
+	FolderID string `json:"folder_id" binding:"required"` // 目标文件夹 ID
+}
+
+// MoveImageHandler 移动图片到指定文件夹
+func MoveImageHandler(c *gin.Context) {
+	var req MoveImageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("[API] MoveImage 参数绑定失败: %v\n", err)
+		Error(c, http.StatusBadRequest, 400, "参数验证失败: "+err.Error())
+		return
+	}
+
+	// 查找图片任务
+	var task model.Task
+	if err := model.DB.Where("task_id = ?", req.TaskID).First(&task).Error; err != nil {
+		log.Printf("[API] 移动图片失败：图片不存在 TaskID=%s\n", req.TaskID)
+		Error(c, http.StatusNotFound, 404, "图片不存在")
+		return
+	}
+
+	// 查找目标文件夹
+	var folder model.Folder
+	if err := model.DB.Where("id = ?", req.FolderID).First(&folder).Error; err != nil {
+		log.Printf("[API] 移动图片失败：目标文件夹不存在 FolderID=%s\n", req.FolderID)
+		Error(c, http.StatusNotFound, 404, "目标文件夹不存在")
+		return
+	}
+
+	// 更新图片的 folder_id
+	if err := model.DB.Model(&task).Update("folder_id", req.FolderID).Error; err != nil {
+		log.Printf("[API] 移动图片失败: %v\n", err)
+		Error(c, http.StatusInternalServerError, 500, "移动图片失败")
+		return
+	}
+
+	log.Printf("[API] 移动图片成功: TaskID=%s, FolderID=%s\n", req.TaskID, req.FolderID)
+	Success(c, gin.H{
+		"message": "移动成功",
+		"task":    task,
+		"folder":  folder,
+	})
+}

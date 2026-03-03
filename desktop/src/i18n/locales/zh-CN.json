@@ -450,6 +450,10 @@
         "description": "任务状态未知"
       }
     },
+    "viewMode": {
+      "timeline": "时间线",
+      "album": "相册"
+    },
     "toast": {
       "updated": "历史记录已更新",
       "loadFailed": "加载历史记录失败",
