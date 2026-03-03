@@ -596,7 +596,8 @@ export const ImagePreview = React.memo(function ImagePreview({
                 }
                 
                 // 根据 mimeType 确定扩展名
-                const ext = image.mimeType?.split('/')[1] || 'png';
+                // 根据 mimeType 确定扩展名
+                const ext = (image.mimeType || 'image/png').split('/')[1] || 'png';
                 const defaultName = `image-${image.id}.${ext}`;
                 
                 // 显示保存对话框
