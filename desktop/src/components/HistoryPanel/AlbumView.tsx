@@ -128,7 +128,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(props, 
       }
       
       // 数组索引访问，已通过边界检查，不是对象注入漏洞
-      const folder = folders[index];
+      const folder = folders[Number(index)];
 
       return (
         <div {...ariaAttributes} style={cellStyle}>
@@ -137,7 +137,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(props, 
               folder={folder} 
               imageCount={folder.imageCount}
               coverImage={folder.coverImage}
-              onClick={() => handleFolderClick(folder)} 
+              onClick={() => { handleFolderClick(folder); }}
             />
           </div>
         </div>
@@ -201,7 +201,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(props, 
             <div
               style={{ padding }}
               className="h-full"
-              onContextMenu={(event) => event.preventDefault()}
+              onContextMenu={(event) => { event.preventDefault(); }}
             >
               <Grid
                 gridRef={gridRef}
