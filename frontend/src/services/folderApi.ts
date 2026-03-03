@@ -15,7 +15,7 @@ export interface CreateFolderRequest {
 
 export interface MoveImageRequest {
   task_id: string;
-  folder_id: number;
+  folder_id: string;
 }
 
 // 获取所有文件夹

@@ -377,7 +377,7 @@ export const useHistoryStore = create<HistoryState>()(
 
   moveImageToFolder: async (imageId, folderId) => {
     try {
-      await moveImageToFolderApi({ task_id: imageId, folder_id: folderId });
+      await moveImageToFolderApi({ task_id: imageId, folder_id: String(folderId) });
       await get().loadHistory(true, { silent: true });
       toast.success(i18n.t('history.folder.moveSuccess'));
     } catch (error) {
