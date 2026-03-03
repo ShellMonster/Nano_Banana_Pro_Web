@@ -16,6 +16,9 @@ interface ImagePreviewProps {
     onClose: () => void;
 }
 
+// 下载文件大小限制（100MB）
+const MAX_DOWNLOAD_FILE_SIZE = 100 * 1024 * 1024;
+
 // 使用 React.memo 优化，只有在关键 props 变化时才重新渲染
 export const ImagePreview = React.memo(function ImagePreview({
     image,
@@ -570,10 +573,83 @@ export const ImagePreview = React.memo(function ImagePreview({
         else toast.error(t('toast.copyFailed'));
     }, [copyText, image]);
 
-    const handleDownload = useCallback(() => {
+    const handleDownload = useCallback(async () => {
         if (!image?.id) return;
-        window.location.href = getImageDownloadUrl(image.id);
-    }, [image?.id]);
+
+        try {
+            // 检测是否在 Tauri 环境
+            if (window.__TAURI_INTERNALS__) {
+                const { save } = await import('@tauri-apps/plugin-dialog');
+                const { readFile, writeFile, BaseDirectory } = await import('@tauri-apps/plugin-fs');
+                const { invoke } = await import('@tauri-apps/api/core');
+                
+                // 检查本地文件路径
+                if (!image.filePath) {
+                    toast.error(t('toast.noLocalPath'));
+                    return;
+                }
+
+                // 检查文件大小，防止 DoS（最大 100MB）
+                if (image.fileSize && image.fileSize > MAX_DOWNLOAD_FILE_SIZE) {
+                    toast.error(t('toast.fileTooLarge'));
+                    return;
+                }
+                
+                // 根据 mimeType 确定扩展名
+                const ext = (image.mimeType || 'image/png').split('/')[1] || 'png';
+                const defaultName = `image-${image.id}.${ext}`;
+                
+                // 显示保存对话框
+                // 显示保存对话框
+                const destPath = await save({
+                    defaultPath: defaultName,
+                    filters: [{ name: 'Image', extensions: [ext] }]
+                });
+                
+                if (!destPath) return; // 用户取消
+                
+                // 将绝对路径转换为相对于 AppData 的相对路径（安全读取）
+                const appDataDir = await invoke<string>('get_app_data_dir');
+                const normalizedAppData = appDataDir.replace(/\\/g, '/').replace(/\/$/, '');
+                
+                // 路径规范化：解析并移除所有 .. 序列
+                const normalizePath = (path: string): string => {
+                    const parts = path.replace(/\\/g, '/').split('/').filter(p => p && p !== '.');
+                    const stack: string[] = [];
+                    for (const part of parts) {
+                        if (part === '..') {
+                            if (stack.length > 0) stack.pop();
+                        } else {
+                            stack.push(part);
+                        }
+                    }
+                    return '/' + stack.join('/');
+                };
+                
+                const normalizedFilePath = normalizePath(image.filePath);
+
+                // 安全校验：确保文件路径在 AppData 目录内（防止路径遍历攻击）
+                if (!normalizedFilePath.startsWith(normalizedAppData + '/')) {
+                    console.error(`[Security] Attempted to read file outside of app data directory: ${image.filePath}`);
+                    toast.error(t('toast.downloadFailed'));
+                    return;
+                }
+                
+                const relativePath = normalizedFilePath.substring(normalizedAppData.length + 1);
+
+                // 读取本地文件并写入目标位置
+                const bytes = await readFile(relativePath, { baseDir: BaseDirectory.AppData });
+                await writeFile(destPath, bytes);
+                toast.success(t('toast.downloadSuccess'));
+            } else {
+                // Web 环境：使用原有方式
+                window.location.href = getImageDownloadUrl(image.id);
+            }
+        } catch (error) {
+            console.error('Download failed:', error);
+            toast.error(t('toast.downloadFailed'));
+        }
+    }, [image, t]);
 
     if (!image) return null;
 
