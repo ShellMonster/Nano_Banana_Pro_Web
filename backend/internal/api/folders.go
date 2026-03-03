@@ -135,7 +135,12 @@ func GetFolderImagesHandler(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageStr := strings.TrimSpace(c.DefaultQuery("page", "1"))
+	page, err := strconv.Atoi(pageStr)
+	if err != nil {
+		Error(c, http.StatusBadRequest, 400, "page 参数必须是有效的数字")
+		return
+	}
 	if page <= 0 {
 		page = 1
 	}
@@ -147,7 +152,11 @@ func GetFolderImagesHandler(c *gin.Context) {
 	if pageSizeStr == "" {
 		pageSizeStr = "20"
 	}
-	pageSize, _ := strconv.Atoi(pageSizeStr)
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil {
+		Error(c, http.StatusBadRequest, 400, "page_size/pageSize 参数必须是有效的数字")
+		return
+	}
 	if pageSize <= 0 {
 		pageSize = 20
 	} else if pageSize > 100 {

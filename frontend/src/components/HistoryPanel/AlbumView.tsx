@@ -123,7 +123,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
           thumbnailUrl: normalizedThumbnailUrl,
           prompt: task.prompt || '',
           model: task.model || '',
-          taskCreatedAt: task.createdAt || new Date().toISOString(),
+          taskCreatedAt: task.createdAt || '',
           imageSizeLabel: getResolutionLabel(img.width, img.height),
           aspectRatioLabel: getRatioLabel(img.width, img.height)
         });
