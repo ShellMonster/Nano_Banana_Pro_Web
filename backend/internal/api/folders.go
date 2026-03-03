@@ -15,9 +15,8 @@ import (
 // 文件夹类型常量
 const (
 	FolderTypeManual = "manual" // 手动创建的文件夹
-	FolderTypeMonth   = "month"   // 自动创建的月份文件夹
+	FolderTypeMonth  = "month"  // 自动创建的月份文件夹
 )
-
 
 // CreateFolderRequest 创建文件夹请求
 type CreateFolderRequest struct {
