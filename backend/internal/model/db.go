@@ -56,7 +56,15 @@ func InitDB(dbPath string) {
 
 // migrateOldTasksToMonthFolders 将旧版本未归类的任务自动迁移到月份文件夹
 func migrateOldTasksToMonthFolders() {
+	// 添加 panic 恢复机制，防止迁移过程中的意外错误导致服务崩溃
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[Migration] 迁移过程发生严重错误: %v\n", r)
+		}
+	}()
+
 	// 延迟几秒等待数据库完全初始化
+	// 原因：确保 InitDB() 中的其他初始化操作已完成，避免并发问题
 	time.Sleep(2 * time.Second)
 
 	log.Println("[Migration] 开始迁移旧任务到月份文件夹...")
