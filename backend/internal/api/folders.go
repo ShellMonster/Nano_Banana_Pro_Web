@@ -167,11 +167,11 @@ func DeleteFolderHandler(c *gin.Context) {
 				continue
 			}
 
-			// 获取或创建对应的月份文件夹
-			monthFolder := getOrCreateMonthFolder(t)
-			if monthFolder == nil {
-				log.Printf("[API] 获取或创建月份文件夹失败: %s\n", monthKey)
-				continue
+			// 获取或创建对应的月份文件夹（使用事务句柄 tx）
+			monthFolder, err := getOrCreateMonthFolder(tx, t)
+			if err != nil {
+				log.Printf("[API] 获取或创建月份文件夹失败: %s, error: %v\n", monthKey, err)
+				return err // 返回错误以回滚事务
 			}
 
 			// 批量更新该月份的所有图片的 folder_id
@@ -205,8 +205,8 @@ func DeleteFolderHandler(c *gin.Context) {
 }
 
 // getOrCreateMonthFolder 获取或创建自动月份文件夹
-// 使用 FirstOrCreate 确保并发安全
-func getOrCreateMonthFolder(t time.Time) *model.Folder {
+// 使用 FirstOrCreate 确保并发安全，接受 db 参数以支持事务
+func getOrCreateMonthFolder(db *gorm.DB, t time.Time) (*model.Folder, error) {
 	year := t.Year()
 	month := int(t.Month())
 	folderName := t.Format("2006-01") // 格式: 2024-01
@@ -219,7 +219,7 @@ func getOrCreateMonthFolder(t time.Time) *model.Folder {
 	}
 
 	// Attrs 设置创建时的默认值
-	result := model.DB.Where(&model.Folder{
+	result := db.Where(&model.Folder{
 		Type:  FolderTypeMonth,
 		Year:  year,
 		Month: month,
@@ -229,21 +229,21 @@ func getOrCreateMonthFolder(t time.Time) *model.Folder {
 
 	if result.Error != nil {
 		log.Printf("[API] 获取或创建月份文件夹失败: %v\n", result.Error)
-		return nil
+		return nil, result.Error
 	}
 
 	log.Printf("[API] 获取或创建月份文件夹成功: ID=%d, Name=%s\n", folder.ID, folder.Name)
-	return &folder
+	return &folder, nil
 }
 
 // GetOrCreateMonthFolderHandler 获取或创建自动月份文件夹 API 接口
 func GetOrCreateMonthFolderHandler(c *gin.Context) {
 	// 使用当前时间
 	now := time.Now()
-	folder := getOrCreateMonthFolder(now)
+	folder, err := getOrCreateMonthFolder(model.DB, now)
 
-	if folder == nil {
-		log.Printf("[API] 获取或创建月份文件夹失败\n")
+	if err != nil {
+		log.Printf("[API] 获取或创建月份文件夹失败: %v\n", err)
 		Error(c, http.StatusInternalServerError, 500, "获取或创建月份文件夹失败")
 		return
 	}
@@ -289,6 +289,7 @@ func MoveImageHandler(c *gin.Context) {
 		Error(c, http.StatusInternalServerError, 500, "移动图片失败")
 		return
 	}
+	task.FolderID = req.FolderID // 更新内存中的 FolderID，确保返回正确值
 
 	log.Printf("[API] 移动图片成功: TaskID=%s, FolderID=%s\n", req.TaskID, req.FolderID)
 	Success(c, gin.H{
