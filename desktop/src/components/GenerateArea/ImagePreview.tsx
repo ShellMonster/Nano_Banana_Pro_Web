@@ -16,6 +16,9 @@ interface ImagePreviewProps {
     onClose: () => void;
 }
 
+// 下载文件大小限制（100MB）
+const MAX_DOWNLOAD_FILE_SIZE = 100 * 1024 * 1024;
+
 // 使用 React.memo 优化，只有在关键 props 变化时才重新渲染
 export const ImagePreview = React.memo(function ImagePreview({
     image,
@@ -587,8 +590,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                 }
 
                 // 检查文件大小，防止 DoS（最大 100MB）
-                const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
-                if (image.fileSize && image.fileSize > MAX_FILE_SIZE) {
+                if (image.fileSize && image.fileSize > MAX_DOWNLOAD_FILE_SIZE) {
                     toast.error(t('toast.fileTooLarge'));
                     return;
                 }
@@ -607,16 +609,21 @@ export const ImagePreview = React.memo(function ImagePreview({
                 
                 // 将绝对路径转换为相对于 AppData 的相对路径（安全读取）
                 const appDataDir = await invoke<string>('get_app_data_dir');
-                const appData = appDataDir.replace(/\\/g, '/').replace(/\/+$/, '');
-                const normalized = image.filePath.replace(/\\/g, '/').replace(/\/+/g, '/');
-                const relative = normalized.startsWith(appData + '/') 
-                    ? normalized.slice(appData.length + 1) 
-                    : normalized.replace(/^\/+/, '');
+                const normalizedAppData = appDataDir.replace(/\\/g, '/');
+                const normalizedFilePath = image.filePath.replace(/\\/g, '/');
+
+                // 安全校验：确保文件路径在 AppData 目录内
+                if (!normalizedFilePath.startsWith(normalizedAppData)) {
+                    console.error(`[Security] Attempted to read file outside of app data directory: ${image.filePath}`);
+                    toast.error(t('toast.downloadFailed'));
+                    return;
+                }
+                
+                const relativePath = normalizedFilePath.substring(normalizedAppData.length).replace(/^\//, '');
                 
                 // 读取本地文件并写入目标位置
-                const bytes = await readFile(relative, { baseDir: BaseDirectory.AppData });
+                const bytes = await readFile(relativePath, { baseDir: BaseDirectory.AppData });
                 await writeFile(destPath, bytes);
-                
                 toast.success(t('toast.downloadSuccess'));
             } else {
                 // Web 环境：使用原有方式
