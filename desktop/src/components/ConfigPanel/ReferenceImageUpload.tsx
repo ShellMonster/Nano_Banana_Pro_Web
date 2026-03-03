@@ -108,6 +108,7 @@ export function ReferenceImageUpload() {
   const addRefFiles = useConfigStore((s) => s.addRefFiles);
   const removeRefFile = useConfigStore((s) => s.removeRefFile);
   const setRefFiles = useConfigStore((s) => s.setRefFiles);
+  const enableRefImageCompression = useConfigStore((s) => s.enableRefImageCompression);
   const refImageEntries = useConfigStore((s) => s.refImageEntries);
   const setRefImageEntries = useConfigStore((s) => s.setRefImageEntries);
   const setPrompt = useConfigStore((s) => s.setPrompt);
@@ -632,7 +633,7 @@ export function ReferenceImageUpload() {
       let shouldCompress = false;
       let compressReason = '';
 
-      // 判断是否需要压缩
+      // 判断是否需要压缩（仅在开启压缩时）
       if (sizeMB > 2) {
         // 文件超过 2MB，必须压缩
         shouldCompress = true;

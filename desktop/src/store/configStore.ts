@@ -29,6 +29,7 @@ interface ConfigState {
   imageApiKey: string;
   imageModel: string;
   imageTimeoutSeconds: number;
+  enableRefImageCompression: boolean;
 
   // 识图配置（逆向提示词用）
   visionProvider: string;
@@ -74,6 +75,7 @@ interface ConfigState {
   setImageApiKey: (key: string) => void;
   setImageModel: (model: string) => void;
   setImageTimeoutSeconds: (seconds: number) => void;
+  setEnableRefImageCompression: (enabled: boolean) => void;
   setVisionProvider: (provider: string) => void;
   setVisionApiBaseUrl: (url: string) => void;
   setVisionApiKey: (key: string) => void;
@@ -110,6 +112,7 @@ export const useConfigStore = create<ConfigState>()(
       imageApiKey: '',
       imageModel: DEFAULT_IMAGE_MODEL,
       imageTimeoutSeconds: 500,
+      enableRefImageCompression: true,
       visionProvider: 'gemini-chat',
       visionApiBaseUrl: '',
       visionApiKey: '',
@@ -137,6 +140,7 @@ export const useConfigStore = create<ConfigState>()(
       setImageApiKey: (imageApiKey) => set({ imageApiKey }),
       setImageModel: (imageModel) => set({ imageModel }),
       setImageTimeoutSeconds: (imageTimeoutSeconds) => set({ imageTimeoutSeconds }),
+      setEnableRefImageCompression: (enableRefImageCompression) => set({ enableRefImageCompression }),
       setVisionProvider: (visionProvider) => set({ visionProvider }),
       setVisionApiBaseUrl: (visionApiBaseUrl) => set({ visionApiBaseUrl }),
       setVisionApiKey: (visionApiKey) => set({ visionApiKey }),
@@ -174,6 +178,7 @@ export const useConfigStore = create<ConfigState>()(
         imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
         imageModel: DEFAULT_IMAGE_MODEL,
         imageTimeoutSeconds: 500,
+      enableRefImageCompression: true,
         visionProvider: 'gemini-chat',
         visionApiBaseUrl: '',
         visionApiKey: '',
