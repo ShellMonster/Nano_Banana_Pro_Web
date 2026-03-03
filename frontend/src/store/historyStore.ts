@@ -2,7 +2,9 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { GeneratedImage, HistoryItem } from '../types';
 import { getHistory, searchHistory, deleteHistory, deleteBatchHistory, deleteImage as deleteImageApi, getHistoryDetail } from '../services/historyApi';
+import { getFolders, createFolder as createFolderApi, moveImageToFolder as moveImageToFolderApi, Folder } from '../services/folderApi';
 import { mapBackendHistoryResponse, mapBackendTaskToFrontend } from '../utils/mapping';
+
 import { useGenerateStore } from './generateStore';
 import { toast } from './toastStore';
 import i18n from '../i18n';
@@ -15,6 +17,9 @@ interface HistoryState {
   total: number;
   searchKeyword: string;
   lastLoadedAt: number | null;
+  viewMode: 'timeline' | 'album';
+  folders: Folder[];
+  foldersLoading: boolean;
 
   loadHistory: (reset?: boolean, options?: { silent?: boolean }) => Promise<void>;
   loadMore: () => Promise<void>;
@@ -24,7 +29,12 @@ interface HistoryState {
   deleteImage: (image: GeneratedImage, options?: { source?: 'generate' | 'history' | 'preview' }) => Promise<void>;
   getDetail: (id: string) => Promise<HistoryItem>;
   upsertTask: (task: HistoryTaskUpdate) => void;
+  setViewMode: (mode: 'timeline' | 'album') => void;
+  loadFolders: () => Promise<void>;
+  createFolder: (name: string) => Promise<void>;
+  moveImageToFolder: (imageId: string, folderId: string) => Promise<void>;
 }
+
 
 let latestHistoryRequestId = 0;
 
@@ -99,6 +109,9 @@ export const useHistoryStore = create<HistoryState>()(
   total: 0,
   searchKeyword: '',
   lastLoadedAt: null,
+  viewMode: 'timeline',
+  folders: [],
+  foldersLoading: false,
 
   loadHistory: async (reset = false, options) => {
     // 请求序号：防止慢请求覆盖快请求（搜索/翻页/重置时常见）
@@ -333,7 +346,45 @@ export const useHistoryStore = create<HistoryState>()(
       console.error('Failed to fetch detail:', error);
       throw error;
     }
-  }
+  },
+
+  setViewMode: (mode) => set({ viewMode: mode }),
+
+  loadFolders: async () => {
+    try {
+      set({ foldersLoading: true });
+      const folders = await getFolders();
+      set({ folders, foldersLoading: false });
+    } catch (error) {
+      console.error('Failed to load folders:', error);
+      set({ foldersLoading: false });
+      toast.error(i18n.t('history.folder.loadFailed'));
+    }
+  },
+
+  createFolder: async (name) => {
+    try {
+      const newFolder = await createFolderApi({ name });
+      set((state) => ({ folders: [newFolder, ...state.folders] }));
+      toast.success(i18n.t('history.folder.createSuccess'));
+    } catch (error) {
+      console.error('Failed to create folder:', error);
+      toast.error(i18n.t('history.folder.createFailed'));
+      throw error;
+    }
+  },
+
+  moveImageToFolder: async (imageId, folderId) => {
+    try {
+      await moveImageToFolderApi({ task_id: imageId, folder_id: folderId });
+      await get().loadHistory(true, { silent: true });
+      toast.success(i18n.t('history.folder.moveSuccess'));
+    } catch (error) {
+      console.error('Failed to move image:', error);
+      toast.error(i18n.t('history.folder.moveFailed'));
+      throw error;
+    }
+  },
     }),
     {
       name: 'history-cache',
