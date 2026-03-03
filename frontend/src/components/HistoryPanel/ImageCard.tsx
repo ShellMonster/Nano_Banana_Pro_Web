@@ -1,10 +1,11 @@
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2, GripVertical } from 'lucide-react';
+import { Trash2, GripVertical, Move } from 'lucide-react';
 import { FlattenedImage } from './HistoryList';
 import { formatDateTime } from '../../utils/date';
 import { toast } from '../../store/toastStore';
 import { useHistoryStore } from '../../store/historyStore';
+import { MoveImageDialog } from './MoveImageDialog';
 
 interface ImageCardProps {
     image: FlattenedImage;
@@ -16,6 +17,8 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
     const { t } = useTranslation();
     const [isDeleting, setIsDeleting] = React.useState(false);
     const [showConfirm, setShowConfirm] = React.useState(false);
+    const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
     const confirmTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
     const imgRef = React.useRef<HTMLImageElement>(null);
     const hasNotifiedCopyRef = React.useRef(false); // 标记是否已提示过复制
@@ -113,6 +116,21 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
         }
     }, [showConfirm, image.id, image.taskId]);
 
+    // 右键菜单处理
+    const handleContextMenu = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        setContextMenu({ x: e.clientX, y: e.clientY, visible: true });
+    }, []);
+
+    const handleCloseContextMenu = useCallback(() => {
+        setContextMenu(prev => ({ ...prev, visible: false }));
+    }, []);
+
+    const handleMoveImage = useCallback(() => {
+        setContextMenu(prev => ({ ...prev, visible: false }));
+        setIsMoveDialogOpen(true);
+    }, []);
+
     // 拖拽开始处理
     const handleDragStart = useCallback(async (e: React.DragEvent) => {
         // 设置拖拽数据
@@ -178,6 +196,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
             draggable
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
+            onContextMenu={handleContextMenu}
         >
             {/* 拖拽指示器 - 左上角 */}
             <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
@@ -290,6 +309,38 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
                     </div>
                 </div>
             </div>
+
+            {/* 右键菜单 */}
+            {contextMenu.visible && (
+                <>
+                    <div
+                        className="fixed inset-0 z-40"
+                        onClick={handleCloseContextMenu}
+                    />
+                    <div
+                        className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]"
+                        style={{ left: contextMenu.x, top: contextMenu.y }}
+                    >
+                        <button
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+                            onClick={handleMoveImage}
+                        >
+                            <Move className="w-4 h-4" />
+                            {t('history.folder.moveImage')}
+                        </button>
+                    </div>
+                </>
+            )}
+
+            {/* 移动图片弹窗 */}
+            <MoveImageDialog
+                isOpen={isMoveDialogOpen}
+                onClose={() => setIsMoveDialogOpen(false)}
+                taskId={image.taskId || ''}
+                onSuccess={() => {
+                    useHistoryStore.getState().loadHistory(true);
+                }}
+            />
         </div>
     );
 });
