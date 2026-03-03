@@ -13,15 +13,6 @@ interface MoveImageDialogProps {
   onSuccess?: () => void;
 }
 
-/**
- * MoveImageDialog 组件 - 移动图片弹窗
- * 
- * 功能：
- * - 显示目标文件夹列表
- * - 支持选择文件夹
- * - 移动按钮
- * - 取消按钮
- */
 export function MoveImageDialog({ 
   isOpen, 
   onClose, 
@@ -30,16 +21,11 @@ export function MoveImageDialog({
 }: MoveImageDialogProps) {
   const { t } = useTranslation();
   
-  // 文件夹列表
   const [folders, setFolders] = useState<Folder[]>([]);
-  // 选中的文件夹ID
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
-  // 加载状态
   const [isLoading, setIsLoading] = useState(false);
-  // 移动中状态
   const [isMoving, setIsMoving] = useState(false);
 
-  // 加载文件夹列表
   const loadFolders = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -53,7 +39,6 @@ export function MoveImageDialog({
     }
   }, [t]);
 
-  // 弹窗打开时获取文件夹列表
   useEffect(() => {
     const init = async () => {
       if (isOpen) {
@@ -64,12 +49,13 @@ export function MoveImageDialog({
     void init();
   }, [isOpen, loadFolders]);
 
-  // 处理文件夹选择
-  const handleSelectFolder = useCallback((folderId: number) => {
-    setSelectedFolderId(folderId);
+  const handleSelectFolder = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    const folderId = event.currentTarget.dataset.folderId;
+    if (folderId) {
+      setSelectedFolderId(Number(folderId));
+    }
   }, []);
 
-  // 处理移动图片
   const handleMove = useCallback(async () => {
     if (selectedFolderId === null || !taskId) return;
 
@@ -90,10 +76,8 @@ export function MoveImageDialog({
     }
   }, [selectedFolderId, taskId, onClose, onSuccess, t]);
 
-  // 是否可以移动
   const canMove = selectedFolderId !== null && !isLoading && !isMoving && !!taskId;
 
-  // 获取文件夹图标
   const getFolderIcon = useCallback((folder: Folder) => {
     const isSelected = selectedFolderId === folder.id;
     if (isSelected) {
@@ -111,7 +95,6 @@ export function MoveImageDialog({
       className="max-w-md"
     >
       <div className="space-y-5">
-        {/* 说明区域 */}
         <div className="flex items-center gap-4 p-4 bg-amber-50 rounded-2xl">
           <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
             <Image className="w-6 h-6 text-amber-600" />
@@ -123,7 +106,6 @@ export function MoveImageDialog({
           </div>
         </div>
 
-        {/* 文件夹列表 */}
         <div className="space-y-2">
           <label className="text-sm font-bold text-slate-700">
             {t('history.folder.title')}
@@ -131,25 +113,23 @@ export function MoveImageDialog({
           
           <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
             {isLoading ? (
-              // 加载中状态
               <div className="flex items-center justify-center py-8 text-slate-400">
                 <div className="w-5 h-5 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin mr-2" />
                 <span className="text-sm">{t('common.loading')}</span>
               </div>
             ) : folders.length === 0 ? (
-              // 空状态
               <div className="flex flex-col items-center justify-center py-8 text-slate-400">
                 <FolderIcon className="w-12 h-12 mb-2 opacity-30" />
                 <p className="text-sm">{t('history.folder.empty')}</p>
               </div>
             ) : (
-              // 文件夹列表
               folders.map((folder) => {
                 const isSelected = selectedFolderId === folder.id;
                 return (
                   <button
                     key={folder.id}
-                    onClick={() => { handleSelectFolder(folder.id); }}
+                    data-folder-id={folder.id}
+                    onClick={handleSelectFolder}
                     disabled={isMoving}
                     className={`
                       w-full flex items-center gap-3 p-3 rounded-xl text-left
@@ -182,7 +162,6 @@ export function MoveImageDialog({
                       </p>
                     </div>
                     
-                    {/* 选中指示器 */}
                     {isSelected && (
                       <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                         <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -197,7 +176,6 @@ export function MoveImageDialog({
           </div>
         </div>
 
-        {/* 按钮组 */}
         <div className="flex items-center justify-end gap-3 pt-2">
           <Button
             variant="secondary"
