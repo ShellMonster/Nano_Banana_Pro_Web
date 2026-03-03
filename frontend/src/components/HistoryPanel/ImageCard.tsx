@@ -338,8 +338,10 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
                 onClose={() => setIsMoveDialogOpen(false)}
                 taskId={image.taskId || ''}
                 onSuccess={() => {
-                    // image.taskId 在 MoveImageDialog 成功时必然有效，无需回退
-                    useHistoryStore.getState().handleImageMoved(image.id, image.taskId!);
+                    // 添加空值检查，避免使用非空断言
+                    if (image.taskId) {
+                        useHistoryStore.getState().handleImageMoved(image.id, image.taskId);
+                    }
                 }}
             />
         </div>

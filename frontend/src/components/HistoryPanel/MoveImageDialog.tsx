@@ -60,7 +60,7 @@ export function MoveImageDialog({
     try {
       await moveImageToFolder({ 
         task_id: taskId, 
-        folder_id: selectedFolderId
+        folder_id: String(selectedFolderId)
       });
       toast.success(t('history.folder.moveSuccess'));
       onSuccess?.();
