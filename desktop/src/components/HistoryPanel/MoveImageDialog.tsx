@@ -61,7 +61,7 @@ export function MoveImageDialog({
         setSelectedFolderId(null);
       }
     };
-    init();
+    void init();
   }, [isOpen, loadFolders]);
 
   // 处理文件夹选择

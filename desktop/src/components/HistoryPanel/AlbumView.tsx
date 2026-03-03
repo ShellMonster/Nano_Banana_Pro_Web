@@ -81,7 +81,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(props, 
 
   // 初始加载
   useEffect(() => {
-    loadFolders();
+    void loadFolders();
   }, [loadFolders]);
 
   const handleFolderClick = useCallback((folder: FolderWithCount) => {
