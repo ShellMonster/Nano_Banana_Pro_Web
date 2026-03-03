@@ -596,10 +596,10 @@ export const ImagePreview = React.memo(function ImagePreview({
                 }
                 
                 // 根据 mimeType 确定扩展名
-                // 根据 mimeType 确定扩展名
                 const ext = (image.mimeType || 'image/png').split('/')[1] || 'png';
                 const defaultName = `image-${image.id}.${ext}`;
                 
+                // 显示保存对话框
                 // 显示保存对话框
                 const destPath = await save({
                     defaultPath: defaultName,
@@ -610,18 +610,33 @@ export const ImagePreview = React.memo(function ImagePreview({
                 
                 // 将绝对路径转换为相对于 AppData 的相对路径（安全读取）
                 const appDataDir = await invoke<string>('get_app_data_dir');
-                const normalizedAppData = appDataDir.replace(/\\/g, '/');
-                const normalizedFilePath = image.filePath.replace(/\\/g, '/');
+                const normalizedAppData = appDataDir.replace(/\\/g, '/').replace(/\/$/, '');
+                
+                // 路径规范化：解析并移除所有 .. 序列
+                const normalizePath = (path: string): string => {
+                    const parts = path.replace(/\\/g, '/').split('/').filter(p => p && p !== '.');
+                    const stack: string[] = [];
+                    for (const part of parts) {
+                        if (part === '..') {
+                            if (stack.length > 0) stack.pop();
+                        } else {
+                            stack.push(part);
+                        }
+                    }
+                    return '/' + stack.join('/');
+                };
+                
+                const normalizedFilePath = normalizePath(image.filePath);
 
-                // 安全校验：确保文件路径在 AppData 目录内
-                if (!normalizedFilePath.startsWith(normalizedAppData)) {
+                // 安全校验：确保文件路径在 AppData 目录内（防止路径遍历攻击）
+                if (!normalizedFilePath.startsWith(normalizedAppData + '/')) {
                     console.error(`[Security] Attempted to read file outside of app data directory: ${image.filePath}`);
                     toast.error(t('toast.downloadFailed'));
                     return;
                 }
                 
-                const relativePath = normalizedFilePath.substring(normalizedAppData.length).replace(/^\//, '');
-                
+                const relativePath = normalizedFilePath.substring(normalizedAppData.length + 1);
+
                 // 读取本地文件并写入目标位置
                 const bytes = await readFile(relativePath, { baseDir: BaseDirectory.AppData });
                 await writeFile(destPath, bytes);
