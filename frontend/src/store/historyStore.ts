@@ -33,6 +33,7 @@ interface HistoryState {
   loadFolders: () => Promise<void>;
   createFolder: (name: string) => Promise<void>;
   moveImageToFolder: (imageId: string, folderId: number) => Promise<void>;
+  handleImageMoved: (imageId: string, taskId: string) => void;
 }
 
 
@@ -385,6 +386,42 @@ export const useHistoryStore = create<HistoryState>()(
       throw error;
     }
   },
+
+  // 处理图片移动：仅从本地列表中移除，避免重新加载
+  handleImageMoved: (imageId: string, taskId: string) => {
+    set((state) => {
+      // 检查目标任务是否存在于当前列表中
+      const targetTask = state.items.find(item => item.id === taskId);
+      if (!targetTask) {
+        return state; // 目标任务不在当前列表，无需更新
+      }
+
+      const updatedItems = state.items.map(item => {
+        if (item.id === taskId && item.images) {
+          const filteredImages = item.images.filter(img => img.id !== imageId);
+          return {
+            ...item,
+            images: filteredImages,
+            completedCount: filteredImages.length
+          };
+        }
+        return item;
+      }).filter(item => {
+        // 如果任务没有图片了，从列表中移除
+        return !(item.id === taskId && (!item.images || item.images.length === 0));
+      });
+
+      const removedTaskCount = state.items.length - updatedItems.length;
+      const nextTotal = Math.max(0, state.total - removedTaskCount);
+
+      return {
+        items: updatedItems,
+        total: nextTotal,
+        hasMore: updatedItems.length < nextTotal
+      };
+    });
+  },
+
     }),
     {
       name: 'history-cache',
