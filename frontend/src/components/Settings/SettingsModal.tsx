@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, Languages, MessageSquare, Image as ImageIcon } from 'lucide-react';
+import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, Languages, MessageSquare, Image as ImageIcon, ScanEye } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore, IMAGE_MODEL_OPTIONS, CUSTOM_MODEL_VALUE } from '../../store/configStore';
 import { Input } from '../common/Input';
@@ -98,6 +98,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     imageApiBaseUrl, setImageApiBaseUrl,
     imageModel, setImageModel,
     imageTimeoutSeconds, setImageTimeoutSeconds,
+    visionProvider, setVisionProvider,
+    visionApiKey, setVisionApiKey,
+    visionApiBaseUrl, setVisionApiBaseUrl,
+    visionModel, setVisionModel,
+    visionTimeoutSeconds, setVisionTimeoutSeconds,
+    setVisionSyncedConfig,
     enableRefImageCompression, setEnableRefImageCompression,
     chatProvider, setChatProvider,
     chatApiBaseUrl, setChatApiBaseUrl,
@@ -546,6 +552,43 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <p className="text-xs text-slate-500 px-1">
                 {t('settings.refImageCompression.hint')}
               </p>
+            </div>
+            {/* 识图配置 */}
+            <div className="space-y-3">
+              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <ScanEye className="w-4 h-4 text-blue-600" />
+                {t('settings.vision.title')}
+              </label>
+              <Select
+                value={visionProvider}
+                onChange={(e) => setVisionProvider(e.target.value)}
+                className="h-10 bg-slate-100 text-slate-900 font-bold rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              >
+                <option value="gemini-chat">Gemini</option>
+                <option value="openai-chat">OpenAI</option>
+              </Select>
+
+              <Input
+                type="text"
+                value={visionApiBaseUrl}
+                onChange={(e) => setVisionApiBaseUrl(e.target.value)}
+                placeholder={t('settings.apiBaseUrl.placeholder')}
+                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              />
+              <Input
+                type="password"
+                value={visionApiKey}
+                onChange={(e) => setVisionApiKey(e.target.value)}
+                placeholder={t('settings.apiKey.placeholder')}
+                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              />
+              <Input
+                type="text"
+                value={visionModel}
+                onChange={(e) => setVisionModel(e.target.value)}
+                placeholder={t('settings.model.placeholder')}
+                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              />
             </div>
 
             {/* Timeout */}

@@ -161,6 +161,9 @@
       "custom": "自定义",
       "customPlaceholder": "输入自定义模型 ID"
     },
+    "vision": {
+      "title": "识图配置"
+    },
     "timeout": {
       "image": "生图超时(秒)",
       "chat": "生文字超时(秒)"

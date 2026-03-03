@@ -161,6 +161,9 @@
       "custom": "사용자 정의",
       "customPlaceholder": "사용자 정의 모델 ID 입력"
     },
+    "vision": {
+      "title": "이미지 인식 설정"
+    },
     "timeout": {
       "image": "이미지 시간 제한(초)",
       "chat": "텍스트 시간 제한(초)"

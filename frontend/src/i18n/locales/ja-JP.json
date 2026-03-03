@@ -161,6 +161,9 @@
       "custom": "カスタム",
       "customPlaceholder": "カスタムモデル ID を入力"
     },
+    "vision": {
+      "title": "画像認識設定"
+    },
     "timeout": {
       "image": "画像タイムアウト(秒)",
       "chat": "テキストタイムアウト(秒)"
