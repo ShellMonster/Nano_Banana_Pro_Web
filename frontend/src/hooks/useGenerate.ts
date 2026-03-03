@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { AxiosError } from 'axios';
 import { useConfigStore } from '../store/configStore';
 import { useGenerateStore } from '../store/generateStore';
 import { generateBatch, generateBatchWithImages, getTaskStatus } from '../services/generateApi';
@@ -146,6 +147,17 @@ export function useGenerate() {
         // 状态仍为 processing，继续定期同步
         activeSyncTimerRef.current = setTimeout(doSync, ACTIVE_SYNC_INTERVAL);
       } catch (error) {
+        // 检测 404 错误，任务不存在时停止同步
+        const axiosError = error as AxiosError;
+        if (axiosError.response?.status === 404) {
+          console.log('[active sync] Task not found (404), stopping sync');
+          expectedTaskIdRef.current = null;
+          clearUpdateSource();
+          storeRef.current.setConnectionMode('none');
+          stopActiveSync();
+          return;
+        }
+
         console.error('[active sync] Error:', error);
         // 出错时继续尝试，不中断同步
         activeSyncTimerRef.current = setTimeout(doSync, ACTIVE_SYNC_INTERVAL);
@@ -218,7 +230,17 @@ export function useGenerate() {
         // 继续轮询（使用当前间隔）
         pollTimerRef.current = setTimeout(poll, basePollIntervalRef.current);
       } catch (error) {
+        // 检测 404 错误，任务不存在时停止轮询
+        const axiosError = error as AxiosError;
+        if (axiosError.response?.status === 404) {
+          console.log('[polling] Task not found (404), stopping poll');
+          expectedTaskIdRef.current = null;
+          stopPolling();
+          return;
+        }
+
         console.error('Polling error:', error);
+
 
         // 检查重试次数
         pollRetryCountRef.current++;
