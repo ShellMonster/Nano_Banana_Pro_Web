@@ -1,11 +1,12 @@
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2, GripVertical } from 'lucide-react';
+import { Trash2, GripVertical, Move } from 'lucide-react';
 import { FlattenedImage } from './HistoryList';
 import { formatDateTime } from '../../utils/date';
 import { toast } from '../../store/toastStore';
 import { useHistoryStore } from '../../store/historyStore';
 import { useInternalDragStore } from '../../store/internalDragStore';
+import { MoveImageDialog } from './MoveImageDialog';
 
 interface ImageCardProps {
     image: FlattenedImage;
@@ -21,6 +22,11 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
     const imgRef = React.useRef<HTMLImageElement>(null);
     const hasNotifiedCopyRef = React.useRef(false); // 标记是否已提示过复制
     const startDrag = useInternalDragStore((s) => s.startDrag);
+
+    // 右键菜单状态
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
+    // 移动图片弹窗状态
+    const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
 
     // 清理定时器
     useEffect(() => {
@@ -80,6 +86,20 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
         };
     }, []);
 
+    // 监听点击外部关闭右键菜单
+    useEffect(() => {
+        const handleClickOutside = () => {
+            if (contextMenu.visible) {
+                setContextMenu(prev => ({ ...prev, visible: false }));
+            }
+        };
+
+        document.addEventListener('click', handleClickOutside);
+        return () => {
+            document.removeEventListener('click', handleClickOutside);
+        };
+    }, [contextMenu.visible]);
+
     const handleClick = useCallback(() => {
         const lastDragEndAt = useInternalDragStore.getState().lastDragEndAt;
         if (Date.now() - lastDragEndAt < 200) return;
@@ -116,6 +136,39 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
             confirmTimerRef.current = setTimeout(() => setShowConfirm(false), 3000);
         }
     }, [showConfirm, image.id, image.taskId]);
+
+    // 处理右键点击
+    const handleContextMenu = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setContextMenu({ x: e.clientX, y: e.clientY, visible: true });
+    }, []);
+
+    // 处理打开移动弹窗
+    const handleOpenMoveDialog = useCallback(() => {
+        setContextMenu(prev => ({ ...prev, visible: false }));
+        setIsMoveDialogOpen(true);
+    }, []);
+
+    // 处理移动成功
+    const handleMoveSuccess = useCallback(async () => {
+        if (!image.taskId) {
+            useHistoryStore.getState().loadHistory(true);
+            setIsMoveDialogOpen(false);
+            return;
+        }
+        // Update only the specific task for better UX
+        const { getDetail, upsertTask } = useHistoryStore.getState();
+        try {
+            const updatedTask = await getDetail(image.taskId);
+            upsertTask(updatedTask);
+        } catch (error) {
+            console.error('Failed to refresh task after move:', error);
+            // Fallback to full refresh on failure
+            useHistoryStore.getState().loadHistory(true);
+        }
+        setIsMoveDialogOpen(false);
+    }, [image.taskId]);
 
     const handlePointerDown = useCallback((e: React.PointerEvent) => {
         if (e.button !== 0) return;
@@ -181,123 +234,150 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
     }, [image.id, image.url, image.thumbnailUrl, image.filePath, image.thumbnailPath, startDrag]);
 
     return (
-        <div
-            className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md cursor-pointer group relative flex flex-col h-full"
-            style={{ contentVisibility: 'auto', containIntrinsicSize: '240px 320px' }}
-            onClick={handleClick}
-            onPointerDown={handlePointerDown}
-        >
-            {/* 拖拽指示器 - 左上角 */}
-            <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                <div className="bg-black/20 backdrop-blur-sm rounded-lg p-1.5">
-                    <GripVertical className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600" />
+        <>
+            <div
+                className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md cursor-pointer group relative flex flex-col h-full"
+                style={{ contentVisibility: 'auto', containIntrinsicSize: '240px 320px' }}
+                onClick={handleClick}
+                onPointerDown={handlePointerDown}
+                onContextMenu={handleContextMenu}
+            >
+                {/* 拖拽指示器 - 左上角 */}
+                <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    <div className="bg-black/20 backdrop-blur-sm rounded-lg p-1.5">
+                        <GripVertical className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600" />
+                    </div>
                 </div>
-            </div>
 
-            {/* 删除按钮 - 纯 CSS hover，不依赖 JavaScript */}
-            {/* 正常状态：CSS 控制显隐 */}
-            {!showConfirm && (
-                <div
-                    className={`
-                        absolute top-2 right-2 z-20
-                        transition-opacity duration-100 ease-out
-                        opacity-0
-                        group-hover:opacity-100
-                        pointer-events-none
-                    `}
-                >
-                    <button
-                        onClick={handleDelete}
-                        disabled={isDeleting}
+                {/* 删除按钮 - 纯 CSS hover，不依赖 JavaScript */}
+                {/* 正常状态：CSS 控制显隐 */}
+                {!showConfirm && (
+                    <div
                         className={`
-                            rounded-full flex items-center justify-center shadow-lg
-                            transition-all duration-200
-                            bg-red-500 hover:bg-red-600 text-white w-7 h-7 sm:w-8 sm:h-8
-                            ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}
-                            pointer-events-auto
+                            absolute top-2 right-2 z-20
+                            transition-opacity duration-100 ease-out
+                            opacity-0
+                            group-hover:opacity-100
+                            pointer-events-none
                         `}
-                        title={t('history.actions.deleteImage')}
                     >
-                        {isDeleting ? (
-                            <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                            <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                        )}
-                    </button>
+                        <button
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                            className={`
+                                rounded-full flex items-center justify-center shadow-lg
+                                transition-all duration-200
+                                bg-red-500 hover:bg-red-600 text-white w-7 h-7 sm:w-8 sm:h-8
+                                ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}
+                                pointer-events-auto
+                            `}
+                            title={t('history.actions.deleteImage')}
+                        >
+                            {isDeleting ? (
+                                <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                            )}
+                        </button>
+                    </div>
+                )}
+
+                {/* 确认状态：强制显示确认按钮，覆盖 CSS hover */}
+                {showConfirm && (
+                    <div className="absolute top-2 right-2 z-20 pointer-events-none">
+                        <button
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                            className={`
+                                rounded-full flex items-center justify-center shadow-lg
+                                transition-all duration-200
+                                bg-red-600 text-white w-auto px-3 h-8
+                                ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}
+                                pointer-events-auto
+                            `}
+                            title={t('history.actions.confirmDeleteTitle')}
+                        >
+                            {isDeleting ? (
+                                <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <span className="text-xs font-bold">{t('common.confirmShort')}</span>
+                            )}
+                        </button>
+                    </div>
+                )}
+
+                {/* 取消确认按钮 */}
+                {showConfirm && (
+                    <div className="absolute top-2 right-[76px] z-20 pointer-events-none">
+                        <button
+                            onClick={handleCancelConfirm}
+                            className="bg-slate-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-600 transition-colors shadow-lg opacity-100 pointer-events-auto"
+                            title={t('common.cancel')}
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                )}
+
+                {/* 图片区域 - 统一正方形裁剪 */}
+                <div className="relative w-full aspect-square">
+                    <img
+                        ref={imgRef}
+                        src={image.thumbnailUrl || image.url}
+                        alt={image.prompt}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        draggable={false}
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
                 </div>
-            )}
 
-            {/* 确认状态：强制显示确认按钮，覆盖 CSS hover */}
-            {showConfirm && (
-                <div className="absolute top-2 right-2 z-20 pointer-events-none">
-                    <button
-                        onClick={handleDelete}
-                        disabled={isDeleting}
-                        className={`
-                            rounded-full flex items-center justify-center shadow-lg
-                            transition-all duration-200
-                            bg-red-600 text-white w-auto px-3 h-8
-                            ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}
-                            pointer-events-auto
-                        `}
-                        title={t('history.actions.confirmDeleteTitle')}
-                    >
-                        {isDeleting ? (
-                            <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                            <span className="text-xs font-bold">{t('common.confirmShort')}</span>
-                        )}
-                    </button>
-                </div>
-            )}
+                {/* 简要信息 */}
+                <div className="p-2 sm:p-3 flex flex-col gap-1.5 sm:gap-2 flex-shrink-0">
+                    <p className="text-[10px] sm:text-xs text-gray-800 line-clamp-2 font-medium leading-relaxed" title={image.prompt}>
+                        {image.prompt}
+                    </p>
 
-            {/* 取消确认按钮 */}
-            {showConfirm && (
-                <div className="absolute top-2 right-[76px] z-20 pointer-events-none">
-                    <button
-                        onClick={handleCancelConfirm}
-                        className="bg-slate-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-600 transition-colors shadow-lg opacity-100 pointer-events-auto"
-                        title={t('common.cancel')}
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-            )}
-
-            {/* 图片区域 - 统一正方形裁剪 */}
-            <div className="relative w-full aspect-square">
-                <img
-                    ref={imgRef}
-                    src={image.thumbnailUrl || image.url}
-                    alt={image.prompt}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                    decoding="async"
-                    draggable={false}
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
-            </div>
-
-            {/* 简要信息 */}
-            <div className="p-2 sm:p-3 flex flex-col gap-1.5 sm:gap-2 flex-shrink-0">
-                <p className="text-[10px] sm:text-xs text-gray-800 line-clamp-2 font-medium leading-relaxed" title={image.prompt}>
-                    {image.prompt}
-                </p>
-
-                <div className="flex items-center justify-between text-[8px] sm:text-[9px] text-gray-400 pt-1 border-t border-gray-50 mt-auto">
-                    <span className="hidden sm:inline">{formatDateTime(image.taskCreatedAt)}</span>
-                    <div className="flex items-center gap-1 ml-auto">
-                        <span className="bg-blue-50 text-blue-600 px-1 py-0.5 rounded font-black tracking-tighter border border-blue-100/50">
-                            {image.imageSizeLabel}
-                        </span>
-                        <span className="bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-bold tracking-tighter border border-slate-200/50">
-                            {image.aspectRatioLabel}
-                        </span>
+                    <div className="flex items-center justify-between text-[8px] sm:text-[9px] text-gray-400 pt-1 border-t border-gray-50 mt-auto">
+                        <span className="hidden sm:inline">{formatDateTime(image.taskCreatedAt)}</span>
+                        <div className="flex items-center gap-1 ml-auto">
+                            <span className="bg-blue-50 text-blue-600 px-1 py-0.5 rounded font-black tracking-tighter border border-blue-100/50">
+                                {image.imageSizeLabel}
+                            </span>
+                            <span className="bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-bold tracking-tighter border border-slate-200/50">
+                                {image.aspectRatioLabel}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+
+            {/* 右键菜单 */}
+            {contextMenu.visible && (
+                <div
+                    className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+                    style={{ left: contextMenu.x, top: contextMenu.y }}
+                >
+                    <button
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+                        onClick={handleOpenMoveDialog}
+                    >
+                        <Move className="w-4 h-4" />
+                        {t('history.folder.moveImage')}
+                    </button>
+                </div>
+            )}
+
+            {/* 移动图片弹窗 */}
+            <MoveImageDialog
+                isOpen={isMoveDialogOpen}
+                onClose={() => setIsMoveDialogOpen(false)}
+                taskId={image.taskId}
+                onSuccess={handleMoveSuccess}
+            />
+        </>
     );
 });

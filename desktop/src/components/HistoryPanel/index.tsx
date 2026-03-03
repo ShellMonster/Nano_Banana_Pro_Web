@@ -1,7 +1,12 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SearchBar } from './SearchBar';
 import { HistoryList } from './HistoryList';
+import { AlbumView } from './AlbumView';
+import type { AlbumViewRef } from './AlbumView';
 import { ViewToggle } from './ViewToggle';
+import { CreateFolderDialog } from './CreateFolderDialog';
+import { FolderPlus } from 'lucide-react';
 import { useHistoryStore } from '../../store/historyStore';
 
 interface HistoryPanelProps {
@@ -9,6 +14,7 @@ interface HistoryPanelProps {
 }
 
 export default function HistoryPanel({ isActive }: HistoryPanelProps) {
+  const { t } = useTranslation();
   const loadHistory = useHistoryStore((s) => s.loadHistory);
   const viewMode = useHistoryStore((s) => s.viewMode);
   const setViewMode = useHistoryStore((s) => s.setViewMode);
@@ -17,6 +23,17 @@ export default function HistoryPanel({ isActive }: HistoryPanelProps) {
   const prevIsActiveRef = useRef<boolean>();
   const hasLoadedRef = useRef(false);
   const isLoadingRef = useRef(false);
+
+  // 创建文件夹弹窗状态
+  const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+  // AlbumView ref
+  const albumViewRef = useRef<AlbumViewRef>(null);
+
+  // 处理创建文件夹成功
+  const handleFolderCreated = useCallback(() => {
+    // 刷新 AlbumView
+    albumViewRef.current?.refresh();
+  }, []);
 
   useEffect(() => {
     const itemsLength = useHistoryStore.getState().items.length;
@@ -85,13 +102,27 @@ export default function HistoryPanel({ isActive }: HistoryPanelProps) {
           <div className="flex-1">
             <SearchBar />
           </div>
+          {viewMode === 'album' && (
+            <button
+              onClick={() => setIsCreateFolderOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors text-sm font-medium"
+              title={t('history.folder.create')}
+            >
+              <FolderPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">{t('history.folder.create')}</span>
+            </button>
+          )}
           <ViewToggle viewMode={viewMode} onChange={setViewMode} />
         </div>
       </div>
-
       <div className="flex-1 min-h-0">
-        <HistoryList />
+        {viewMode === 'timeline' ? <HistoryList /> : <AlbumView ref={albumViewRef} />}
       </div>
+      <CreateFolderDialog
+        isOpen={isCreateFolderOpen}
+        onClose={() => setIsCreateFolderOpen(false)}
+        onSuccess={handleFolderCreated}
+      />
     </div>
   );
 }

@@ -451,6 +451,24 @@
       "batchDeleteFailed": "일괄 삭제 실패",
       "imageDeleted": "이미지가 삭제되었습니다",
       "imageDeleteFailed": "이미지 삭제 실패"
+    },
+    "folder": {
+      "title": "폴더",
+      "create": "폴더 만들기",
+      "createPlaceholder": "폴더 이름을 입력하세요",
+      "createSuccess": "생성되었습니다",
+      "createFailed": "생성 실패",
+      "nameRequired": "폴더 이름을 입력하세요",
+      "nameExists": "같은 이름의 폴더가 이미 존재합니다",
+      "imageCount": "장",
+      "typeMonth": "자동 월간 폴더",
+      "typeManual": "수동 생성",
+      "loadFailed": "폴더 불러오기 실패",
+      "empty": "폴더가 없습니다",
+      "moveImage": "폴더로 이동",
+      "moveSuccess": "이동되었습니다",
+      "moveFailed": "이동 실패",
+      "selectFolder": "대상 폴더 선택"
     }
   },
   "templateMarket": {

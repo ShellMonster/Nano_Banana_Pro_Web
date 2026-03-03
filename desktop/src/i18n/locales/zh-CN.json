@@ -463,6 +463,24 @@
       "batchDeleteFailed": "批量删除失败",
       "imageDeleted": "图片已删除",
       "imageDeleteFailed": "图片删除失败"
+    },
+    "folder": {
+      "title": "文件夹",
+      "create": "创建文件夹",
+      "createPlaceholder": "请输入文件夹名称",
+      "createSuccess": "创建成功",
+      "createFailed": "创建失败",
+      "nameRequired": "文件夹名称不能为空",
+      "nameExists": "文件夹名称已存在",
+      "imageCount": "张",
+      "typeMonth": "自动月份文件夹",
+      "typeManual": "手动创建",
+      "loadFailed": "加载文件夹失败",
+      "empty": "暂无文件夹",
+      "moveImage": "移动到文件夹",
+      "moveSuccess": "移动成功",
+      "moveFailed": "移动失败",
+      "selectFolder": "选择目标文件夹"
     }
   },
   "templateMarket": {
