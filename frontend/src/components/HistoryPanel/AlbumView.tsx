@@ -8,6 +8,7 @@ import { ImageCard } from './ImageCard';
 import { ImagePreview } from '../GenerateArea/ImagePreview';
 import { FlattenedImage } from './HistoryList';
 import { getFolders, getFolderImages, Folder } from '../../services/folderApi';
+import { getImageUrl } from '../../services/api';
 import { toast } from '../../store/toastStore';
 import { mapBackendHistoryResponse } from '../../utils/mapping';
 
@@ -95,7 +96,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
       const foldersWithCount: FolderWithCount[] = data.map((folder) => ({
         ...folder,
         imageCount: folder.image_count ?? 0,
-        coverImage: undefined
+        coverImage: folder.cover_image ? getImageUrl(folder.cover_image) : undefined
       }));
       setFolders(foldersWithCount);
     } catch (error) {

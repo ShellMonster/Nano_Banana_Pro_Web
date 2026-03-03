@@ -10,6 +10,7 @@ export interface Folder {
   created_at: string;
   updated_at?: string;
   image_count?: number;
+  cover_image?: string;
 }
 
 export interface FolderImagesQuery {

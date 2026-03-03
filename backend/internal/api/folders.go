@@ -68,6 +68,7 @@ type FolderResponse struct {
 	CreatedAt  string `json:"created_at"`
 	UpdatedAt  string `json:"updated_at"`
 	ImageCount int64  `json:"image_count"`
+	CoverImage string `json:"cover_image,omitempty"`
 }
 
 // GetFoldersHandler 获取所有文件夹
@@ -108,6 +109,51 @@ func GetFoldersHandler(c *gin.Context) {
 		countMap[uint(id)] = c.Count
 	}
 
+	// 按创建时间倒序拉取任务，取每个文件夹第一张作为封面
+	type folderCoverCandidate struct {
+		FolderID      string `gorm:"column:folder_id"`
+		ThumbnailPath string `gorm:"column:thumbnail_path"`
+		LocalPath     string `gorm:"column:local_path"`
+		ThumbnailURL  string `gorm:"column:thumbnail_url"`
+		ImageURL      string `gorm:"column:image_url"`
+	}
+	var coverCandidates []folderCoverCandidate
+	if err := model.DB.Model(&model.Task{}).
+		Select("folder_id, thumbnail_path, local_path, thumbnail_url, image_url").
+		Where("folder_id <> '' AND deleted_at IS NULL").
+		Order("created_at DESC").
+		Find(&coverCandidates).Error; err != nil {
+		log.Printf("[API] 查询文件夹封面候选失败: %v\n", err)
+	}
+
+	pickCover := func(c folderCoverCandidate) string {
+		for _, v := range []string{c.ThumbnailPath, c.LocalPath, c.ThumbnailURL, c.ImageURL} {
+			if strings.TrimSpace(v) != "" {
+				return v
+			}
+		}
+		return ""
+	}
+	coverMap := make(map[uint]string, len(folders))
+	for _, candidate := range coverCandidates {
+		if candidate.FolderID == "" {
+			continue
+		}
+		id, err := strconv.ParseUint(candidate.FolderID, 10, 64)
+		if err != nil {
+			continue
+		}
+		fid := uint(id)
+		if _, exists := coverMap[fid]; exists {
+			continue
+		}
+		cover := pickCover(candidate)
+		if cover == "" {
+			continue
+		}
+		coverMap[fid] = cover
+	}
+
 	// 构建响应，包含图片数量
 	responses := make([]FolderResponse, len(folders))
 	for i, folder := range folders {
@@ -120,6 +166,7 @@ func GetFoldersHandler(c *gin.Context) {
 			CreatedAt:  folder.CreatedAt.Format("2006-01-02 15:04:05"),
 			UpdatedAt:  folder.UpdatedAt.Format("2006-01-02 15:04:05"),
 			ImageCount: countMap[folder.ID],
+			CoverImage: coverMap[folder.ID],
 		}
 	}
 

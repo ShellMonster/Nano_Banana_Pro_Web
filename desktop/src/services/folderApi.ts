@@ -1,4 +1,5 @@
 import api from './api';
+import { BackendHistoryResponse } from '../types';
 
 export interface Folder {
   id: number;
@@ -7,6 +8,14 @@ export interface Folder {
   year?: number;
   month?: number;
   created_at: string;
+  updated_at?: string;
+  image_count?: number;
+  cover_image?: string;
+}
+
+export interface FolderImagesQuery {
+  page?: number;
+  pageSize?: number;
 }
 
 export interface CreateFolderRequest {
@@ -22,6 +31,26 @@ export interface MoveImageRequest {
 export const getFolders = async (): Promise<Folder[]> => {
   const response = await api.get<Folder[]>('/folders');
   return (response as unknown as Folder[]) || [];
+};
+
+// 获取指定文件夹下图片（分页）
+export const getFolderImages = async (folderId: number, params: FolderImagesQuery = {}): Promise<BackendHistoryResponse> => {
+  const response = await api.get<BackendHistoryResponse>(`/folders/${folderId}/images`, {
+    params: {
+      page: params.page ?? 1,
+      page_size: params.pageSize ?? 20
+    }
+  });
+
+  // 兼容拦截器已解包和未解包两种返回形态
+  const payload = response as unknown as Partial<BackendHistoryResponse> & { data?: Partial<BackendHistoryResponse> };
+  if (Array.isArray(payload.list) && typeof payload.total === 'number') {
+    return { list: payload.list as BackendHistoryResponse['list'], total: payload.total };
+  }
+  if (payload.data && Array.isArray(payload.data.list) && typeof payload.data.total === 'number') {
+    return { list: payload.data.list as BackendHistoryResponse['list'], total: payload.data.total };
+  }
+  return { list: [], total: 0 };
 };
 
 // 创建手动文件夹
