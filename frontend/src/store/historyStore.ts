@@ -32,7 +32,7 @@ interface HistoryState {
   setViewMode: (mode: 'timeline' | 'album') => void;
   loadFolders: () => Promise<void>;
   createFolder: (name: string) => Promise<void>;
-  moveImageToFolder: (imageId: string, folderId: string) => Promise<void>;
+  moveImageToFolder: (imageId: string, folderId: number) => Promise<void>;
 }
 
 
