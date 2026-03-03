@@ -17,6 +17,7 @@ interface ConfigState {
   imageApiKey: string;
   imageModel: string;
   imageTimeoutSeconds: number;
+  enableRefImageCompression: boolean;
 
   // 对话配置
   chatProvider: string;
@@ -46,6 +47,7 @@ interface ConfigState {
   setImageApiKey: (key: string) => void;
   setImageModel: (model: string) => void;
   setImageTimeoutSeconds: (seconds: number) => void;
+  setEnableRefImageCompression: (enabled: boolean) => void;
   setChatProvider: (provider: string) => void;
   setChatApiBaseUrl: (url: string) => void;
   setChatApiKey: (key: string) => void;
@@ -75,6 +77,7 @@ export const useConfigStore = create<ConfigState>()(
       imageApiKey: '',
       imageModel: 'gemini-3-flash-image-preview',
       imageTimeoutSeconds: 500,
+      enableRefImageCompression: true,
       chatProvider: 'openai-chat',
       chatApiBaseUrl: 'https://api.openai.com/v1',
       chatApiKey: '',
@@ -95,6 +98,7 @@ export const useConfigStore = create<ConfigState>()(
       setImageApiKey: (imageApiKey) => set({ imageApiKey }),
       setImageModel: (imageModel) => set({ imageModel }),
       setImageTimeoutSeconds: (imageTimeoutSeconds) => set({ imageTimeoutSeconds }),
+      setEnableRefImageCompression: (enableRefImageCompression) => set({ enableRefImageCompression }),
       setChatProvider: (chatProvider) => set({ chatProvider }),
       setChatApiBaseUrl: (chatApiBaseUrl) => set({ chatApiBaseUrl }),
       setChatApiKey: (chatApiKey) => set({ chatApiKey }),

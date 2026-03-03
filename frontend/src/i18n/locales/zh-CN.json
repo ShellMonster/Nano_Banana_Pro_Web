@@ -165,6 +165,10 @@
       "image": "生图超时(秒)",
       "chat": "生文字超时(秒)"
     },
+    "refImageCompression": {
+      "label": "参考图压缩",
+      "hint": "开启后，上传的参考图会自动压缩以节省带宽和存储空间"
+    },
     "update": {
       "title": "软件更新",
       "check": "检查更新",

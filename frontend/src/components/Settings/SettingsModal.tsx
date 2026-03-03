@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, Languages, MessageSquare } from 'lucide-react';
+import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, Languages, MessageSquare, Image as ImageIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore, IMAGE_MODEL_OPTIONS, CUSTOM_MODEL_VALUE } from '../../store/configStore';
 import { Input } from '../common/Input';
 import { Select } from '../common/Select';
 import { Button } from '../common/Button';
+import { ToggleSwitch } from '../common/ToggleSwitch';
 import { Modal } from '../common/Modal';
 import { getProviders, updateProviderConfig, ProviderConfig } from '../../services/providerApi';
 import { toast } from '../../store/toastStore';
@@ -97,6 +98,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     imageApiBaseUrl, setImageApiBaseUrl,
     imageModel, setImageModel,
     imageTimeoutSeconds, setImageTimeoutSeconds,
+    enableRefImageCompression, setEnableRefImageCompression,
     chatProvider, setChatProvider,
     chatApiBaseUrl, setChatApiBaseUrl,
     chatApiKey, setChatApiKey,
@@ -524,6 +526,26 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none mt-2"
                 />
               )}
+            </div>
+
+            {/* 参考图压缩设置 */}
+            <div className="space-y-3">
+              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <ImageIcon className="w-4 h-4 text-blue-600" />
+                {t('settings.refImageCompression.label')}
+              </label>
+              <div className="flex items-center gap-3 px-1">
+                <ToggleSwitch
+                  checked={enableRefImageCompression}
+                  onChange={(checked) => setEnableRefImageCompression(checked)}
+                />
+                <span className="text-sm text-slate-600">
+                  {enableRefImageCompression ? t('common.enabled') : t('common.disabled')}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 px-1">
+                {t('settings.refImageCompression.hint')}
+              </p>
             </div>
 
             {/* Timeout */}
