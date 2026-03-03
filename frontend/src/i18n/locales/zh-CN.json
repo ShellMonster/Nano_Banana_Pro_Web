@@ -20,7 +20,9 @@
   },
   "common": {
     "copy": "复制",
-    "copied": "已复制",
+"copied": "已复制",
+    "disabled": "已关闭",
+    "enabled": "已开启",
     "close": "关闭",
     "cancel": "取消",
     "confirm": "确认",
