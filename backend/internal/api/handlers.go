@@ -361,9 +361,20 @@ func GenerateHandler(c *gin.Context) {
 	}
 
 	if err := model.DB.Create(taskModel).Error; err != nil {
+
 		Error(c, http.StatusInternalServerError, 500, "创建任务失败")
 		return
 	}
+
+	// 自动关联到当前月份文件夹
+	monthFolder, err := getOrCreateMonthFolder(model.DB, time.Now())
+	if err != nil {
+		log.Printf("[API] 警告: 获取或创建月份文件夹失败: %v\n", err)
+	} else {
+		taskModel.FolderID = strconv.FormatUint(uint64(monthFolder.ID), 10)
+		log.Printf("[API] 任务自动关联到月份文件夹: %s (ID: %d)\n", monthFolder.Name, monthFolder.ID)
+	}
+
 
 	// 提交到 Worker 池
 	task := &worker.Task{
@@ -462,6 +473,15 @@ func GenerateWithImagesHandler(c *gin.Context) {
 		Error(c, http.StatusInternalServerError, 500, "创建任务失败")
 		return
 	}
+	// 自动关联到当前月份文件夹
+	monthFolder, err := getOrCreateMonthFolder(model.DB, time.Now())
+	if err != nil {
+		log.Printf("[API] 警告: 获取或创建月份文件夹失败: %v\n", err)
+	} else {
+		taskModel.FolderID = strconv.FormatUint(uint64(monthFolder.ID), 10)
+		log.Printf("[API] 任务自动关联到月份文件夹: %s (ID: %d)\n", monthFolder.Name, monthFolder.ID)
+	}
+
 
 	// 4. 提交到 Worker 池
 	task := &worker.Task{
