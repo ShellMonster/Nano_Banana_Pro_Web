@@ -180,6 +180,10 @@
       "custom": "自定义",
       "customPlaceholder": "输入自定义模型 ID"
     },
+    "refImageCompression": {
+      "label": "参考图压缩",
+      "hint": "开启后，上传的参考图会自动压缩以节省带宽和存储空间"
+    },
     "timeout": {
       "image": "生图超时(秒)",
       "vision": "识图超时(秒)",

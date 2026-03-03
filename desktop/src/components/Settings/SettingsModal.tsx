@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, FileText, FolderOpen, Copy, RefreshCw, Languages, MessageSquare, Github, ScanEye, HelpCircle } from 'lucide-react';
+import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, FileText, FolderOpen, Copy, RefreshCw, Languages, MessageSquare, Github, ScanEye, HelpCircle, Image as ImageIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '../../store/configStore';
 import { Input } from '../common/Input';
 import { Select } from '../common/Select';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
+import { ToggleSwitch } from '../common/ToggleSwitch';
 import { getProviders, updateProviderConfig, ProviderConfig } from '../../services/providerApi';
 import { toast } from '../../store/toastStore';
 import { getDiagnosticVerbose, setDiagnosticVerbose } from '../../utils/diagnosticLogger';
@@ -151,6 +152,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     imageApiBaseUrl, setImageApiBaseUrl,
     imageModel, setImageModel,
     imageTimeoutSeconds, setImageTimeoutSeconds,
+    enableRefImageCompression, setEnableRefImageCompression,
     visionProvider, setVisionProvider,
     visionApiBaseUrl, setVisionApiBaseUrl,
     visionApiKey, setVisionApiKey,
@@ -987,6 +989,26 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none mt-2"
                 />
               )}
+            </div>
+
+            {/* 参考图压缩设置 */}
+            <div className="space-y-3">
+              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <ImageIcon className="w-4 h-4 text-blue-600" />
+                {t('settings.refImageCompression.label')}
+              </label>
+              <div className="flex items-center gap-3 px-1">
+                <ToggleSwitch
+                  checked={enableRefImageCompression}
+                  onChange={(checked) => setEnableRefImageCompression(checked)}
+                />
+                <span className="text-sm text-slate-600">
+                  {enableRefImageCompression ? t('common.enabled') : t('common.disabled')}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 px-1">
+                {t('settings.refImageCompression.hint')}
+              </p>
             </div>
 
             {/* Timeout */}

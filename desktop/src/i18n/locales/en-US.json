@@ -180,6 +180,10 @@
       "custom": "Custom",
       "customPlaceholder": "Enter custom model ID"
     },
+    "refImageCompression": {
+      "label": "Reference Image Compression",
+      "hint": "When enabled, reference images will be automatically compressed to save bandwidth and storage"
+    },
     "timeout": {
       "image": "Image timeout (s)",
       "vision": "Vision timeout (s)",
