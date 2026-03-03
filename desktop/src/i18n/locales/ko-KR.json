@@ -20,7 +20,9 @@
   },
   "common": {
     "copy": "복사",
-    "copied": "복사됨",
+"copied": "복사됨",
+    "disabled": "비활성화",
+    "enabled": "활성화",
     "close": "닫기",
     "cancel": "취소",
     "confirm": "확인",

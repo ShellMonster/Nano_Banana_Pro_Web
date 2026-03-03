@@ -20,7 +20,9 @@
   },
   "common": {
     "copy": "Copy",
-    "copied": "Copied",
+"copied": "Copied",
+    "disabled": "Disabled",
+    "enabled": "Enabled",
     "close": "Close",
     "cancel": "Cancel",
     "confirm": "Confirm",

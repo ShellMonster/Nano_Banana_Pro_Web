@@ -20,7 +20,9 @@
   },
   "common": {
     "copy": "コピー",
-    "copied": "コピーしました",
+"copied": "コピーしました",
+    "disabled": "無効",
+    "enabled": "有効",
     "close": "閉じる",
     "cancel": "キャンセル",
     "confirm": "確認",
