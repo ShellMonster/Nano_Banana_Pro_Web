@@ -54,7 +54,6 @@ func InitDB(dbPath string) {
 	go migrateOldTasksToMonthFolders()
 }
 
-
 // migrateOldTasksToMonthFolders 将旧版本未归类的任务自动迁移到月份文件夹
 func migrateOldTasksToMonthFolders() {
 	// 延迟几秒等待数据库完全初始化

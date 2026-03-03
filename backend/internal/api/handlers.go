@@ -380,7 +380,6 @@ func GenerateHandler(c *gin.Context) {
 		}
 	}
 
-
 	// 提交到 Worker 池
 	task := &worker.Task{
 		TaskModel: taskModel,
@@ -491,7 +490,6 @@ func GenerateWithImagesHandler(c *gin.Context) {
 			log.Printf("[API] 任务自动关联到月份文件夹: %s (ID: %d)\n", monthFolder.Name, monthFolder.ID)
 		}
 	}
-
 
 	// 4. 提交到 Worker 池
 	task := &worker.Task{
