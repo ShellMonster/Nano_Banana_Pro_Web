@@ -151,10 +151,24 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
     }, []);
 
     // 处理移动成功
-    const handleMoveSuccess = useCallback(() => {
-        // 刷新历史记录列表
-        useHistoryStore.getState().loadHistory(true);
-    }, []);
+    const handleMoveSuccess = useCallback(async () => {
+        if (!image.taskId) {
+            useHistoryStore.getState().loadHistory(true);
+            setIsMoveDialogOpen(false);
+            return;
+        }
+        // Update only the specific task for better UX
+        const { getDetail, upsertTask } = useHistoryStore.getState();
+        try {
+            const updatedTask = await getDetail(image.taskId);
+            upsertTask(updatedTask);
+        } catch (error) {
+            console.error('Failed to refresh task after move:', error);
+            // Fallback to full refresh on failure
+            useHistoryStore.getState().loadHistory(true);
+        }
+        setIsMoveDialogOpen(false);
+    }, [image.taskId]);
 
     const handlePointerDown = useCallback((e: React.PointerEvent) => {
         if (e.button !== 0) return;

@@ -37,15 +37,6 @@ export function CreateFolderDialog({
   // 创建中状态
   const [isCreating, setIsCreating] = useState(false);
 
-  // 弹窗打开时获取现有文件夹列表
-  useEffect(() => {
-    if (isOpen) {
-      loadExistingFolders();
-      // 重置输入
-      setFolderName('');
-    }
-  }, [isOpen]);
-
   // 加载现有文件夹列表
   const loadExistingFolders = useCallback(async () => {
     setIsLoading(true);
@@ -59,6 +50,15 @@ export function CreateFolderDialog({
       setIsLoading(false);
     }
   }, [t]);
+
+  // 弹窗打开时获取现有文件夹列表
+  useEffect(() => {
+    if (isOpen) {
+      loadExistingFolders();
+      // 重置输入
+      setFolderName('');
+    }
+  }, [isOpen, loadExistingFolders]);
 
   // 检查文件夹名称是否已存在
   const isNameExists = useCallback((name: string): boolean => {

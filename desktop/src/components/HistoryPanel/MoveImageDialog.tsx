@@ -39,15 +39,6 @@ export function MoveImageDialog({
   // 移动中状态
   const [isMoving, setIsMoving] = useState(false);
 
-  // 弹窗打开时获取文件夹列表
-  useEffect(() => {
-    if (isOpen) {
-      loadFolders();
-      // 重置选择
-      setSelectedFolderId(null);
-    }
-  }, [isOpen]);
-
   // 加载文件夹列表
   const loadFolders = useCallback(async () => {
     setIsLoading(true);
@@ -61,6 +52,15 @@ export function MoveImageDialog({
       setIsLoading(false);
     }
   }, [t]);
+
+  // 弹窗打开时获取文件夹列表
+  useEffect(() => {
+    if (isOpen) {
+      loadFolders();
+      setSelectedFolderId(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, loadFolders]);
 
   // 处理文件夹选择
   const handleSelectFolder = useCallback((folderId: number) => {
