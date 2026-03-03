@@ -390,6 +390,12 @@ export const useHistoryStore = create<HistoryState>()(
   // 处理图片移动：仅从本地列表中移除，避免重新加载
   handleImageMoved: (imageId: string, taskId: string) => {
     set((state) => {
+      // 检查目标任务是否存在于当前列表中
+      const targetTask = state.items.find(item => item.id === taskId);
+      if (!targetTask) {
+        return state; // 目标任务不在当前列表，无需更新
+      }
+
       const updatedItems = state.items.map(item => {
         if (item.id === taskId && item.images) {
           const filteredImages = item.images.filter(img => img.id !== imageId);
@@ -411,6 +417,7 @@ export const useHistoryStore = create<HistoryState>()(
       return {
         items: updatedItems,
         total: nextTotal,
+        hasMore: updatedItems.length < nextTotal
       };
     });
   },
