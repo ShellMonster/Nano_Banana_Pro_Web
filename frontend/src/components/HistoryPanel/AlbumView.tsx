@@ -107,12 +107,13 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
     list.forEach((task) => {
       if (!task.images || task.images.length === 0) return;
       task.images.forEach((img) => {
-        const imageUrl = img.url || img.filePath || img.thumbnailPath;
-        if (!imageUrl) return;
+        const normalizedUrl = img.url || img.filePath || img.thumbnailPath;
+        const normalizedThumbnailUrl = img.thumbnailUrl || img.thumbnailPath || img.filePath || normalizedUrl;
+        if (!normalizedUrl) return;
         nextImages.push({
           ...img,
-          url: img.url,
-          thumbnailUrl: img.thumbnailUrl || img.url,
+          url: normalizedUrl,
+          thumbnailUrl: normalizedThumbnailUrl,
           prompt: task.prompt || '',
           model: task.model || '',
           taskCreatedAt: task.createdAt || new Date().toISOString(),

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -75,25 +76,51 @@ func GetFoldersHandler(c *gin.Context) {
 
 	// 按创建时间降序排列
 	if err := model.DB.Order("created_at DESC").Find(&folders).Error; err != nil {
-		c.JSON(http.StatusOK, []FolderResponse{})
+		log.Printf("[API] 获取文件夹列表失败: %v\n", err)
+		Error(c, http.StatusInternalServerError, 500, "获取文件夹列表失败")
 		return
+	}
+
+	// 一次聚合统计所有文件夹的图片数量，避免 N+1 查询
+	type folderImageCount struct {
+		FolderID string `gorm:"column:folder_id"`
+		Count    int64  `gorm:"column:count"`
+	}
+
+	var counts []folderImageCount
+	if err := model.DB.Model(&model.Task{}).
+		Select("folder_id, COUNT(*) as count").
+		Where("folder_id <> '' AND deleted_at IS NULL").
+		Group("folder_id").
+		Scan(&counts).Error; err != nil {
+		log.Printf("[API] 统计文件夹图片数量失败: %v\n", err)
+	}
+
+	countMap := make(map[uint]int64, len(counts))
+	for _, c := range counts {
+		if c.FolderID == "" {
+			continue
+		}
+		id, err := strconv.ParseUint(c.FolderID, 10, 64)
+		if err != nil {
+			continue
+		}
+		countMap[uint(id)] = c.Count
 	}
 
 	// 构建响应，包含图片数量
 	responses := make([]FolderResponse, len(folders))
 	for i, folder := range folders {
 		responses[i] = FolderResponse{
-			ID:        folder.ID,
-			Name:      folder.Name,
-			Type:      folder.Type,
-			Year:      folder.Year,
-			Month:     folder.Month,
-			CreatedAt: folder.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt: folder.UpdatedAt.Format("2006-01-02 15:04:05"),
+			ID:         folder.ID,
+			Name:       folder.Name,
+			Type:       folder.Type,
+			Year:       folder.Year,
+			Month:      folder.Month,
+			CreatedAt:  folder.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:  folder.UpdatedAt.Format("2006-01-02 15:04:05"),
+			ImageCount: countMap[folder.ID],
 		}
-		// 统计该文件夹下的图片数量（未删除的）
-		model.DB.Model(&model.Task{}).Where("folder_id = ? AND deleted_at IS NULL",
-			strconv.FormatUint(uint64(folder.ID), 10)).Count(&responses[i].ImageCount)
 	}
 
 	log.Printf("[API] 获取文件夹列表成功: 共 %d 个文件夹\n", len(folders))
@@ -130,14 +157,21 @@ func GetFolderImagesHandler(c *gin.Context) {
 	// 先校验文件夹是否存在（不存在时返回 404，避免误导为“空文件夹”）
 	var folder model.Folder
 	if err := model.DB.Where("id = ?", folderID).First(&folder).Error; err != nil {
-		Error(c, http.StatusNotFound, 404, "文件夹不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			Error(c, http.StatusNotFound, 404, "文件夹不存在")
+			return
+		}
+		Error(c, http.StatusInternalServerError, 500, "查询文件夹失败")
 		return
 	}
 
 	query := model.DB.Model(&model.Task{}).Where("folder_id = ?", folderID)
 
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		Error(c, http.StatusInternalServerError, 500, "查询文件夹图片总数失败")
+		return
+	}
 
 	var tasks []model.Task
 	offset := (page - 1) * pageSize
