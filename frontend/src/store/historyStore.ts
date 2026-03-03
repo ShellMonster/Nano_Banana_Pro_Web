@@ -108,10 +108,10 @@ export const useHistoryStore = create<HistoryState>()(
   page: 1,
   total: 0,
   searchKeyword: '',
-      lastLoadedAt: null,
-      viewMode: 'timeline',
-      folders: [],
-      foldersLoading: false,
+  lastLoadedAt: null,
+  viewMode: 'timeline',
+  folders: [],
+  foldersLoading: false,
 
   loadHistory: async (reset = false, options) => {
     // 请求序号：防止慢请求覆盖快请求（搜索/翻页/重置时常见）
@@ -364,8 +364,8 @@ export const useHistoryStore = create<HistoryState>()(
 
   createFolder: async (name) => {
     try {
-      await createFolderApi({ name });
-      await get().loadFolders();
+      const newFolder = await createFolderApi({ name });
+      set((state) => ({ folders: [newFolder, ...state.folders] }));
       toast.success(i18n.t('history.folder.createSuccess'));
     } catch (error) {
       console.error('Failed to create folder:', error);
