@@ -40,13 +40,10 @@ export function MoveImageDialog({
   }, [t]);
 
   useEffect(() => {
-    const init = async () => {
-      if (isOpen) {
-        await loadFolders();
-        setSelectedFolderId(null);
-      }
-    };
-    void init();
+    if (isOpen) {
+      void loadFolders();
+      setSelectedFolderId(null);
+    }
   }, [isOpen, loadFolders]);
 
   const handleSelectFolder = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {

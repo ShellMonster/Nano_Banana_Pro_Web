@@ -47,8 +47,9 @@ export function CreateFolderDialog({
   const isNameExists = useCallback((name: string): boolean => {
     const trimmedName = name.trim();
     if (!trimmedName) return false;
+    const lowerCaseName = trimmedName.toLowerCase();
     return existingFolders.some(
-      folder => folder.name.toLowerCase() === trimmedName.toLowerCase()
+      folder => folder.name.toLowerCase() === lowerCaseName
     );
   }, [existingFolders]);
 
@@ -126,7 +127,7 @@ export function CreateFolderDialog({
             className={`
               w-full px-4 py-3 rounded-xl border-2 text-sm font-medium
               transition-all duration-200 outline-none
-              ${validationError && folderName.trim()
+              ${validationError
                 ? 'border-red-300 focus:border-red-500 bg-red-50/50'
                 : 'border-slate-200 focus:border-blue-500 hover:border-slate-300'
               }
