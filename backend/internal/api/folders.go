@@ -220,8 +220,8 @@ func getOrCreateMonthFolder(t time.Time) *model.Folder {
 
 	// Attrs 设置创建时的默认值
 	result := model.DB.Where(&model.Folder{
-		Type: FolderTypeMonth,
-		Year: year,
+		Type:  FolderTypeMonth,
+		Year:  year,
 		Month: month,
 	}).Attrs(model.Folder{
 		Name: folderName,
