@@ -338,7 +338,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
                 onClose={() => setIsMoveDialogOpen(false)}
                 taskId={image.taskId || ''}
                 onSuccess={() => {
-                    useHistoryStore.getState().loadHistory(true);
+                    useHistoryStore.getState().handleImageMoved(image.id, image.taskId || image.id);
                 }}
             />
         </div>
