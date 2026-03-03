@@ -570,10 +570,44 @@ export const ImagePreview = React.memo(function ImagePreview({
         else toast.error(t('toast.copyFailed'));
     }, [copyText, image]);
 
-    const handleDownload = useCallback(() => {
-        if (!image?.id) return;
-        window.location.href = getImageDownloadUrl(image.id);
-    }, [image?.id]);
+    const handleDownload = useCallback(async () => {
+        if (!image?.filePath) {
+            toast.error(t('toast.noLocalPath'));
+            return;
+        }
+
+        try {
+            // 检测是否在 Tauri 环境
+            if (window.__TAURI_INTERNALS__) {
+                const { save } = await import('@tauri-apps/plugin-dialog');
+                const { readFile, writeFile } = await import('@tauri-apps/plugin-fs');
+                
+                // 根据 mimeType 确定扩展名
+                const ext = image.mimeType?.split('/')[1] || 'png';
+                const defaultName = `image-${image.id}.${ext}`;
+                
+                // 显示保存对话框
+                const destPath = await save({
+                    defaultPath: defaultName,
+                    filters: [{ name: 'Image', extensions: [ext, '*'] }]
+                });
+                
+                if (!destPath) return; // 用户取消
+                
+                // 读取本地文件并写入目标位置
+                const bytes = await readFile(image.filePath);
+                await writeFile(destPath, bytes);
+                
+                toast.success(t('toast.downloadSuccess'));
+            } else {
+                // Web 环境：使用原有方式
+                window.location.href = getImageDownloadUrl(image.id);
+            }
+        } catch (error) {
+            console.error('Download failed:', error);
+            toast.error(t('toast.downloadFailed'));
+        }
+    }, [image, t]);
 
     if (!image) return null;
 
