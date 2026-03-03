@@ -17,6 +17,18 @@ interface ConfigState {
   imageApiKey: string;
   imageModel: string;
   imageTimeoutSeconds: number;
+  // 识图配置（逆向提示词用）
+  visionProvider: string;
+  visionApiBaseUrl: string;
+  visionApiKey: string;
+  visionModel: string;
+  visionTimeoutSeconds: number;
+  visionSyncedConfig: {
+    apiBaseUrl: string;
+    apiKey: string;
+    model: string;
+    timeoutSeconds: number;
+  } | null;
   enableRefImageCompression: boolean;
 
   // 对话配置
@@ -47,6 +59,12 @@ interface ConfigState {
   setImageApiKey: (key: string) => void;
   setImageModel: (model: string) => void;
   setImageTimeoutSeconds: (seconds: number) => void;
+  setVisionProvider: (provider: string) => void;
+  setVisionApiBaseUrl: (url: string) => void;
+  setVisionApiKey: (key: string) => void;
+  setVisionModel: (model: string) => void;
+  setVisionTimeoutSeconds: (seconds: number) => void;
+  setVisionSyncedConfig: (config: { apiBaseUrl: string; apiKey: string; model: string; timeoutSeconds: number } | null) => void;
   setEnableRefImageCompression: (enabled: boolean) => void;
   setChatProvider: (provider: string) => void;
   setChatApiBaseUrl: (url: string) => void;
@@ -77,6 +95,13 @@ export const useConfigStore = create<ConfigState>()(
       imageApiKey: '',
       imageModel: 'gemini-3-flash-image-preview',
       imageTimeoutSeconds: 500,
+      // 识图配置（逆向提示词用）
+      visionProvider: 'gemini-chat',
+      visionApiBaseUrl: '',
+      visionApiKey: '',
+      visionModel: 'gemini-3-flash-preview',
+      visionTimeoutSeconds: 150,
+      visionSyncedConfig: null,
       enableRefImageCompression: true,
       chatProvider: 'openai-chat',
       chatApiBaseUrl: 'https://api.openai.com/v1',
@@ -98,6 +123,12 @@ export const useConfigStore = create<ConfigState>()(
       setImageApiKey: (imageApiKey) => set({ imageApiKey }),
       setImageModel: (imageModel) => set({ imageModel }),
       setImageTimeoutSeconds: (imageTimeoutSeconds) => set({ imageTimeoutSeconds }),
+      setVisionProvider: (visionProvider) => set({ visionProvider }),
+      setVisionApiBaseUrl: (visionApiBaseUrl) => set({ visionApiBaseUrl }),
+      setVisionApiKey: (visionApiKey) => set({ visionApiKey }),
+      setVisionModel: (visionModel) => set({ visionModel }),
+      setVisionTimeoutSeconds: (visionTimeoutSeconds) => set({ visionTimeoutSeconds }),
+      setVisionSyncedConfig: (visionSyncedConfig) => set({ visionSyncedConfig }),
       setEnableRefImageCompression: (enableRefImageCompression) => set({ enableRefImageCompression }),
       setChatProvider: (chatProvider) => set({ chatProvider }),
       setChatApiBaseUrl: (chatApiBaseUrl) => set({ chatApiBaseUrl }),
@@ -129,6 +160,13 @@ export const useConfigStore = create<ConfigState>()(
         imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
         imageModel: 'gemini-3-flash-image-preview',
         imageTimeoutSeconds: 500,
+      // 识图配置（逆向提示词用）
+      visionProvider: 'gemini-chat',
+      visionApiBaseUrl: '',
+      visionApiKey: '',
+      visionModel: 'gemini-3-flash-preview',
+      visionTimeoutSeconds: 150,
+      visionSyncedConfig: null,
         chatProvider: 'openai-chat',
         chatApiBaseUrl: 'https://api.openai.com/v1',
         chatModel: 'gemini-3-flash-preview',
