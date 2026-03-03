@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { SearchBar } from './SearchBar';
 import { HistoryList } from './HistoryList';
+import { ViewToggle } from './ViewToggle';
 import { useHistoryStore } from '../../store/historyStore';
 
 interface HistoryPanelProps {
@@ -9,6 +10,8 @@ interface HistoryPanelProps {
 
 export default function HistoryPanel({ isActive }: HistoryPanelProps) {
   const loadHistory = useHistoryStore((s) => s.loadHistory);
+  const viewMode = useHistoryStore((s) => s.viewMode);
+  const setViewMode = useHistoryStore((s) => s.setViewMode);
 
   // 使用 ref 存储上一次的 isActive 值，检测变化
   const prevIsActiveRef = useRef<boolean>();
@@ -78,7 +81,12 @@ export default function HistoryPanel({ isActive }: HistoryPanelProps) {
   return (
     <div className="h-full bg-gray-50 flex flex-col">
       <div className="p-4 bg-white border-b border-gray-200 shadow-sm z-10">
-        <SearchBar />
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <SearchBar />
+          </div>
+          <ViewToggle viewMode={viewMode} onChange={setViewMode} />
+        </div>
       </div>
 
       <div className="flex-1 min-h-0">

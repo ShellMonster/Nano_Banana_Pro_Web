@@ -438,6 +438,10 @@
         "description": "不明なタスク状態"
       }
     },
+    "viewMode": {
+      "timeline": "タイムライン",
+      "album": "アルバム"
+    },
     "toast": {
       "updated": "履歴を更新しました",
       "loadFailed": "履歴の読み込みに失敗しました",

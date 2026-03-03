@@ -28,6 +28,7 @@ type Task struct {
 	ID             uint           `gorm:"primaryKey" json:"id"`
 	TaskID         string         `gorm:"uniqueIndex;not null" json:"task_id"`              // 外部调用的唯一 ID
 	Prompt         string         `gorm:"index:idx_prompt_search;index" json:"prompt"`      // 提示词，添加复合索引支持搜索
+	FolderID       string         `gorm:"index" json:"folder_id"`                           // 所属文件夹 ID（可选）
 	ProviderName   string         `gorm:"index" json:"provider_name"`                       // 使用的 Provider
 	ModelID        string         `gorm:"index" json:"model_id"`                            // 使用的模型 ID
 	Status         string         `gorm:"index:idx_status_created;not null" json:"status"`  // 状态，与创建时间组成复合索引
@@ -43,4 +44,16 @@ type Task struct {
 	CreatedAt      time.Time      `gorm:"index:idx_status_created;index" json:"created_at"` // 创建时间
 	CompletedAt    *time.Time     `json:"completed_at"`
 	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+// Folder 对应 folders 表，用于存储相册文件夹信息
+type Folder struct {
+	ID        uint           `gorm:"primaryKey" json:"id"`
+	Name      string         `gorm:"not null" json:"name"` // 文件夹名称
+	Type      string         `gorm:"not null" json:"type"` // 文件夹类型：month（自动月份）或 manual（手动创建）
+	Year      int            `json:"year"`                 // 年份（仅 auto 类型）
+	Month     int            `json:"month"`                // 月份（仅 auto 类型）
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
