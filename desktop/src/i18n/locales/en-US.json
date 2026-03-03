@@ -463,6 +463,24 @@
       "batchDeleteFailed": "Batch delete failed",
       "imageDeleted": "Image deleted",
       "imageDeleteFailed": "Image delete failed"
+    },
+    "folder": {
+      "title": "Folder",
+      "create": "Create Folder",
+      "createPlaceholder": "Enter folder name",
+      "createSuccess": "Created successfully",
+      "createFailed": "Failed to create",
+      "nameRequired": "Folder name is required",
+      "nameExists": "Folder name already exists",
+      "imageCount": "images",
+      "typeMonth": "Auto Month Folder",
+      "typeManual": "Manual",
+      "loadFailed": "Failed to load folders",
+      "empty": "No folders yet",
+      "moveImage": "Move to Folder",
+      "moveSuccess": "Moved successfully",
+      "moveFailed": "Failed to move",
+      "selectFolder": "Select target folder"
     }
   },
   "templateMarket": {

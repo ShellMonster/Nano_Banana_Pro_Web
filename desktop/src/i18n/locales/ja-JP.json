@@ -451,6 +451,24 @@
       "batchDeleteFailed": "一括削除に失敗しました",
       "imageDeleted": "画像を削除しました",
       "imageDeleteFailed": "画像の削除に失敗しました"
+    },
+    "folder": {
+      "title": "フォルダ",
+      "create": "フォルダを作成",
+      "createPlaceholder": "フォルダ名を入力してください",
+      "createSuccess": "作成しました",
+      "createFailed": "作成に失敗しました",
+      "nameRequired": "フォルダ名を入力してください",
+      "nameExists": "同じ名前のフォルダが既に存在します",
+      "imageCount": "枚",
+      "typeMonth": "自動月次フォルダ",
+      "typeManual": "手動作成",
+      "loadFailed": "フォルダの読み込みに失敗しました",
+      "empty": "フォルダがありません",
+      "moveImage": "フォルダに移動",
+      "moveSuccess": "移動しました",
+      "moveFailed": "移動に失敗しました",
+      "selectFolder": "移動先フォルダを選択"
     }
   },
   "templateMarket": {
