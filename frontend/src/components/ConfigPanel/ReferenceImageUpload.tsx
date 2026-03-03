@@ -16,6 +16,7 @@ export function ReferenceImageUpload() {
   const addRefFiles = useConfigStore((s) => s.addRefFiles);
   const removeRefFile = useConfigStore((s) => s.removeRefFile);
   const setRefFiles = useConfigStore((s) => s.setRefFiles);
+  const enableRefImageCompression = useConfigStore((s) => s.enableRefImageCompression);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -300,7 +301,40 @@ export function ReferenceImageUpload() {
       let shouldCompress = false;
       let compressReason = '';
 
-      // 判断是否需要压缩
+      // 判断是否需要压缩（仅在开启压缩时）
+      if (enableRefImageCompression) {
+        if (sizeMB > 2) {
+          // 文件超过 2MB，必须压缩
+          shouldCompress = true;
+          compressReason = t('refImage.compressReason.fileTooLarge', { size: sizeMB.toFixed(2) });
+        } else if (sizeMB > 1) {
+          // 文件在 1-2MB 之间，检查图片尺寸
+          let objectUrl = '';
+          try {
+            const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+              const img = new Image();
+              img.onload = () => { resolve({ width: img.width, height: img.height }); };
+              img.onerror = () => { reject(new Error(t('errors.imageLoadFailed'))); };
+              objectUrl = URL.createObjectURL(file);
+              img.src = objectUrl;
+            });
+
+            const maxDimension = Math.max(dimensions.width, dimensions.height);
+            if (maxDimension > 2048) {
+              // 图片尺寸超过 2048px，建议压缩
+              shouldCompress = true;
+              compressReason = t('refImage.compressReason.dimensions', { width: dimensions.width, height: dimensions.height });
+            }
+          } catch (error) {
+            // 尺寸检查失败，跳过压缩
+          } finally {
+            // 确保在所有情况下都清理 ObjectURL
+            if (objectUrl) {
+              URL.revokeObjectURL(objectUrl);
+            }
+          }
+        }
+      }
       if (sizeMB > 2) {
         // 文件超过 2MB，必须压缩
         shouldCompress = true;
@@ -311,8 +345,8 @@ export function ReferenceImageUpload() {
         try {
           const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
             const img = new Image();
-            img.onload = () => resolve({ width: img.width, height: img.height });
-            img.onerror = () => reject(new Error(t('errors.imageLoadFailed')));
+            img.onload = () => { resolve({ width: img.width, height: img.height }); };
+            img.onerror = () => { reject(new Error(t('errors.imageLoadFailed'))); };
             objectUrl = URL.createObjectURL(file);
             img.src = objectUrl;
           });
@@ -527,8 +561,8 @@ export function ReferenceImageUpload() {
       const originalFile = new File([blob], filename, { type: blob.type });
       const sizeMB = originalFile.size / 1024 / 1024;
 
-      // 如果超过 1MB，进行压缩
-      if (sizeMB > 1) {
+      // 如果超过 1MB 且开启压缩，进行压缩
+      if (sizeMB > 1 && enableRefImageCompression) {
         try {
           const compressedFile = await compressImageCallback(originalFile, 1);
           // 压缩后重新计算 MD5（因为文件内容变了）

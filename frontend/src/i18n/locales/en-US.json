@@ -165,6 +165,10 @@
       "image": "Image timeout (s)",
       "chat": "Text timeout (s)"
     },
+    "refImageCompression": {
+      "label": "Reference Image Compression",
+      "hint": "When enabled, reference images will be automatically compressed to save bandwidth and storage"
+    },
     "update": {
       "title": "Updates",
       "check": "Check for updates",
