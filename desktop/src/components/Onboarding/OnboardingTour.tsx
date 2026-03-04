@@ -9,13 +9,14 @@ import appIcon from '../../assets/app-icon.png';
 // 引导时使用的示例提示词
 const DEMO_PROMPT_ZH = '一只可爱的橘猫坐在窗台上，阳光洒在它的毛发上，温暖而惬意，高清摄影风格';
 const DEMO_PROMPT_EN = 'A cute orange cat sitting on a windowsill, sunlight streaming through its fur, warm and cozy atmosphere, high-quality photography style';
+const DEMO_REF_FILE_NAME = 'demo-image.png';
 
 // 从 URL 创建 File 对象
 async function createDemoRefFile(url: string): Promise<File | null> {
   try {
     const response = await fetch(url);
     const blob = await response.blob();
-    return new File([blob], 'demo-image.png', { type: 'image/png' });
+    return new File([blob], DEMO_REF_FILE_NAME, { type: 'image/png' });
   } catch (error) {
     console.error('Failed to create demo ref file:', error);
     return null;
@@ -520,11 +521,14 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     closeCreateFolderDialogIfOpen();
     if (prevStateRef.current) {
       const demoRefFile = demoRefFileRef.current;
-      if (demoRefFile) {
-        const currentFiles = useConfigStore.getState().refFiles;
-        if (currentFiles.some((file) => file === demoRefFile)) {
-          setRefFiles(currentFiles.filter((file) => file !== demoRefFile));
-        }
+      const currentFiles = useConfigStore.getState().refFiles;
+      const cleanedFiles = currentFiles.filter((file) => {
+        if (demoRefFile && file === demoRefFile) return false;
+        if (file.name === DEMO_REF_FILE_NAME) return false;
+        return true;
+      });
+      if (cleanedFiles.length !== currentFiles.length) {
+        setRefFiles(cleanedFiles);
       }
       // 如果之前没有提示词，清除我们添加的示例
       if (!prevStateRef.current.prompt.trim()) {
