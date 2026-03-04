@@ -461,6 +461,8 @@
       "moveSuccess": "이미지 이동 성공",
       "moveFailed": "이미지 이동 실패",
       "selectFolder": "대상 폴 더 선택",
+      "moveButton": "이동",
+      "moveButtonTitle": "폴더로 이미지 이동"
       "backToFolders": "폴더 목록으로 돌아가기",
       "emptyInFolder": "이 폴더에 이미지가 없습니다"
     }

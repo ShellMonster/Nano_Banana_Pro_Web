@@ -487,9 +487,10 @@
       "moveImage": "Move to Folder",
       "moveSuccess": "Moved successfully",
       "moveFailed": "Failed to move",
-      "selectFolder": "Select target folder",
       "backToFolders": "Back to folders",
-      "emptyInFolder": "No images in this folder"
+      "emptyInFolder": "No images in this folder",
+      "moveButton": "Move",
+      "moveButtonTitle": "Move image to folder"
     }
   },
   "templateMarket": {

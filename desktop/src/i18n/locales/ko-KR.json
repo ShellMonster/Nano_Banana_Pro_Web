@@ -475,7 +475,9 @@
       "moveImage": "폴더로 이동",
       "moveSuccess": "이동되었습니다",
       "moveFailed": "이동 실패",
-      "selectFolder": "대상 폴더 선택"
+      "selectFolder": "대상 폴더 선택",
+      "moveButton": "이동",
+      "moveButtonTitle": "폴더로 이미지 이동"
     }
   },
   "templateMarket": {

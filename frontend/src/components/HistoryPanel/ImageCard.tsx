@@ -199,11 +199,37 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
             onContextMenu={handleContextMenu}
         >
             {/* 拖拽指示器 - 左上角 */}
-            <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+            <div className="absolute top-2 left-12 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                 <div className="bg-black/20 backdrop-blur-sm rounded-lg p-1.5">
                     <GripVertical className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600" />
                 </div>
             </div>
+
+            {/* 移动按钮 - 左上角 */}
+            {!showConfirm && (
+                <div
+                    className={`
+                        absolute top-2 left-2 z-20
+                        transition-opacity duration-100 ease-out
+                        opacity-0
+                        group-hover:opacity-100
+                        pointer-events-none
+                    `}
+                >
+                    <button
+                        onClick={(e) => { e.stopPropagation(); handleMoveImage(); }}
+                        className={`
+                            rounded-full flex items-center justify-center shadow-lg
+                            transition-all duration-200
+                            bg-blue-500 hover:bg-blue-600 text-white w-7 h-7 sm:w-8 sm:h-8
+                            pointer-events-auto
+                        `}
+                        title={t('history.folder.moveButtonTitle')}
+                    >
+                        <Move className="w-3 h-3 sm:w-4 sm:h-4" />
+                    </button>
+                </div>
+            )}
 
             {/* 删除按钮 - 纯 CSS hover，不依赖 JavaScript */}
             {/* 正常状态：CSS 控制显隐 */}

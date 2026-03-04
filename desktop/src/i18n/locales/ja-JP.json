@@ -475,7 +475,9 @@
       "moveImage": "フォルダに移動",
       "moveSuccess": "移動しました",
       "moveFailed": "移動に失敗しました",
-      "selectFolder": "移動先フォルダを選択"
+      "selectFolder": "移動先フォルダを選択",
+      "moveButton": "移動",
+      "moveButtonTitle": "画像をフォルダに移動"
     }
   },
   "templateMarket": {

@@ -463,6 +463,9 @@
       "selectFolder": "选择目标文件夹",
       "backToFolders": "返回文件夹",
       "emptyInFolder": "当前文件夹暂无图片"
+,
+      "moveButton": "移动",
+      "moveButtonTitle": "移动图片到文件夹"
     }
   },
   "templateMarket": {

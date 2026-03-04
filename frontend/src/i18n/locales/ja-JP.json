@@ -462,7 +462,9 @@
       "moveFailed": "画像の移動に失敗しました",
       "selectFolder": "ターゲットフォルダを選択",
       "backToFolders": "フォルダ一覧に戻る",
-      "emptyInFolder": "このフォルダには画像がありません"
+      "emptyInFolder": "このフォルダには画像がありません",
+      "moveButton": "移動",
+      "moveButtonTitle": "画像をフォルダに移動"
     }
   },
   "templateMarket": {
