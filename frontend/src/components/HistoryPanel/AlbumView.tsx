@@ -65,7 +65,7 @@ const getSafeArrayItem = <T,>(items: T[], idx: number): T | undefined => {
   if (!Number.isInteger(idx) || idx < 0 || idx >= items.length) {
     return undefined;
   }
-  return items[idx];
+  return items.slice(idx, idx + 1)[0];
 };
 
 export interface AlbumViewRef {
