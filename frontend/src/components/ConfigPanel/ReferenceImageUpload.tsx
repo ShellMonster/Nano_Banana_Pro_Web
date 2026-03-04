@@ -335,38 +335,6 @@ export function ReferenceImageUpload() {
           }
         }
       }
-      if (sizeMB > 2) {
-        // 文件超过 2MB，必须压缩
-        shouldCompress = true;
-        compressReason = t('refImage.compressReason.fileTooLarge', { size: sizeMB.toFixed(2) });
-      } else if (sizeMB > 1) {
-        // 文件在 1-2MB 之间，检查图片尺寸
-        let objectUrl = '';
-        try {
-          const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => { resolve({ width: img.width, height: img.height }); };
-            img.onerror = () => { reject(new Error(t('errors.imageLoadFailed'))); };
-            objectUrl = URL.createObjectURL(file);
-            img.src = objectUrl;
-          });
-
-          const maxDimension = Math.max(dimensions.width, dimensions.height);
-          if (maxDimension > 2048) {
-            // 图片尺寸超过 2048px，建议压缩
-            shouldCompress = true;
-            compressReason = t('refImage.compressReason.dimensions', { width: dimensions.width, height: dimensions.height });
-          }
-        } catch (error) {
-          // 尺寸检查失败，跳过压缩
-        } finally {
-          // 确保在所有情况下都清理 ObjectURL
-          if (objectUrl) {
-            URL.revokeObjectURL(objectUrl);
-          }
-        }
-      }
-
       let finalFile = file as File | ExtendedFile;
       let finalMd5 = md5;
 
@@ -404,7 +372,7 @@ export function ReferenceImageUpload() {
     }
 
     return uniqueFiles;
-  }, [calculateMd5Callback, compressImageCallback, t]);
+  }, [calculateMd5Callback, compressImageCallback, enableRefImageCompression, t]);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -592,7 +560,7 @@ export function ReferenceImageUpload() {
       toast.error(t('refImage.toast.fetchFailedDetail', { message }));
       return null;
     }
-  }, [fetchFileWithMd5Callback, compressImageCallback, calculateMd5Callback, t]);
+  }, [fetchFileWithMd5Callback, compressImageCallback, calculateMd5Callback, enableRefImageCompression, t]);
 
   // 处理拖拽释放
   const handleDrop = useCallback(async (e: React.DragEvent) => {

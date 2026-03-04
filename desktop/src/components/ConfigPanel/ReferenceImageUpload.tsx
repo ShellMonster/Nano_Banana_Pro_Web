@@ -634,34 +634,36 @@ export function ReferenceImageUpload() {
       let compressReason = '';
 
       // 判断是否需要压缩（仅在开启压缩时）
-      if (sizeMB > 2) {
-        // 文件超过 2MB，必须压缩
-        shouldCompress = true;
-        compressReason = t('refImage.compressReason.fileTooLarge', { size: sizeMB.toFixed(2) });
-      } else if (sizeMB > 1) {
-        // 文件在 1-2MB 之间，检查图片尺寸
-        let objectUrl = '';
-        try {
-          const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve({ width: img.width, height: img.height });
-            img.onerror = () => reject(new Error(t('errors.imageLoadFailed')));
-            objectUrl = URL.createObjectURL(file);
-            img.src = objectUrl;
-          });
+      if (enableRefImageCompression) {
+        if (sizeMB > 2) {
+          // 文件超过 2MB，必须压缩
+          shouldCompress = true;
+          compressReason = t('refImage.compressReason.fileTooLarge', { size: sizeMB.toFixed(2) });
+        } else if (sizeMB > 1) {
+          // 文件在 1-2MB 之间，检查图片尺寸
+          let objectUrl = '';
+          try {
+            const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+              const img = new Image();
+              img.onload = () => resolve({ width: img.width, height: img.height });
+              img.onerror = () => reject(new Error(t('errors.imageLoadFailed')));
+              objectUrl = URL.createObjectURL(file);
+              img.src = objectUrl;
+            });
 
-          const maxDimension = Math.max(dimensions.width, dimensions.height);
-          if (maxDimension > 2048) {
-            // 图片尺寸超过 2048px，建议压缩
-            shouldCompress = true;
-            compressReason = t('refImage.compressReason.dimensions', { width: dimensions.width, height: dimensions.height });
-          }
-        } catch (error) {
-          // 尺寸检查失败，跳过压缩
-        } finally {
-          // 确保在所有情况下都清理 ObjectURL
-          if (objectUrl) {
-            URL.revokeObjectURL(objectUrl);
+            const maxDimension = Math.max(dimensions.width, dimensions.height);
+            if (maxDimension > 2048) {
+              // 图片尺寸超过 2048px，建议压缩
+              shouldCompress = true;
+              compressReason = t('refImage.compressReason.dimensions', { width: dimensions.width, height: dimensions.height });
+            }
+          } catch (error) {
+            // 尺寸检查失败，跳过压缩
+          } finally {
+            // 确保在所有情况下都清理 ObjectURL
+            if (objectUrl) {
+              URL.revokeObjectURL(objectUrl);
+            }
           }
         }
       }
@@ -703,7 +705,7 @@ export function ReferenceImageUpload() {
     }
 
     return uniqueFiles;
-  }, [calculateMd5Callback, compressImageCallback, t]);
+  }, [calculateMd5Callback, compressImageCallback, enableRefImageCompression, t]);
 
   const handleInternalDrop = useCallback(async (payload: InternalDragPayload) => {
     if (!payload) return;
