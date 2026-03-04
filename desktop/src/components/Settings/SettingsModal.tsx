@@ -918,7 +918,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </div>
 
             {/* API Base URL */}
-            <div className="space-y-3">
+            <div className="space-y-3" data-onboarding="settings-ref-compression">
             <div className="flex items-center justify-between px-1">
               <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
                 <Globe className="w-4 h-4 text-blue-600" />

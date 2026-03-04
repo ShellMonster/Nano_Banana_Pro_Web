@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Joyride, { CallBackProps, STATUS, Step, ACTIONS, EVENTS } from 'react-joyride';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '../../store/configStore';
+import { useGenerateStore } from '../../store/generateStore';
+import { useHistoryStore } from '../../store/historyStore';
 import appIcon from '../../assets/app-icon.png';
 
 // 引导时使用的示例提示词
@@ -80,9 +82,32 @@ interface OnboardingTourProps {
   onReady?: () => void;
 }
 
+type OnboardingStepKey =
+  | 'welcome'
+  | 'settingsEntry'
+  | 'prompt'
+  | 'optimizeNormal'
+  | 'optimizeJson'
+  | 'resolution'
+  | 'refUpload'
+  | 'refExtract'
+  | 'templateMarket'
+  | 'generate'
+  | 'historyTab'
+  | 'historyViewToggle'
+  | 'historyAlbumCards'
+  | 'historyCreateFolder'
+  | 'historyCreateFolderDialog'
+  | 'historyOpenFolderImages'
+  | 'historyMoveToFolder'
+  | 'historyDragToRef'
+  | 'settingsCompression';
+
 export function OnboardingTour({ onReady }: OnboardingTourProps) {
   const { t, i18n } = useTranslation();
   const { showOnboarding, setShowOnboarding, prompt, setPrompt, refFiles, setRefFiles, clearRefFiles } = useConfigStore();
+  const setTab = useGenerateStore((s) => s.setTab);
+  const setHistoryViewMode = useHistoryStore((s) => s.setViewMode);
   const [run, setRun] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
 
@@ -94,11 +119,13 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
 
   // 加载示例参考图的状态
   const demoFileLoadedRef = useRef(false);
+  const stepRetryRef = useRef<Record<string, number>>({});
 
   // 定义引导步骤 - 拆分为更细的步骤
   const steps: Step[] = [
     {
       target: 'body',
+      data: { key: 'welcome' satisfies OnboardingStepKey },
       placement: 'center',
       title: t('onboarding.welcome.title'),
       content: t('onboarding.welcome.content'),
@@ -106,6 +133,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="settings-button"]',
+      data: { key: 'settingsEntry' satisfies OnboardingStepKey },
       placement: 'left',
       title: t('onboarding.settings.title'),
       content: t('onboarding.settings.content'),
@@ -113,6 +141,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="prompt-input"]',
+      data: { key: 'prompt' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.prompt.title'),
       content: t('onboarding.prompt.content'),
@@ -120,6 +149,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="optimize-normal"]',
+      data: { key: 'optimizeNormal' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.optimizeNormal.title'),
       content: t('onboarding.optimizeNormal.content'),
@@ -127,6 +157,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="optimize-json"]',
+      data: { key: 'optimizeJson' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.optimizeJson.title'),
       content: t('onboarding.optimizeJson.content'),
@@ -134,6 +165,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="resolution-ratio"]',
+      data: { key: 'resolution' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.resolution.title'),
       content: t('onboarding.resolution.content'),
@@ -141,6 +173,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="ref-image-area"]',
+      data: { key: 'refUpload' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.refImageUpload.title'),
       content: t('onboarding.refImageUpload.content'),
@@ -148,6 +181,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="ref-image-extract"]',
+      data: { key: 'refExtract' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.refImageExtract.title'),
       content: t('onboarding.refImageExtract.content'),
@@ -155,6 +189,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="template-market"]',
+      data: { key: 'templateMarket' satisfies OnboardingStepKey },
       placement: 'bottom',
       title: t('onboarding.templateMarket.title'),
       content: t('onboarding.templateMarket.content'),
@@ -162,12 +197,118 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="generate-button"]',
+      data: { key: 'generate' satisfies OnboardingStepKey },
       placement: 'left',
       title: t('onboarding.generate.title'),
       content: t('onboarding.generate.content'),
       spotlightPadding: 4,
     },
+    {
+      target: '[data-onboarding="tab-history"]',
+      data: { key: 'historyTab' satisfies OnboardingStepKey },
+      placement: 'left',
+      title: t('onboarding.historyTab.title'),
+      content: t('onboarding.historyTab.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="history-view-toggle"]',
+      data: { key: 'historyViewToggle' satisfies OnboardingStepKey },
+      placement: 'bottom',
+      title: t('onboarding.historyViewToggle.title'),
+      content: t('onboarding.historyViewToggle.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="album-folder-grid"]',
+      data: { key: 'historyAlbumCards' satisfies OnboardingStepKey },
+      placement: 'top',
+      title: t('onboarding.historyAlbumCards.title'),
+      content: t('onboarding.historyAlbumCards.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="create-folder-button"]',
+      data: { key: 'historyCreateFolder' satisfies OnboardingStepKey },
+      placement: 'bottom',
+      title: t('onboarding.historyCreateFolder.title'),
+      content: t('onboarding.historyCreateFolder.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="create-folder-dialog"]',
+      data: { key: 'historyCreateFolderDialog' satisfies OnboardingStepKey },
+      placement: 'bottom',
+      title: t('onboarding.historyCreateFolderDialog.title'),
+      content: t('onboarding.historyCreateFolderDialog.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="album-folder-detail"]',
+      data: { key: 'historyOpenFolderImages' satisfies OnboardingStepKey },
+      placement: 'bottom',
+      title: t('onboarding.historyOpenFolderImages.title'),
+      content: t('onboarding.historyOpenFolderImages.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="history-image-card"]',
+      data: { key: 'historyMoveToFolder' satisfies OnboardingStepKey },
+      placement: 'right',
+      title: t('onboarding.historyMoveToFolder.title'),
+      content: t('onboarding.historyMoveToFolder.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="ref-image-area"]',
+      data: { key: 'historyDragToRef' satisfies OnboardingStepKey },
+      placement: 'right',
+      title: t('onboarding.historyDragToRef.title'),
+      content: t('onboarding.historyDragToRef.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="settings-ref-compression"]',
+      data: { key: 'settingsCompression' satisfies OnboardingStepKey },
+      placement: 'left',
+      title: t('onboarding.settingsCompression.title'),
+      content: t('onboarding.settingsCompression.content'),
+      spotlightPadding: 4,
+    },
   ];
+
+  const getStepKey = useCallback(
+    (index: number): OnboardingStepKey | undefined => {
+      const step = steps[index] as Step & { data?: { key?: OnboardingStepKey } };
+      return step?.data?.key;
+    },
+    [steps]
+  );
+
+  const ensureSettingsModalOpen = useCallback(() => {
+    const hasCompressionTarget = document.querySelector('[data-onboarding="settings-ref-compression"]');
+    if (hasCompressionTarget) return;
+    const settingsButton = document.querySelector<HTMLElement>('[data-onboarding="settings-button"]');
+    settingsButton?.click();
+  }, []);
+
+  const ensureAlbumFolderOpened = useCallback(() => {
+    const closeDialogButton = document.querySelector<HTMLElement>('[data-onboarding="create-folder-dialog-cancel"]');
+    if (closeDialogButton) {
+      closeDialogButton.click();
+    }
+    const hasFolderDetail = document.querySelector('[data-onboarding="album-folder-detail"]');
+    if (hasFolderDetail) return;
+    const firstFolderCard = document.querySelector<HTMLElement>('[data-onboarding="album-folder-card"]');
+    firstFolderCard?.click();
+  }, []);
+
+  const ensureCreateFolderDialogOpened = useCallback(() => {
+    const hasDialog = document.querySelector('[data-onboarding="create-folder-dialog"]');
+    if (hasDialog) return;
+    const createButton = document.querySelector<HTMLElement>('[data-onboarding="create-folder-button"]');
+    createButton?.click();
+  }, []);
 
   // 当 showOnboarding 变化时，启动或停止引导
   useEffect(() => {
@@ -196,6 +337,8 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
 
       // 添加引导模式的 body class，用于强制显示 hover 元素
       document.body.classList.add('onboarding-active');
+      setTab('generate');
+      stepRetryRef.current = {};
 
       // 延迟启动，等待 DOM 完全加载
       const timer = setTimeout(() => {
@@ -210,7 +353,55 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       setRun(false);
       document.body.classList.remove('onboarding-active');
     }
-  }, [showOnboarding]);
+  }, [showOnboarding, i18n.language, prompt, refFiles.length, setPrompt, setRefFiles, setTab]);
+
+  // 根据步骤自动切换上下文，确保目标元素可见
+  useEffect(() => {
+    if (!run) return;
+    const key = getStepKey(stepIndex);
+    if (!key) return;
+
+    if (key === 'historyTab') {
+      setTab('history');
+      setHistoryViewMode('timeline');
+      return;
+    }
+
+    if (
+      key === 'historyViewToggle' ||
+      key === 'historyAlbumCards' ||
+      key === 'historyCreateFolder' ||
+      key === 'historyCreateFolderDialog' ||
+      key === 'historyOpenFolderImages' ||
+      key === 'historyMoveToFolder'
+    ) {
+      setTab('history');
+      setHistoryViewMode('album');
+    }
+
+    if (key === 'historyOpenFolderImages' || key === 'historyMoveToFolder') {
+      setTimeout(() => {
+        ensureAlbumFolderOpened();
+      }, 80);
+    }
+
+    if (key === 'historyCreateFolderDialog') {
+      setTimeout(() => {
+        ensureCreateFolderDialogOpened();
+      }, 80);
+    }
+
+    if (key === 'historyDragToRef') {
+      setTab('generate');
+    }
+
+    if (key === 'settingsCompression') {
+      setTab('generate');
+      setTimeout(() => {
+        ensureSettingsModalOpen();
+      }, 80);
+    }
+  }, [ensureAlbumFolderOpened, ensureCreateFolderDialogOpened, ensureSettingsModalOpen, getStepKey, run, setHistoryViewMode, setTab, stepIndex]);
 
   // 清理引导时的示例数据
   const cleanupDemoData = useCallback(() => {
@@ -242,13 +433,44 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
         return;
       }
 
+      // 处理 target 不存在：对关键步骤做有限次重试（切 tab / 开弹窗 / 进文件夹）
+      if (type === EVENTS.TARGET_NOT_FOUND) {
+        const key = getStepKey(index);
+        if (
+          key === 'settingsCompression' ||
+          key === 'historyOpenFolderImages' ||
+          key === 'historyMoveToFolder' ||
+          key === 'historyCreateFolderDialog'
+        ) {
+          const attempt = (stepRetryRef.current[key] ?? 0) + 1;
+          stepRetryRef.current[key] = attempt;
+          if (attempt <= 2) {
+            if (key === 'settingsCompression') {
+              ensureSettingsModalOpen();
+            } else if (key === 'historyCreateFolderDialog') {
+              ensureCreateFolderDialogOpened();
+            } else {
+              ensureAlbumFolderOpened();
+            }
+            setTimeout(() => {
+              setStepIndex(index);
+            }, 220);
+            return;
+          }
+        }
+      }
+
       // 处理下一步/上一步
       if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {
+        const key = getStepKey(index);
+        if (key) {
+          stepRetryRef.current[key] = 0;
+        }
         const nextStepIndex = index + (action === ACTIONS.PREV ? -1 : 1);
         setStepIndex(nextStepIndex);
       }
     },
-    [setShowOnboarding, cleanupDemoData]
+    [setShowOnboarding, cleanupDemoData, ensureAlbumFolderOpened, ensureCreateFolderDialogOpened, ensureSettingsModalOpen, getStepKey]
   );
 
   // 通知父组件引导已准备好

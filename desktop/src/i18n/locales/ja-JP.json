@@ -633,5 +633,90 @@
       "ratio16_9": "16:9",
       "ratio2_3": "2:3"
     }
+  },
+  "onboarding": {
+    "progress": "ステップ {{current}}/{{total}}",
+    "buttons": {
+      "next": "次へ",
+      "back": "戻る",
+      "skip": "スキップ",
+      "finish": "開始"
+    },
+    "welcome": {
+      "title": "大香蕉 AI へようこそ",
+      "content": "主な機能をすばやく案内します。"
+    },
+    "settings": {
+      "title": "API 設定",
+      "content": "ここから設定を開き、API Key とモデルを設定できます。"
+    },
+    "prompt": {
+      "title": "プロンプト入力",
+      "content": "生成したい画像の内容を入力します。"
+    },
+    "optimizeNormal": {
+      "title": "プロンプト最適化",
+      "content": "短い説明をより詳細なプロンプトへ自動補完します。"
+    },
+    "optimizeJson": {
+      "title": "JSON モード",
+      "content": "構造化された JSON 形式のプロンプトを生成します。"
+    },
+    "resolution": {
+      "title": "画質と比率",
+      "content": "解像度とアスペクト比を選択します。"
+    },
+    "refImageUpload": {
+      "title": "参考画像アップロード",
+      "content": "参考画像を追加して画像生成に活用できます。"
+    },
+    "refImageExtract": {
+      "title": "逆プロンプト抽出",
+      "content": "参考画像から再利用可能なプロンプトを抽出できます。"
+    },
+    "templateMarket": {
+      "title": "テンプレート市場",
+      "content": "テンプレートをすばやく適用して作成を始められます。"
+    },
+    "generate": {
+      "title": "生成開始",
+      "content": "準備ができたらここから生成を開始します。"
+    },
+    "historyTab": {
+      "title": "履歴タブ",
+      "content": "ここから履歴パネルに切り替えます。"
+    },
+    "historyViewToggle": {
+      "title": "表示切替",
+      "content": "タイムライン表示とアルバム表示を切り替えられます。"
+    },
+    "historyAlbumCards": {
+      "title": "アルバムフォルダ",
+      "content": "フォルダカードにはカバー画像と件数が表示されます。"
+    },
+    "historyCreateFolder": {
+      "title": "フォルダ作成",
+      "content": "手動フォルダを作成して画像を整理できます。"
+    },
+    "historyCreateFolderDialog": {
+      "title": "フォルダ作成ダイアログ",
+      "content": "ダイアログでフォルダ名を入力して確定すると、新しい手動フォルダを作成できます。"
+    },
+    "historyOpenFolderImages": {
+      "title": "フォルダ内閲覧",
+      "content": "フォルダを開いて中の画像を確認できます。"
+    },
+    "historyMoveToFolder": {
+      "title": "画像をフォルダへ移動",
+      "content": "履歴画像を右クリックしてフォルダへ移動できます。"
+    },
+    "historyDragToRef": {
+      "title": "参考エリアへドラッグ",
+      "content": "履歴画像を参考エリアへドラッグして再利用できます。"
+    },
+    "settingsCompression": {
+      "title": "参考画像圧縮設定",
+      "content": "この設定は「保存」を押した後に有効になります。"
+    }
   }
 }

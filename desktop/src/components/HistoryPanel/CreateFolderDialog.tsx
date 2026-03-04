@@ -140,6 +140,7 @@ export function CreateFolderDialog({
             {t('history.folder.title')}
           </label>
           <input
+            data-onboarding="create-folder-dialog"
             type="text"
             value={folderName}
             onChange={handleInputChange}
@@ -168,6 +169,7 @@ export function CreateFolderDialog({
         {/* 按钮组 */}
         <div className="flex items-center justify-end gap-3 pt-2">
           <Button
+            data-onboarding="create-folder-dialog-cancel"
             variant="secondary"
             onClick={onClose}
             disabled={isCreating}

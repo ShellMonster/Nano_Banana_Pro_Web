@@ -320,7 +320,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
     }
 
     return (
-      <div className="h-full min-h-0">
+      <div className="h-full min-h-0" data-onboarding="album-folder-grid">
         <AutoSizer
           className="h-full w-full"
           renderProp={({ width, height }) => {
@@ -373,7 +373,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
 
   return (
     <div className="h-full min-h-0 flex flex-col">
-      <div className="px-4 pt-3 pb-2 border-b border-gray-200 bg-white flex items-center gap-3">
+      <div className="px-4 pt-3 pb-2 border-b border-gray-200 bg-white flex items-center gap-3" data-onboarding="album-folder-detail">
         <button
           className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700"
           onClick={closeFolder}

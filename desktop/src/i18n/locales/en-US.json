@@ -695,6 +695,42 @@
     "generate": {
       "title": "Start Creating",
       "content": "Everything is ready! Click this button to generate your first image!"
+    },
+    "historyTab": {
+      "title": "History Entry",
+      "content": "Click here to switch to the History panel and review your previous generations."
+    },
+    "historyViewToggle": {
+      "title": "Timeline / Album Toggle",
+      "content": "History supports two views: Timeline groups by tasks, Album groups by folders."
+    },
+    "historyAlbumCards": {
+      "title": "Album Folder Cards",
+      "content": "In Album view, folder cards show cover images and item counts, including date-based auto folders."
+    },
+    "historyCreateFolder": {
+      "title": "Create Folder",
+      "content": "Use this button to create a manual folder and organize images by your own topics."
+    },
+    "historyCreateFolderDialog": {
+      "title": "Create Folder Dialog",
+      "content": "Enter a folder name in this dialog and confirm to create a new manual folder."
+    },
+    "historyOpenFolderImages": {
+      "title": "Open Folder",
+      "content": "Click a folder card to enter and browse the images inside that folder."
+    },
+    "historyMoveToFolder": {
+      "title": "Move Image to Folder",
+      "content": "Right-click a history image to move it into another folder for cleaner organization."
+    },
+    "historyDragToRef": {
+      "title": "Drag Back to Reference Area",
+      "content": "You can drag an image from History directly into the reference area to continue creating."
+    },
+    "settingsCompression": {
+      "title": "Reference Compression Toggle",
+      "content": "This toggle controls reference-image compression, and changes take effect only after clicking Save."
     }
   }
 }

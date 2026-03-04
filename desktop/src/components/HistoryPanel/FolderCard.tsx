@@ -26,6 +26,7 @@ export const FolderCard = React.memo(function FolderCard({
 
   return (
     <div 
+      data-onboarding="album-folder-card"
       className="group cursor-pointer rounded-xl overflow-hidden bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all h-full flex flex-col"
       onClick={onClick}
     >

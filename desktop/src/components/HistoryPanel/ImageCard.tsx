@@ -236,6 +236,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
     return (
         <>
             <div
+                data-onboarding="history-image-card"
                 className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md cursor-pointer group relative flex flex-col h-full"
                 style={{ contentVisibility: 'auto', containIntrinsicSize: '240px 320px' }}
                 onClick={handleClick}
@@ -362,6 +363,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
                     style={{ left: contextMenu.x, top: contextMenu.y }}
                 >
                     <button
+                        data-onboarding="history-image-move-action"
                         className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
                         onClick={handleOpenMoveDialog}
                     >
