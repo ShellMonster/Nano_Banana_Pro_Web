@@ -794,7 +794,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       contentScrollable={false}
       contentClassName="h-full min-h-0"
     >
-      <div className="relative h-full min-h-0">
+      <div className="relative h-full min-h-0" data-onboarding="settings-modal">
         <div className="grid grid-cols-[220px_minmax(0,1fr)] gap-8 h-full min-h-0">
           <div className="space-y-2">
             {menuItems.map((item) => {
@@ -973,7 +973,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </div>
 
             {/* Model Name */}
-            <div className="space-y-3">
+            <div className="space-y-3" data-onboarding="settings-ref-compression">
               <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
                 <Box className="w-4 h-4 text-blue-600" />
                 {t('settings.model.default')}
@@ -1021,9 +1021,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   </span>
                 </div>
               </div>
-              <p className="text-xs text-slate-500 px-1">
-                {t('settings.refImageCompression.hint')}
-              </p>
             </div>
 
             {/* Timeout */}

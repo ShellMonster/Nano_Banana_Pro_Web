@@ -96,7 +96,7 @@ export default function HistoryPanel({ isActive }: HistoryPanelProps) {
   }, [isActive, loadHistory]); // 只依赖 isActive，不依赖 items.length
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col">
+    <div className="h-full bg-gray-50 flex flex-col" data-onboarding="history-panel">
       <div className="p-4 bg-white border-b border-gray-200 shadow-sm z-10">
         <div className="flex items-center gap-3">
           <div className="flex-1">
@@ -104,6 +104,7 @@ export default function HistoryPanel({ isActive }: HistoryPanelProps) {
           </div>
           {viewMode === 'album' && (
             <button
+              data-onboarding="create-folder-button"
               onClick={() => setIsCreateFolderOpen(true)}
               className="flex items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors text-sm font-medium"
               title={t('history.folder.create')}

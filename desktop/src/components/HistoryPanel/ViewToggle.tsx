@@ -52,7 +52,7 @@ export function ViewToggle({ viewMode, onChange }: ViewToggleProps) {
 
   return (
     // 外层容器：使用 slate-100 背景，圆角胶囊式设计
-    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg" data-onboarding="history-view-toggle">
       {/* 时间线视图按钮 */}
       <button
         onClick={() => onChange('timeline')}
@@ -76,6 +76,7 @@ export function ViewToggle({ viewMode, onChange }: ViewToggleProps) {
 
       {/* 相册视图按钮 */}
       <button
+        data-onboarding="history-view-album"
         onClick={() => onChange('album')}
         className={cn(
           // 基础样式：与时间线按钮保持一致

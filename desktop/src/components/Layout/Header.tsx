@@ -48,6 +48,7 @@ export function Header() {
           <span>{t('nav.generate')}</span>
         </button>
         <button
+          data-onboarding="tab-history"
           onClick={() => handleTabChange('history')}
           className={cn(
             "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",

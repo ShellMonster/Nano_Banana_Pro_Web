@@ -695,6 +695,42 @@
     "generate": {
       "title": "开始创作",
       "content": "一切准备就绪！点击这个按钮开始生成你的第一张图片吧！"
+    },
+    "historyTab": {
+      "title": "历史记录入口",
+      "content": "点击这里切换到历史记录面板，查看你之前生成过的所有内容。"
+    },
+    "historyViewToggle": {
+      "title": "时间线 / 相册切换",
+      "content": "历史支持两种查看方式：时间线按任务看，相册按文件夹看。"
+    },
+    "historyAlbumCards": {
+      "title": "相册文件夹卡片",
+      "content": "在相册视图中，你会看到文件夹卡片（包含封面和图片数量），按日期自动归档也会展示在这里。"
+    },
+    "historyCreateFolder": {
+      "title": "创建文件夹",
+      "content": "点击这里可手动创建文件夹，方便把图片按主题分类管理。"
+    },
+    "historyCreateFolderDialog": {
+      "title": "创建文件夹弹窗",
+      "content": "在弹窗中输入文件夹名称并确认，即可创建新的手动文件夹。"
+    },
+    "historyOpenFolderImages": {
+      "title": "进入文件夹查看",
+      "content": "点击文件夹即可进入，查看该文件夹中的所有图片。"
+    },
+    "historyMoveToFolder": {
+      "title": "移动图片到文件夹",
+      "content": "在历史图片上右键，可选择“移动到文件夹”，快速整理已有图片。"
+    },
+    "historyDragToRef": {
+      "title": "拖回参考图区",
+      "content": "历史图片可直接拖拽到参考图区，快速复用旧图继续生成。"
+    },
+    "settingsCompression": {
+      "title": "参考图压缩开关",
+      "content": "这个开关用于参考图压缩；当前是点“保存”后才生效，不是即时生效。"
     }
   }
 }

@@ -121,7 +121,7 @@ export function CreateFolderDialog({
       density="compact"
       className="max-w-md"
     >
-      <div className="space-y-6">
+      <div className="space-y-6" data-onboarding="create-folder-dialog">
         {/* 图标和说明 */}
         <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-2xl">
           <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -168,6 +168,7 @@ export function CreateFolderDialog({
         {/* 按钮组 */}
         <div className="flex items-center justify-end gap-3 pt-2">
           <Button
+            data-onboarding="create-folder-dialog-cancel"
             variant="secondary"
             onClick={onClose}
             disabled={isCreating}
