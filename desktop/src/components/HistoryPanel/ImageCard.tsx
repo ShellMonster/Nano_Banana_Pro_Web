@@ -86,20 +86,6 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
         };
     }, []);
 
-    // 监听点击外部关闭右键菜单
-    useEffect(() => {
-        const handleClickOutside = () => {
-            if (contextMenu.visible) {
-                setContextMenu(prev => ({ ...prev, visible: false }));
-            }
-        };
-
-        document.addEventListener('click', handleClickOutside);
-        return () => {
-            document.removeEventListener('click', handleClickOutside);
-        };
-    }, [contextMenu.visible]);
-
     const handleClick = useCallback(() => {
         const lastDragEndAt = useInternalDragStore.getState().lastDragEndAt;
         if (Date.now() - lastDragEndAt < 200) return;
@@ -142,6 +128,10 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
         e.preventDefault();
         e.stopPropagation();
         setContextMenu({ x: e.clientX, y: e.clientY, visible: true });
+    }, []);
+
+    const handleCloseContextMenu = useCallback(() => {
+        setContextMenu(prev => ({ ...prev, visible: false }));
     }, []);
 
     // 处理打开移动弹窗
@@ -358,19 +348,25 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
 
             {/* 右键菜单 */}
             {contextMenu.visible && (
-                <div
-                    className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
-                    style={{ left: contextMenu.x, top: contextMenu.y }}
-                >
-                    <button
-                        data-onboarding="history-image-move-action"
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
-                        onClick={handleOpenMoveDialog}
+                <>
+                    <div
+                        className="fixed inset-0 z-40"
+                        onClick={handleCloseContextMenu}
+                    />
+                    <div
+                        className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]"
+                        style={{ left: contextMenu.x, top: contextMenu.y }}
                     >
-                        <Move className="w-4 h-4" />
-                        {t('history.folder.moveImage')}
-                    </button>
-                </div>
+                        <button
+                            data-onboarding="history-image-move-action"
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+                            onClick={handleOpenMoveDialog}
+                        >
+                            <Move className="w-4 h-4" />
+                            {t('history.folder.moveImage')}
+                        </button>
+                    </div>
+                </>
             )}
 
             {/* 移动图片弹窗 */}
