@@ -179,6 +179,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [fetching, setFetching] = useState(false);
+  const [draftEnableRefImageCompression, setDraftEnableRefImageCompression] = useState(enableRefImageCompression);
   const imageYunwuWarn = hasYunwuUrlWarning(imageApiBaseUrl, imageProvider === 'gemini' ? 'gemini' : 'openai');
   const imageBaseWarn = (isGeminiProvider(imageProvider) && hasGeminiBasePathWarning(imageApiBaseUrl)) || imageYunwuWarn.hasWarning;
 
@@ -244,6 +245,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setUpdateHint(null);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setDraftEnableRefImageCompression(enableRefImageCompression);
+    }
+  }, [isOpen, enableRefImageCompression]);
 
   useEffect(() => {
     let canceled = false;
@@ -453,6 +460,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setChatSyncedConfig(null);
       }
 
+      setEnableRefImageCompression(draftEnableRefImageCompression);
       toast.success(t('settings.toast.saveSuccess'));
       onClose();
     } catch (error: unknown) {
@@ -999,11 +1007,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </label>
               <div className="flex items-center gap-3 px-1">
                 <ToggleSwitch
-                  checked={enableRefImageCompression}
-                  onChange={(checked) => setEnableRefImageCompression(checked)}
+                  checked={draftEnableRefImageCompression}
+                  onChange={(checked) => setDraftEnableRefImageCompression(checked)}
                 />
                 <span className="text-sm text-slate-600">
-                  {enableRefImageCompression ? t('common.enabled') : t('common.disabled')}
+                  {draftEnableRefImageCompression ? t('common.enabled') : t('common.disabled')}
                 </span>
               </div>
               <p className="text-xs text-slate-500 px-1">

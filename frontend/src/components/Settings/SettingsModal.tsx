@@ -123,6 +123,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [fetching, setFetching] = useState(false);
+  const [draftEnableRefImageCompression, setDraftEnableRefImageCompression] = useState(enableRefImageCompression);
   const [imageModelSelect, setImageModelSelect] = useState<string>(() => {
     const current = imageModel;
     if (IMAGE_MODEL_OPTIONS.some(opt => opt.value === current)) {
@@ -157,6 +158,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       fetchConfigs();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setDraftEnableRefImageCompression(enableRefImageCompression);
+    }
+  }, [isOpen, enableRefImageCompression]);
 
   const fetchConfigs = async () => {
     setFetching(true);
@@ -268,6 +275,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setChatSyncedConfig(null);
       }
 
+      setEnableRefImageCompression(draftEnableRefImageCompression);
       toast.success(t('settings.toast.saveSuccess'));
       onClose();
     } catch (error) {
@@ -542,11 +550,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </label>
               <div className="flex items-center gap-3 px-1">
                 <ToggleSwitch
-                  checked={enableRefImageCompression}
-                  onChange={(checked) => setEnableRefImageCompression(checked)}
+                  checked={draftEnableRefImageCompression}
+                  onChange={(checked) => setDraftEnableRefImageCompression(checked)}
                 />
                 <span className="text-sm text-slate-600">
-                  {enableRefImageCompression ? t('common.enabled') : t('common.disabled')}
+                  {draftEnableRefImageCompression ? t('common.enabled') : t('common.disabled')}
                 </span>
               </div>
               <p className="text-xs text-slate-500 px-1">
@@ -745,4 +753,3 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     </Modal>
   );
 }
-
