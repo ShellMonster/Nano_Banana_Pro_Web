@@ -158,9 +158,9 @@ func reconcileTimedOutActiveTasks() {
 		}
 	}
 
-	now := time.Now()
 	var lastID uint
 	for {
+		now := time.Now()
 		var activeTasks []Task
 		if err := DB.Select("id", "task_id", "provider_name", "status", "created_at").
 			Where("status IN ?", []string{"pending", "processing"}).
