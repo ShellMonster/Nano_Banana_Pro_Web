@@ -238,8 +238,8 @@ export function useGenerate() {
           stopPolling();
           if (taskData.status === 'completed') {
             storeRef.current.completeTask();
-          } else if (taskData.errorMessage) {
-            storeRef.current.failTask(taskData.errorMessage);
+          } else {
+            storeRef.current.failTask(taskData.errorMessage || i18n.t('generate.toast.failed'));
           }
           return;
         }

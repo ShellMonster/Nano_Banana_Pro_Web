@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -98,6 +99,14 @@ func (wp *WorkerPool) worker(id int) {
 
 // processTask 处理单个任务（由 Worker 调用）
 func (wp *WorkerPool) processTask(task *Task) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("任务处理异常崩溃: %v", r)
+			log.Printf("任务 %s panic: %v\n%s", task.TaskModel.TaskID, r, string(debug.Stack()))
+			wp.failTask(task.TaskModel, err)
+		}
+	}()
+
 	if !task.TaskModel.CreatedAt.IsZero() {
 		log.Printf("任务 %s 开始处理: provider=%s model=%s queue_wait=%s", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, time.Since(task.TaskModel.CreatedAt))
 	} else {
@@ -128,6 +137,13 @@ func (wp *WorkerPool) processTask(task *Task) {
 	log.Printf("任务 %s 调用 Provider 开始: provider=%s model=%s timeout=%s", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, timeout)
 	done := make(chan generateResult, 1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				done <- generateResult{
+					err: fmt.Errorf("Provider 执行异常崩溃: %v", r),
+				}
+			}
+		}()
 		result, err := p.Generate(ctx, task.Params)
 		elapsed := time.Since(callStartedAt)
 		if err != nil {
