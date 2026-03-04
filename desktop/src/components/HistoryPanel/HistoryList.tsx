@@ -104,9 +104,31 @@ export function HistoryList() {
     setSelectedImage(image);
   }, []);
 
-  // 处理空任务点击
-  const handleEmptyTaskClick = useCallback(() => {
-    console.log('Empty task clicked');
+  // 处理空任务点击（失败任务支持打开失败详情弹窗）
+  const handleEmptyTaskClick = useCallback((task: GenerationTask) => {
+    if (task.status !== 'failed') return;
+
+    const failedImage: FlattenedImage = {
+      id: task.id,
+      taskId: task.id,
+      filePath: '',
+      thumbnailPath: '',
+      fileSize: 0,
+      width: 0,
+      height: 0,
+      mimeType: 'image/png',
+      createdAt: task.createdAt || new Date().toISOString(),
+      url: '',
+      thumbnailUrl: '',
+      prompt: task.prompt || '',
+      status: 'failed',
+      model: task.model || '',
+      errorMessage: task.errorMessage || '',
+      taskCreatedAt: task.createdAt || new Date().toISOString(),
+      imageSizeLabel: '—',
+      aspectRatioLabel: '—'
+    };
+    setSelectedImage(failedImage);
   }, []);
 
   const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {

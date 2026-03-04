@@ -9,7 +9,7 @@ import { useHistoryStore } from '../../store/historyStore';
 
 interface FailedTaskCardProps {
     task: GenerationTask;
-    onClick: () => void;
+    onClick: (task: GenerationTask) => void;
 }
 
 // 使用 React.memo 防止不必要的重渲染
@@ -38,8 +38,8 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
     }, []);
 
     const handleClick = useCallback(() => {
-        onClick();
-    }, [onClick]);
+        onClick(task);
+    }, [onClick, task]);
 
     const handleCancelConfirm = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
