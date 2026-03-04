@@ -274,7 +274,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       spotlightPadding: 4,
     },
     {
-      target: '[data-onboarding="create-folder-dialog"]',
+      target: '[data-onboarding="create-folder-dialog"], [data-onboarding="create-folder-button"]',
       data: { key: 'historyCreateFolderDialog' satisfies OnboardingStepKey },
       placement: 'top',
       title: t('onboarding.historyCreateFolderDialog.title'),
@@ -282,7 +282,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       spotlightPadding: 4,
     },
     {
-      target: '[data-onboarding="album-folder-detail"]',
+      target: '[data-onboarding="album-folder-detail"], [data-onboarding="album-folder-card"], [data-onboarding="history-panel"]',
       data: { key: 'historyOpenFolderImages' satisfies OnboardingStepKey },
       placement: 'bottom',
       title: t('onboarding.historyOpenFolderImages.title'),
@@ -290,7 +290,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       spotlightPadding: 4,
     },
     {
-      target: '[data-onboarding="history-image-card"]',
+      target: '[data-onboarding="history-image-card"], [data-onboarding="album-folder-detail"], [data-onboarding="history-panel"]',
       data: { key: 'historyMoveToFolder' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.historyMoveToFolder.title'),
