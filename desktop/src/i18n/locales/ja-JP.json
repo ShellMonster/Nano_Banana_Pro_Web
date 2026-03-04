@@ -48,10 +48,7 @@
     "copyFailed": "コピーに失敗しました",
     "deleteFailed": "削除に失敗しました",
     "imageSrcEmpty": "画像ソースが空です",
-    "imageFetchFailed": "画像の取得に失敗しました: {{status}}",
-    "fileTooLarge": "ファイルサイズが大きすぎます",
-    "downloadFailed": "ダウンロードに失敗しました",
-    "downloadSuccess": "ダウンロードが完了しました"
+    "imageFetchFailed": "画像の取得に失敗しました: {{status}}"
   },
   "preview": {
     "copyImage": "画像をコピー",
@@ -83,12 +80,6 @@
       "time": "時間"
     },
     "downloadOriginal": "元画像をダウンロード"
-,
-    "failed": {
-      "title": "生成に失敗しました",
-      "copyError": "エラー情報をコピー",
-      "errorCopied": "エラー情報をコピーしました"
-    }
   },
   "prompt": {
     "label": "プロンプト",
@@ -164,15 +155,16 @@
       "recommended": "推奨:",
       "yunwu": "Yunwu API",
       "openaiImageLimit": "OpenAI プロバイダーは現在 1K 画像のみ対応しています",
-      "geminiBasePathHint": "Gemini タイプの Base URL はドメインのみを推奨します（/v1 や具体的なエンドポイントは不要）。",
-      "yunwuExtraPathHint": "Yunwu API の場合はドメインのみ入力してください（例: https://yunwu.ai）。/v1 や /v1beta は不要です。バックエンドが自動的に処理します。",
-      "yunwuMissingV1Hint": "Yunwu API（OpenAI タイプ）の場合は /v1 を含む完全な URL を入力してください（例: https://yunwu.ai/v1）。"
+      "geminiBasePathHint": "Gemini タイプの Base URL はドメインのみを推奨します（/v1 や具体的なエンドポイントは不要）。"
     },
     "model": {
       "default": "デフォルトモデル",
       "chat": "チャットモデル",
       "custom": "カスタム",
       "customPlaceholder": "カスタムモデル ID を入力"
+    },
+    "vision": {
+      "title": "画像認識設定"
     },
     "timeout": {
       "image": "画像タイムアウト(秒)",
@@ -182,14 +174,6 @@
       "label": "参考画像圧縮",
       "hint": "有効にすると、参考画像は自動的に圧縮され、帯域幅とストレージを節約します",
       "speedHint": "参考画像を使う場合の生成速度向上が目的で、理論上は生成品質に影響しません。"
-    },
-    "onboarding": {
-      "label": "初心者ガイド",
-      "hint": "ボタンをクリックすると初心者ガイドを再体験できます",
-      "restart": "ガイドを再表示",
-      "confirmTitle": "ガイドを開始",
-      "confirmHint": "設定を閉じて初心者ガイドを開始します。続行しますか？",
-      "confirmStart": "開始"
     },
     "update": {
       "title": "更新",
@@ -218,7 +202,6 @@
       "chatConfigIncomplete": "チャットモデル設定を完了してください",
       "openaiGeminiUnsupported": "OpenAI の Base URL は Gemini モデルに対応していません。対応エンドポイントを使用してください。",
       "geminiBasePathWarning": "Gemini Base URL に /v1 などのパスが含まれています。ドメインのみの指定を推奨します。",
-      "timeoutTooSmall": "タイムアウトは {{min}} 秒未満にできません",
       "saveSuccess": "設定をサーバーに同期しました",
       "saveFailed": "保存に失敗しました: {{msg}}",
       "checkNetwork": "ネットワークを確認してください",
@@ -359,8 +342,7 @@
       "failed": "生成に失敗しました",
       "failedWith": "生成に失敗しました: {{message}}",
       "partial": "タスクが一部完了しました",
-      "recovered": "生成進捗を復元しました",
-      "timeout": "画像生成がタイムアウトしました（{{seconds}}秒）、ネットワークを確認するかタイムアウト時間を増やしてください"
+      "recovered": "生成進捗を復元しました"
     }
   },
   "config": {
@@ -448,10 +430,6 @@
         "description": "不明なタスク状態"
       }
     },
-    "viewMode": {
-      "timeline": "タイムライン",
-      "album": "アルバム"
-    },
     "toast": {
       "updated": "履歴を更新しました",
       "loadFailed": "履歴の読み込みに失敗しました",
@@ -462,23 +440,29 @@
       "imageDeleted": "画像を削除しました",
       "imageDeleteFailed": "画像の削除に失敗しました"
     },
+    "viewMode": {
+      "timeline": "タイムライン",
+      "album": "アルバム"
+    },
     "folder": {
       "title": "フォルダ",
-      "create": "フォルダを作成",
+      "create": "フォルダ作成",
       "createPlaceholder": "フォルダ名を入力してください",
-      "createSuccess": "作成しました",
-      "createFailed": "作成に失敗しました",
-      "nameRequired": "フォルダ名を入力してください",
-      "nameExists": "同じ名前のフォルダが既に存在します",
+      "createSuccess": "フォルダの作成に成功しました",
+      "createFailed": "フォルダの作成に失敗しました",
+      "nameRequired": "フォルダ名が空です",
+      "nameExists": "フォルダ名が既に存在します",
       "imageCount": "枚",
-      "typeMonth": "自動月次フォルダ",
+      "typeMonth": "自動月別フォルダ",
       "typeManual": "手動作成",
       "loadFailed": "フォルダの読み込みに失敗しました",
       "empty": "フォルダがありません",
       "moveImage": "フォルダに移動",
-      "moveSuccess": "移動しました",
-      "moveFailed": "移動に失敗しました",
-      "selectFolder": "移動先フォルダを選択",
+      "moveSuccess": "画像の移動に成功しました",
+      "moveFailed": "画像の移動に失敗しました",
+      "selectFolder": "ターゲットフォルダを選択",
+      "backToFolders": "フォルダ一覧に戻る",
+      "emptyInFolder": "このフォルダには画像がありません",
       "moveButton": "移動",
       "moveButtonTitle": "画像をフォルダに移動"
     }
@@ -567,7 +551,6 @@
       "noDownload": "ダウンロードできる画像がありません",
       "downloadStarted": "ダウンロードを開始しました",
       "downloadFailed": "ダウンロードに失敗しました",
-      "downloadSuccess": "ダウンロードが完了しました",
       "applied": "テンプレートを適用しました",
       "applyFailed": "テンプレートの適用に失敗しました",
       "moreRefsNeeded": "参照画像を追加してください"
@@ -633,96 +616,25 @@
       "architecture": "建築",
       "film": "映画",
       "ratio1_1": "1:1",
+      "ratio1_4": "1:4",
+      "ratio1_8": "1:8",
+      "ratio2_3": "2:3",
+      "ratio3_2": "3:2",
+      "ratio3_4": "3:4",
+      "ratio4_1": "4:1",
+      "ratio4_3": "4:3",
+      "ratio4_5": "4:5",
+      "ratio5_4": "5:4",
+      "ratio8_1": "8:1",
+      "ratio9_16": "9:16",
+      "ratio16_9": "16:9",
+      "ratio21_9": "21:9",
+      "ratioAutoAdjusted": "アスペクト比 {{from}} はサポートされていません。{{to}} に自動調整されました",
       "ratio3_4": "3:4",
       "ratio4_5": "4:5",
       "ratio9_16": "9:16",
       "ratio16_9": "16:9",
       "ratio2_3": "2:3"
-    }
-  },
-  "onboarding": {
-    "progress": "ステップ {{current}}/{{total}}",
-    "buttons": {
-      "next": "次へ",
-      "back": "戻る",
-      "skip": "スキップ",
-      "finish": "開始"
-    },
-    "welcome": {
-      "title": "大香蕉 AI へようこそ",
-      "content": "主な機能をすばやく案内します。"
-    },
-    "settings": {
-      "title": "API 設定",
-      "content": "ここから設定を開き、API Key とモデルを設定できます。"
-    },
-    "prompt": {
-      "title": "プロンプト入力",
-      "content": "生成したい画像の内容を入力します。"
-    },
-    "optimizeNormal": {
-      "title": "プロンプト最適化",
-      "content": "短い説明をより詳細なプロンプトへ自動補完します。"
-    },
-    "optimizeJson": {
-      "title": "JSON モード",
-      "content": "構造化された JSON 形式のプロンプトを生成します。"
-    },
-    "resolution": {
-      "title": "画質と比率",
-      "content": "解像度とアスペクト比を選択します。"
-    },
-    "refImageUpload": {
-      "title": "参考画像アップロード",
-      "content": "参考画像を追加して画像生成に活用できます。"
-    },
-    "refImageExtract": {
-      "title": "逆プロンプト抽出",
-      "content": "参考画像から再利用可能なプロンプトを抽出できます。"
-    },
-    "templateMarket": {
-      "title": "テンプレート市場",
-      "content": "テンプレートをすばやく適用して作成を始められます。"
-    },
-    "generate": {
-      "title": "生成開始",
-      "content": "準備ができたらここから生成を開始します。"
-    },
-    "historyTab": {
-      "title": "履歴タブ",
-      "content": "ここから履歴パネルに切り替えます。"
-    },
-    "historyViewToggle": {
-      "title": "表示切替",
-      "content": "タイムライン表示とアルバム表示を切り替えられます。"
-    },
-    "historyAlbumCards": {
-      "title": "アルバムフォルダ",
-      "content": "フォルダカードにはカバー画像と件数が表示されます。"
-    },
-    "historyCreateFolder": {
-      "title": "フォルダ作成",
-      "content": "手動フォルダを作成して画像を整理できます。"
-    },
-    "historyCreateFolderDialog": {
-      "title": "フォルダ作成ダイアログ",
-      "content": "ダイアログでフォルダ名を入力して確定すると、新しい手動フォルダを作成できます。"
-    },
-    "historyOpenFolderImages": {
-      "title": "フォルダ内閲覧",
-      "content": "フォルダを開いて中の画像を確認できます。"
-    },
-    "historyMoveToFolder": {
-      "title": "画像をフォルダへ移動",
-      "content": "履歴画像を右クリックしてフォルダへ移動できます。"
-    },
-    "historyDragToRef": {
-      "title": "参考エリアへドラッグ",
-      "content": "履歴画像を参考エリアへドラッグして再利用できます。"
-    },
-    "settingsCompression": {
-      "title": "参考画像圧縮設定",
-      "content": "この設定は「保存」を押した後に有効になります。"
     }
   }
 }

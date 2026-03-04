@@ -22,6 +22,22 @@ export const VISION_MODEL_OPTIONS = [
 
 export const CUSTOM_MODEL_VALUE = '__custom__';
 
+// Model configuration with supported aspect ratios
+export const IMAGE_MODEL_CONFIG: Record<string, { aspectRatios: string[] }> = {
+  [IMAGE_MODELS.FLASH.value]: {
+    aspectRatios: ['1:1', '1:4', '1:8', '2:3', '3:2', '3:4', '4:1', '4:3', '4:5', '5:4', '8:1', '9:16', '16:9', '21:9']
+  },
+  [IMAGE_MODELS.PRO.value]: {
+    aspectRatios: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']
+  }
+};
+
+// Helper function to get supported aspect ratios for a model
+export const getModelAspectRatios = (model: string): string[] => {
+  const ratios = IMAGE_MODEL_CONFIG[model]?.aspectRatios;
+  return (ratios && ratios.length > 0) ? ratios : ['1:1'];
+};
+
 interface ConfigState {
   // 生图配置
   imageProvider: string;
