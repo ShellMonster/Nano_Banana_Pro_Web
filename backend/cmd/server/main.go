@@ -264,6 +264,9 @@ func main() {
 	<-quit
 	log.Println("正在关闭服务...")
 
+	// 停止僵尸任务回收器，避免后台 ticker/goroutine 泄漏
+	model.StopZombieTaskReconciler()
+
 	// 优雅停止 Worker 池
 	worker.Pool.Stop()
 

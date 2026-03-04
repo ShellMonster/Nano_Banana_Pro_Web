@@ -3,6 +3,7 @@ package model
 import (
 	"log"
 	"strconv"
+	"sync"
 	"time"
 
 	"gorm.io/driver/sqlite"
@@ -14,6 +15,13 @@ var DB *gorm.DB
 
 const STALE_TASK_ERROR_MESSAGE = "任务因应用重启中断，请重新生成"
 const ZOMBIE_TASK_ERROR_MESSAGE = "任务超时未完成，请重试"
+
+var zombieReconciler struct {
+	mu      sync.Mutex
+	started bool
+	stopCh  chan struct{}
+	doneCh  chan struct{}
+}
 
 // InitDB 初始化 SQLite 数据库
 func InitDB(dbPath string) {
@@ -70,14 +78,48 @@ func defaultTimeoutForProvider(providerName string) time.Duration {
 }
 
 func startZombieTaskReconciler() {
+	zombieReconciler.mu.Lock()
+	defer zombieReconciler.mu.Unlock()
+	if zombieReconciler.started {
+		return
+	}
+	zombieReconciler.started = true
+	zombieReconciler.stopCh = make(chan struct{})
+	zombieReconciler.doneCh = make(chan struct{})
+
 	const checkInterval = time.Minute
 	ticker := time.NewTicker(checkInterval)
 	go func() {
+		defer close(zombieReconciler.doneCh)
+		defer ticker.Stop()
+
 		reconcileTimedOutActiveTasks()
-		for range ticker.C {
-			reconcileTimedOutActiveTasks()
+		for {
+			select {
+			case <-zombieReconciler.stopCh:
+				return
+			case <-ticker.C:
+				reconcileTimedOutActiveTasks()
+			}
 		}
 	}()
+}
+
+func StopZombieTaskReconciler() {
+	zombieReconciler.mu.Lock()
+	if !zombieReconciler.started {
+		zombieReconciler.mu.Unlock()
+		return
+	}
+	stopCh := zombieReconciler.stopCh
+	doneCh := zombieReconciler.doneCh
+	zombieReconciler.started = false
+	zombieReconciler.stopCh = nil
+	zombieReconciler.doneCh = nil
+	zombieReconciler.mu.Unlock()
+
+	close(stopCh)
+	<-doneCh
 }
 
 func reconcileStaleActiveTasks() {
@@ -102,21 +144,13 @@ func reconcileStaleActiveTasks() {
 
 func reconcileTimedOutActiveTasks() {
 	const timeoutGrace = 2 * time.Minute
-
-	var activeTasks []Task
-	if err := DB.Select("task_id", "provider_name", "status", "created_at").
-		Where("status IN ?", []string{"pending", "processing"}).
-		Find(&activeTasks).Error; err != nil {
-		log.Printf("扫描超时任务失败: %v", err)
-		return
-	}
-	if len(activeTasks) == 0 {
-		return
-	}
+	const batchSize = 500
 
 	timeoutMap := make(map[string]time.Duration)
 	var configs []ProviderConfig
-	if err := DB.Select("provider_name", "timeout_seconds").Find(&configs).Error; err == nil {
+	if err := DB.Select("provider_name", "timeout_seconds").Find(&configs).Error; err != nil {
+		log.Printf("获取 provider 超时配置失败: %v, 将使用默认超时", err)
+	} else {
 		for _, cfg := range configs {
 			if cfg.TimeoutSeconds > 0 {
 				timeoutMap[cfg.ProviderName] = time.Duration(cfg.TimeoutSeconds) * time.Second
@@ -125,37 +159,52 @@ func reconcileTimedOutActiveTasks() {
 	}
 
 	now := time.Now()
-	staleTaskIDs := make([]string, 0)
-	for _, task := range activeTasks {
-		timeout := timeoutMap[task.ProviderName]
-		if timeout <= 0 {
-			timeout = defaultTimeoutForProvider(task.ProviderName)
+	var lastID uint
+	for {
+		var activeTasks []Task
+		if err := DB.Select("id", "task_id", "provider_name", "status", "created_at").
+			Where("status IN ?", []string{"pending", "processing"}).
+			Where("id > ?", lastID).
+			Order("id ASC").
+			Limit(batchSize).
+			Find(&activeTasks).Error; err != nil {
+			log.Printf("扫描超时任务失败: %v", err)
+			return
+		}
+		if len(activeTasks) == 0 {
+			return
 		}
 
-		if now.Sub(task.CreatedAt) > timeout+timeoutGrace {
-			staleTaskIDs = append(staleTaskIDs, task.TaskID)
+		staleTaskIDs := make([]string, 0)
+		for _, task := range activeTasks {
+			timeout := timeoutMap[task.ProviderName]
+			if timeout <= 0 {
+				timeout = defaultTimeoutForProvider(task.ProviderName)
+			}
+			if now.Sub(task.CreatedAt) > timeout+timeoutGrace {
+				staleTaskIDs = append(staleTaskIDs, task.TaskID)
+			}
+			lastID = task.ID
 		}
-	}
 
-	if len(staleTaskIDs) == 0 {
-		return
-	}
-
-	updates := map[string]interface{}{
-		"status":        "failed",
-		"error_message": ZOMBIE_TASK_ERROR_MESSAGE,
-		"completed_at":  now,
-	}
-	result := DB.Model(&Task{}).
-		Where("task_id IN ?", staleTaskIDs).
-		Where("status IN ?", []string{"pending", "processing"}).
-		Updates(updates)
-	if result.Error != nil {
-		log.Printf("收敛超时任务失败: %v", result.Error)
-		return
-	}
-	if result.RowsAffected > 0 {
-		log.Printf("已收敛 %d 个超时任务（pending/processing -> failed）", result.RowsAffected)
+		if len(staleTaskIDs) > 0 {
+			updates := map[string]interface{}{
+				"status":        "failed",
+				"error_message": ZOMBIE_TASK_ERROR_MESSAGE,
+				"completed_at":  now,
+			}
+			result := DB.Model(&Task{}).
+				Where("task_id IN ?", staleTaskIDs).
+				Where("status IN ?", []string{"pending", "processing"}).
+				Updates(updates)
+			if result.Error != nil {
+				log.Printf("收敛超时任务失败: %v", result.Error)
+				return
+			}
+			if result.RowsAffected > 0 {
+				log.Printf("已收敛 %d 个超时任务（pending/processing -> failed）", result.RowsAffected)
+			}
+		}
 	}
 }
 
