@@ -13,6 +13,7 @@ import (
 var DB *gorm.DB
 
 const STALE_TASK_ERROR_MESSAGE = "任务因应用重启中断，请重新生成"
+const ZOMBIE_TASK_ERROR_MESSAGE = "任务超时未完成，请重试"
 
 // InitDB 初始化 SQLite 数据库
 func InitDB(dbPath string) {
@@ -51,11 +52,32 @@ func InitDB(dbPath string) {
 	}
 
 	reconcileStaleActiveTasks()
+	startZombieTaskReconciler()
 
 	log.Println("数据库初始化成功")
 
 	// 异步迁移旧任务到月份文件夹
 	go migrateOldTasksToMonthFolders()
+}
+
+func defaultTimeoutForProvider(providerName string) time.Duration {
+	switch providerName {
+	case "gemini", "openai":
+		return 500 * time.Second
+	default:
+		return 150 * time.Second
+	}
+}
+
+func startZombieTaskReconciler() {
+	const checkInterval = time.Minute
+	ticker := time.NewTicker(checkInterval)
+	go func() {
+		reconcileTimedOutActiveTasks()
+		for range ticker.C {
+			reconcileTimedOutActiveTasks()
+		}
+	}()
 }
 
 func reconcileStaleActiveTasks() {
@@ -75,6 +97,65 @@ func reconcileStaleActiveTasks() {
 	}
 	if result.RowsAffected > 0 {
 		log.Printf("已收敛 %d 个遗留任务（pending/processing -> failed）", result.RowsAffected)
+	}
+}
+
+func reconcileTimedOutActiveTasks() {
+	const timeoutGrace = 2 * time.Minute
+
+	var activeTasks []Task
+	if err := DB.Select("task_id", "provider_name", "status", "created_at").
+		Where("status IN ?", []string{"pending", "processing"}).
+		Find(&activeTasks).Error; err != nil {
+		log.Printf("扫描超时任务失败: %v", err)
+		return
+	}
+	if len(activeTasks) == 0 {
+		return
+	}
+
+	timeoutMap := make(map[string]time.Duration)
+	var configs []ProviderConfig
+	if err := DB.Select("provider_name", "timeout_seconds").Find(&configs).Error; err == nil {
+		for _, cfg := range configs {
+			if cfg.TimeoutSeconds > 0 {
+				timeoutMap[cfg.ProviderName] = time.Duration(cfg.TimeoutSeconds) * time.Second
+			}
+		}
+	}
+
+	now := time.Now()
+	staleTaskIDs := make([]string, 0)
+	for _, task := range activeTasks {
+		timeout := timeoutMap[task.ProviderName]
+		if timeout <= 0 {
+			timeout = defaultTimeoutForProvider(task.ProviderName)
+		}
+
+		if now.Sub(task.CreatedAt) > timeout+timeoutGrace {
+			staleTaskIDs = append(staleTaskIDs, task.TaskID)
+		}
+	}
+
+	if len(staleTaskIDs) == 0 {
+		return
+	}
+
+	updates := map[string]interface{}{
+		"status":        "failed",
+		"error_message": ZOMBIE_TASK_ERROR_MESSAGE,
+		"completed_at":  now,
+	}
+	result := DB.Model(&Task{}).
+		Where("task_id IN ?", staleTaskIDs).
+		Where("status IN ?", []string{"pending", "processing"}).
+		Updates(updates)
+	if result.Error != nil {
+		log.Printf("收敛超时任务失败: %v", result.Error)
+		return
+	}
+	if result.RowsAffected > 0 {
+		log.Printf("已收敛 %d 个超时任务（pending/processing -> failed）", result.RowsAffected)
 	}
 }
 
