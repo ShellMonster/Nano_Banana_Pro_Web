@@ -121,6 +121,13 @@ async function waitForBackendPort(timeoutMs = 10000) {
   }
 }
 
+// Tauri 场景下确保 BASE_URL 已更新为动态端口
+export async function ensureBackendReady(timeoutMs = 10000) {
+  if (window.__TAURI_INTERNALS__) {
+    await waitForBackendPort(timeoutMs);
+  }
+}
+
 // 请求拦截器
 api.interceptors.request.use(async (config) => {
   if (window.__TAURI_INTERNALS__ && !isPortDetected) {

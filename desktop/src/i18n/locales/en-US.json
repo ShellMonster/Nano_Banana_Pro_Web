@@ -48,7 +48,10 @@
     "copyFailed": "Copy failed",
     "deleteFailed": "Delete failed",
     "imageSrcEmpty": "Image source is empty",
-    "imageFetchFailed": "Failed to fetch image: {{status}}"
+    "imageFetchFailed": "Failed to fetch image: {{status}}",
+    "fileTooLarge": "File too large",
+    "downloadFailed": "Download failed",
+    "downloadSuccess": "Download successful"
   },
   "preview": {
     "copyImage": "Copy image",

@@ -48,7 +48,10 @@
     "copyFailed": "コピーに失敗しました",
     "deleteFailed": "削除に失敗しました",
     "imageSrcEmpty": "画像ソースが空です",
-    "imageFetchFailed": "画像の取得に失敗しました: {{status}}"
+    "imageFetchFailed": "画像の取得に失敗しました: {{status}}",
+    "fileTooLarge": "ファイルサイズが大きすぎます",
+    "downloadFailed": "ダウンロードに失敗しました",
+    "downloadSuccess": "ダウンロードが完了しました"
   },
   "preview": {
     "copyImage": "画像をコピー",

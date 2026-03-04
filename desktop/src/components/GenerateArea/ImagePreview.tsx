@@ -4,7 +4,7 @@ import { GeneratedImage } from '../../types';
 import { Button } from '../common/Button';
 import { Download, Copy, Calendar, Box, Maximize2, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Trash2, Check, ImageOff } from 'lucide-react';
 import { formatDateTime } from '../../utils/date';
-import { getImageDownloadUrl } from '../../services/api';
+import { ensureBackendReady, getImageDownloadUrl } from '../../services/api';
 import { useHistoryStore } from '../../store/historyStore';
 import { toast } from '../../store/toastStore';
 import { useTranslation } from 'react-i18next';
@@ -577,109 +577,61 @@ export const ImagePreview = React.memo(function ImagePreview({
         if (!image?.id) return;
 
         try {
-            // 检测是否在 Tauri 环境
             if (window.__TAURI_INTERNALS__) {
+                await ensureBackendReady();
+
                 const { save } = await import('@tauri-apps/plugin-dialog');
-                const { readFile, writeFile, BaseDirectory } = await import('@tauri-apps/plugin-fs');
-                const { invoke } = await import('@tauri-apps/api/core');
-                
-                // 检查本地文件路径
-                if (!image.filePath) {
-                    toast.error(t('toast.noLocalPath'));
-                    return;
+                const { writeFile } = await import('@tauri-apps/plugin-fs');
+
+                const response = await fetch(getImageDownloadUrl(image.id), { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error(`download request failed: ${response.status}`);
                 }
 
-                // 检查文件大小，防止 DoS（最大 100MB）
-                if (image.fileSize && image.fileSize > MAX_DOWNLOAD_FILE_SIZE) {
+                const contentLength = Number(response.headers.get('content-length') || '0');
+                if (contentLength > MAX_DOWNLOAD_FILE_SIZE) {
                     toast.error(t('toast.fileTooLarge'));
                     return;
                 }
-                
-                // 根据 mimeType 确定扩展名
-                const ext = (image.mimeType || 'image/png').split('/')[1] || 'png';
-                const defaultName = `image-${image.id}.${ext}`;
-                
-                // 显示保存对话框
-                // 显示保存对话框
+
+                const blob = await response.blob();
+                if (blob.size > MAX_DOWNLOAD_FILE_SIZE) {
+                    toast.error(t('toast.fileTooLarge'));
+                    return;
+                }
+
+                const contentDisposition = response.headers.get('content-disposition') || '';
+                const filenameFromHeader = (() => {
+                    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+                    if (utf8Match?.[1]) {
+                        try {
+                            return decodeURIComponent(utf8Match[1]);
+                        } catch {
+                            return utf8Match[1];
+                        }
+                    }
+                    const plainMatch = contentDisposition.match(/filename="?([^\";]+)"?/i);
+                    return plainMatch?.[1] || '';
+                })();
+
+                const fallbackExt = (image.mimeType || blob.type || 'image/png').split('/')[1] || 'png';
+                const defaultName = (filenameFromHeader || `image-${image.id}.${fallbackExt}`).replace(/[\\/:*?"<>|]/g, '_');
+                const ext = defaultName.includes('.') ? defaultName.split('.').pop() || fallbackExt : fallbackExt;
+
                 const destPath = await save({
                     defaultPath: defaultName,
                     filters: [{ name: 'Image', extensions: [ext] }]
                 });
-                
-                if (!destPath) return; // 用户取消
-                
-                // 将绝对路径转换为相对于 AppData 的相对路径（安全读取）
-                const appDataDir = await invoke<string>('get_app_data_dir');
 
-                // 路径规范化：解析并移除所有 .. 序列，同时保留 Windows 盘符/UNC 根路径
-                const normalizePathForCompare = (path: string): string => {
-                    const source = String(path || '').trim().replace(/\\/g, '/');
-                    if (!source) return '';
+                if (!destPath) return;
 
-                    let root = '';
-                    let rest = source;
-                    const uncMatch = rest.match(/^\/\/[^/]+\/[^/]+/);
-                    const driveMatch = rest.match(/^[a-zA-Z]:/);
-
-                    if (uncMatch) {
-                        root = uncMatch[0].toLowerCase();
-                        rest = rest.slice(uncMatch[0].length);
-                    } else if (driveMatch) {
-                        root = driveMatch[0].toLowerCase();
-                        rest = rest.slice(driveMatch[0].length);
-                    } else if (rest.startsWith('/')) {
-                        root = '/';
-                        rest = rest.slice(1);
-                    }
-
-                    const parts = rest.split('/').filter((p) => p && p !== '.');
-                    const stack: string[] = [];
-                    for (const part of parts) {
-                        if (part === '..') {
-                            if (stack.length > 0) stack.pop();
-                        } else {
-                            stack.push(part);
-                        }
-                    }
-
-                    const suffix = stack.join('/');
-                    if (!root) return suffix;
-                    if (root === '/') return suffix ? `/${suffix}` : '/';
-                    return suffix ? `${root}/${suffix}` : root;
-                };
-
-                const normalizedAppData = normalizePathForCompare(appDataDir);
-                const normalizedFilePath = normalizePathForCompare(image.filePath);
-
-                const isWindowsPath = /^[a-z]:/i.test(normalizedAppData) || normalizedAppData.startsWith('//');
-                const appDataForCompare = isWindowsPath ? normalizedAppData.toLowerCase() : normalizedAppData;
-                const filePathForCompare = isWindowsPath ? normalizedFilePath.toLowerCase() : normalizedFilePath;
-
-                // 安全校验：确保文件路径在 AppData 目录内（防止路径遍历攻击）
-                const isSamePath = filePathForCompare === appDataForCompare;
-                const isSubPath = filePathForCompare.startsWith(`${appDataForCompare}/`);
-                if (!isSamePath && !isSubPath) {
-                    console.error(`[Security] Attempted to read file outside of app data directory: ${image.filePath}`);
-                    toast.error(t('toast.downloadFailed'));
-                    return;
-                }
-
-                const relativePath = normalizedFilePath
-                    .slice(normalizedAppData.length)
-                    .replace(/^\/+/, '');
-                if (!relativePath) {
-                    toast.error(t('toast.downloadFailed'));
-                    return;
-                }
-
-                // 读取本地文件并写入目标位置
-                const bytes = await readFile(relativePath, { baseDir: BaseDirectory.AppData });
+                const bytes = new Uint8Array(await blob.arrayBuffer());
                 await writeFile(destPath, bytes);
                 toast.success(t('toast.downloadSuccess'));
-            } else {
-                // Web 环境：使用原有方式
-                window.location.href = getImageDownloadUrl(image.id);
+                return;
             }
+
+            window.location.href = getImageDownloadUrl(image.id);
         } catch (error) {
             console.error('Download failed:', error);
             toast.error(t('toast.downloadFailed'));

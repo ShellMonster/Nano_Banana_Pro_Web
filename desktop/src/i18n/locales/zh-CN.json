@@ -48,7 +48,10 @@
     "copyFailed": "复制失败",
     "deleteFailed": "删除失败",
     "imageSrcEmpty": "图片地址为空",
-    "imageFetchFailed": "图片获取失败: {{status}}"
+    "imageFetchFailed": "图片获取失败: {{status}}",
+    "fileTooLarge": "文件过大",
+    "downloadFailed": "下载失败",
+    "downloadSuccess": "下载成功"
   },
   "preview": {
     "copyImage": "复制图片",

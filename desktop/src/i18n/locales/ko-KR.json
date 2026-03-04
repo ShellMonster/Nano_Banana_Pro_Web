@@ -48,7 +48,10 @@
     "copyFailed": "복사 실패",
     "deleteFailed": "삭제 실패",
     "imageSrcEmpty": "이미지 소스가 비어 있습니다",
-    "imageFetchFailed": "이미지 가져오기 실패: {{status}}"
+    "imageFetchFailed": "이미지 가져오기 실패: {{status}}",
+    "fileTooLarge": "파일 크기가 너무 큽니다",
+    "downloadFailed": "다운로드 실패",
+    "downloadSuccess": "다운로드 완료"
   },
   "preview": {
     "copyImage": "이미지 복사",
