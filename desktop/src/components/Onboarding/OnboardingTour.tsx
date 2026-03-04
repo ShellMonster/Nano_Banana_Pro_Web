@@ -151,6 +151,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
   const runRef = useRef(run);
   const stepIndexRef = useRef(stepIndex);
   const onboardingSessionRef = useRef(0);
+  const demoRefFileRef = useRef<File | null>(null);
 
   // 定义引导步骤 - 拆分为更细的步骤
   const steps: Step[] = [
@@ -418,6 +419,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     if (showOnboarding) {
       onboardingSessionRef.current += 1;
       const currentSession = onboardingSessionRef.current;
+      demoRefFileRef.current = null;
       // 保存引导前的状态
       prevStateRef.current = {
         prompt: prompt,
@@ -437,7 +439,8 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
           if (!file) return;
           if (onboardingSessionRef.current !== currentSession) return;
           if (prevStateRef.current?.hadRefFiles) return;
-            setRefFiles([file]);
+          demoRefFileRef.current = file;
+          setRefFiles([file]);
         });
       }
 
@@ -515,6 +518,13 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
   const cleanupDemoData = useCallback(() => {
     closeCreateFolderDialogIfOpen();
     if (prevStateRef.current) {
+      const demoRefFile = demoRefFileRef.current;
+      if (demoRefFile) {
+        const currentFiles = useConfigStore.getState().refFiles;
+        if (currentFiles.some((file) => file === demoRefFile)) {
+          setRefFiles(currentFiles.filter((file) => file !== demoRefFile));
+        }
+      }
       // 如果之前没有提示词，清除我们添加的示例
       if (!prevStateRef.current.prompt.trim()) {
         setPrompt('');
@@ -524,9 +534,10 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
         clearRefFiles();
       }
       demoFileLoadedRef.current = false;
+      demoRefFileRef.current = null;
       prevStateRef.current = null;
     }
-  }, [closeCreateFolderDialogIfOpen, setPrompt, clearRefFiles]);
+  }, [closeCreateFolderDialogIfOpen, setPrompt, clearRefFiles, setRefFiles]);
 
   // 处理引导回调
   const handleJoyrideCallback = useCallback(
