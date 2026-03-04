@@ -100,11 +100,9 @@ type OnboardingStepKey =
   | 'historyCreateFolderDialog'
   | 'historyOpenFolderImages'
   | 'historyMoveToFolder'
-  | 'historyDragToRef'
-  | 'settingsCompression';
+  | 'historyDragToRef';
 
 interface StepRetryState {
-  settingsCompression: number;
   historyOpenFolderImages: number;
   historyMoveToFolder: number;
   historyCreateFolderDialog: number;
@@ -129,7 +127,6 @@ const STEP_KEYS: OnboardingStepKey[] = [
   'historyOpenFolderImages',
   'historyMoveToFolder',
   'historyDragToRef',
-  'settingsCompression',
 ];
 
 export function OnboardingTour({ onReady }: OnboardingTourProps) {
@@ -149,7 +146,6 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
   // 加载示例参考图的状态
   const demoFileLoadedRef = useRef(false);
   const stepRetryRef = useRef<StepRetryState>({
-    settingsCompression: 0,
     historyOpenFolderImages: 0,
     historyMoveToFolder: 0,
     historyCreateFolderDialog: 0,
@@ -305,14 +301,6 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       content: t('onboarding.historyDragToRef.content'),
       spotlightPadding: 4,
     },
-    {
-      target: '[data-onboarding="settings-ref-compression"]',
-      data: { key: 'settingsCompression' satisfies OnboardingStepKey },
-      placement: 'left',
-      title: t('onboarding.settingsCompression.title'),
-      content: t('onboarding.settingsCompression.content'),
-      spotlightPadding: 4,
-    },
   ];
 
   const getStepKey = useCallback(
@@ -324,13 +312,6 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     []
   );
-
-  const ensureSettingsModalOpen = useCallback(() => {
-    const hasCompressionTarget = document.querySelector('[data-onboarding="settings-ref-compression"]');
-    if (hasCompressionTarget) return;
-    const settingsButton = document.querySelector<HTMLElement>('[data-onboarding="settings-button"]');
-    settingsButton?.click();
-  }, []);
 
   const isSettingsModalOpen = useCallback(() => {
     return Boolean(document.querySelector('[data-onboarding="settings-modal"]'));
@@ -348,14 +329,6 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     firstFolderCard?.click();
   }, [isSettingsModalOpen]);
 
-  const ensureCreateFolderDialogOpened = useCallback(() => {
-    if (isSettingsModalOpen()) return;
-    const hasDialog = document.querySelector('[data-onboarding="create-folder-dialog"]');
-    if (hasDialog) return;
-    const createButton = document.querySelector<HTMLElement>('[data-onboarding="create-folder-button"]');
-    createButton?.click();
-  }, [isSettingsModalOpen]);
-
   const closeCreateFolderDialogIfOpen = useCallback(() => {
     const closeDialogButton = document.querySelector<HTMLElement>('[data-onboarding="create-folder-dialog-cancel"]');
     closeDialogButton?.click();
@@ -364,24 +337,18 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
   const getRetryAction = useCallback(
     (key: OnboardingStepKey): (() => void) | undefined => {
       switch (key) {
-        case 'settingsCompression':
-          return ensureSettingsModalOpen;
         case 'historyOpenFolderImages':
         case 'historyMoveToFolder':
           return ensureAlbumFolderOpened;
-        case 'historyCreateFolderDialog':
-          return ensureCreateFolderDialogOpened;
         default:
           return undefined;
       }
     },
-    [ensureAlbumFolderOpened, ensureCreateFolderDialogOpened, ensureSettingsModalOpen]
+    [ensureAlbumFolderOpened]
   );
 
   const getRetryCount = useCallback((key: OnboardingStepKey): number => {
     switch (key) {
-      case 'settingsCompression':
-        return stepRetryRef.current.settingsCompression;
       case 'historyOpenFolderImages':
         return stepRetryRef.current.historyOpenFolderImages;
       case 'historyMoveToFolder':
@@ -395,9 +362,6 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
 
   const setRetryCount = useCallback((key: OnboardingStepKey, value: number) => {
     switch (key) {
-      case 'settingsCompression':
-        stepRetryRef.current.settingsCompression = value;
-        return;
       case 'historyOpenFolderImages':
         stepRetryRef.current.historyOpenFolderImages = value;
         return;
@@ -474,7 +438,6 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       // 添加引导模式的 body class，用于强制显示 hover 元素
       document.body.classList.add('onboarding-active');
       setTab('generate');
-      stepRetryRef.current.settingsCompression = 0;
       stepRetryRef.current.historyOpenFolderImages = 0;
       stepRetryRef.current.historyMoveToFolder = 0;
       stepRetryRef.current.historyCreateFolderDialog = 0;
@@ -515,7 +478,6 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       case 'historyCreateFolderDialog':
         setTab('history');
         setHistoryViewMode('album');
-        scheduleStepAction('historyCreateFolderDialog', ensureCreateFolderDialogOpened);
         break;
       case 'historyOpenFolderImages':
       case 'historyMoveToFolder':
@@ -526,14 +488,10 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       case 'historyDragToRef':
         setTab('generate');
         break;
-      case 'settingsCompression':
-        setTab('generate');
-        scheduleStepAction('settingsCompression', ensureSettingsModalOpen);
-        break;
       default:
         break;
     }
-  }, [ensureAlbumFolderOpened, ensureCreateFolderDialogOpened, ensureSettingsModalOpen, getStepKey, run, scheduleStepAction, setHistoryViewMode, setTab, stepIndex]);
+  }, [ensureAlbumFolderOpened, getStepKey, run, scheduleStepAction, setHistoryViewMode, setTab, stepIndex]);
 
   useEffect(() => {
     return () => {
@@ -584,7 +542,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
         const key = getStepKey(index);
         const retryAction = key ? getRetryAction(key) : undefined;
         if (key && retryAction) {
-          const maxRetry = key === 'historyCreateFolderDialog' ? 5 : 2;
+          const maxRetry = 2;
           const attempt = getRetryCount(key) + 1;
           setRetryCount(key, attempt);
           if (attempt <= maxRetry) {
