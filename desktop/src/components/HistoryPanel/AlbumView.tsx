@@ -88,6 +88,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
 
   const folderGridRef = React.useRef<GridImperativeAPI | null>(null);
   const imageGridRef = React.useRef<GridImperativeAPI | null>(null);
+  const activeFolderIdRef = React.useRef<number | null>(null);
 
   const loadFolders = useCallback(async () => {
     setFoldersLoading(true);
@@ -135,6 +136,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
   }, []);
 
   const openFolder = useCallback(async (folder: FolderWithCount) => {
+    activeFolderIdRef.current = folder.id;
     setSelectedFolder(folder);
     setFolderImages([]);
     setFolderImagesPage(1);
@@ -144,6 +146,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
 
     try {
       const { images, total } = await fetchFolderImages(folder.id, 1);
+      if (activeFolderIdRef.current !== folder.id) return;
       setFolderImages(images);
       setFolderImagesTotal(total);
       setFolderImagesHasMore(images.length < total);
@@ -152,17 +155,21 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
       console.error('Failed to load folder images:', error);
       toast.error(t('history.toast.loadFailed'));
     } finally {
-      setFolderImagesLoading(false);
+      if (activeFolderIdRef.current === folder.id) {
+        setFolderImagesLoading(false);
+      }
     }
   }, [fetchFolderImages, t]);
 
   const loadMoreFolderImages = useCallback(async () => {
     if (!selectedFolder || folderImagesLoading || !folderImagesHasMore) return;
 
+    const folderId = selectedFolder.id;
     const nextPage = folderImagesPage + 1;
     setFolderImagesLoading(true);
     try {
-      const { images, total } = await fetchFolderImages(selectedFolder.id, nextPage);
+      const { images, total } = await fetchFolderImages(folderId, nextPage);
+      if (activeFolderIdRef.current !== folderId) return;
       setFolderImages((prev) => {
         const existingIds = new Set(prev.map((item) => item.id));
         const merged = [...prev];
@@ -180,11 +187,14 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
       console.error('Failed to load more folder images:', error);
       toast.error(t('history.toast.loadFailed'));
     } finally {
-      setFolderImagesLoading(false);
+      if (activeFolderIdRef.current === folderId) {
+        setFolderImagesLoading(false);
+      }
     }
-  }, [fetchFolderImages, folderImages.length, folderImagesHasMore, folderImagesLoading, folderImagesPage, selectedFolder, t]);
+  }, [fetchFolderImages, folderImagesHasMore, folderImagesLoading, folderImagesPage, selectedFolder, t]);
 
   const closeFolder = useCallback(() => {
+    activeFolderIdRef.current = null;
     setSelectedFolder(null);
     setFolderImages([]);
     setFolderImagesPage(1);

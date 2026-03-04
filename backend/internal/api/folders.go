@@ -71,12 +71,42 @@ type FolderResponse struct {
 	CoverImage string `json:"cover_image,omitempty"`
 }
 
+func toPublicImagePath(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return trimmed
+	}
+
+	normalized := strings.ReplaceAll(trimmed, "\\", "/")
+	if strings.HasPrefix(normalized, "/storage/") {
+		return normalized
+	}
+	if strings.HasPrefix(normalized, "storage/") {
+		return "/" + normalized
+	}
+
+	if idx := strings.Index(normalized, "/storage/"); idx >= 0 {
+		return normalized[idx:]
+	}
+	if idx := strings.Index(normalized, "storage/"); idx >= 0 {
+		return "/" + normalized[idx:]
+	}
+
+	return ""
+}
+
 // GetFoldersHandler 获取所有文件夹
 func GetFoldersHandler(c *gin.Context) {
 	var folders []model.Folder
+	query := model.DB.WithContext(c.Request.Context())
 
 	// 按创建时间降序排列
-	if err := model.DB.Order("created_at DESC").Find(&folders).Error; err != nil {
+	if err := query.Order("created_at DESC").Find(&folders).Error; err != nil {
 		log.Printf("[API] 获取文件夹列表失败: %v\n", err)
 		Error(c, http.StatusInternalServerError, 500, "获取文件夹列表失败")
 		return
@@ -89,7 +119,7 @@ func GetFoldersHandler(c *gin.Context) {
 	}
 
 	var counts []folderImageCount
-	if err := model.DB.Model(&model.Task{}).
+	if err := query.Model(&model.Task{}).
 		Select("folder_id, COUNT(*) as count").
 		Where("folder_id <> '' AND deleted_at IS NULL").
 		Group("folder_id").
@@ -118,12 +148,12 @@ func GetFoldersHandler(c *gin.Context) {
 		ImageURL      string `gorm:"column:image_url"`
 	}
 	var coverCandidates []folderCoverCandidate
-	latestPerFolderSubQuery := model.DB.Model(&model.Task{}).
+	latestPerFolderSubQuery := query.Model(&model.Task{}).
 		Select("folder_id, MAX(created_at) AS max_created_at").
 		Where("folder_id <> '' AND deleted_at IS NULL").
 		Group("folder_id")
 
-	if err := model.DB.Table("tasks AS t").
+	if err := query.Table("tasks AS t").
 		Select("t.folder_id, t.thumbnail_path, t.local_path, t.thumbnail_url, t.image_url").
 		Joins("JOIN (?) AS latest ON t.folder_id = latest.folder_id AND t.created_at = latest.max_created_at", latestPerFolderSubQuery).
 		Where("t.deleted_at IS NULL").
@@ -132,7 +162,12 @@ func GetFoldersHandler(c *gin.Context) {
 	}
 
 	pickCover := func(c folderCoverCandidate) string {
-		for _, v := range []string{c.ThumbnailPath, c.LocalPath, c.ThumbnailURL, c.ImageURL} {
+		for _, v := range []string{
+			toPublicImagePath(c.ThumbnailPath),
+			toPublicImagePath(c.LocalPath),
+			strings.TrimSpace(c.ThumbnailURL),
+			strings.TrimSpace(c.ImageURL),
+		} {
 			if strings.TrimSpace(v) != "" {
 				return v
 			}
@@ -179,6 +214,25 @@ func GetFoldersHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, responses)
 }
 
+type FolderImageTaskResponse struct {
+	TaskID        string `json:"task_id"`
+	Prompt        string `json:"prompt"`
+	ModelID       string `json:"model_id,omitempty"`
+	ProviderName  string `json:"provider_name,omitempty"`
+	LocalPath     string `json:"local_path,omitempty"`
+	ThumbnailPath string `json:"thumbnail_path,omitempty"`
+	ImageURL      string `json:"image_url,omitempty"`
+	ThumbnailURL  string `json:"thumbnail_url,omitempty"`
+	Width         int    `json:"width,omitempty"`
+	Height        int    `json:"height,omitempty"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at,omitempty"`
+	Status        string `json:"status"`
+	TotalCount    int    `json:"total_count,omitempty"`
+	ErrorMessage  string `json:"error_message,omitempty"`
+	ConfigSnap    string `json:"config_snapshot,omitempty"`
+}
+
 // GetFolderImagesHandler 获取指定文件夹下的图片列表（分页）
 func GetFolderImagesHandler(c *gin.Context) {
 	folderID := strings.TrimSpace(c.Param("id"))
@@ -215,9 +269,11 @@ func GetFolderImagesHandler(c *gin.Context) {
 		pageSize = 100
 	}
 
+	query := model.DB.WithContext(c.Request.Context())
+
 	// 先校验文件夹是否存在（不存在时返回 404，避免误导为“空文件夹”）
 	var folder model.Folder
-	if err := model.DB.Where("id = ?", folderID).First(&folder).Error; err != nil {
+	if err := query.Where("id = ?", folderID).First(&folder).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			Error(c, http.StatusNotFound, 404, "文件夹不存在")
 			return
@@ -226,17 +282,17 @@ func GetFolderImagesHandler(c *gin.Context) {
 		return
 	}
 
-	query := model.DB.Model(&model.Task{}).Where("folder_id = ?", folderID)
+	taskQuery := query.Model(&model.Task{}).Where("folder_id = ?", folderID)
 
 	var total int64
-	if err := query.Count(&total).Error; err != nil {
+	if err := taskQuery.Count(&total).Error; err != nil {
 		Error(c, http.StatusInternalServerError, 500, "查询文件夹图片总数失败")
 		return
 	}
 
 	var tasks []model.Task
 	offset := (page - 1) * pageSize
-	if err := query.Order("status='processing' DESC, status='pending' DESC, created_at DESC").
+	if err := taskQuery.Order("status='processing' DESC, status='pending' DESC, created_at DESC").
 		Offset(offset).
 		Limit(pageSize).
 		Find(&tasks).Error; err != nil {
@@ -244,9 +300,30 @@ func GetFolderImagesHandler(c *gin.Context) {
 		return
 	}
 
+	responses := make([]FolderImageTaskResponse, len(tasks))
+	for i, task := range tasks {
+		responses[i] = FolderImageTaskResponse{
+			TaskID:        task.TaskID,
+			Prompt:        task.Prompt,
+			ModelID:       task.ModelID,
+			ProviderName:  task.ProviderName,
+			LocalPath:     toPublicImagePath(task.LocalPath),
+			ThumbnailPath: toPublicImagePath(task.ThumbnailPath),
+			ImageURL:      strings.TrimSpace(task.ImageURL),
+			ThumbnailURL:  strings.TrimSpace(task.ThumbnailURL),
+			Width:         task.Width,
+			Height:        task.Height,
+			CreatedAt:     task.CreatedAt.Format(time.RFC3339),
+			Status:        task.Status,
+			TotalCount:    task.TotalCount,
+			ErrorMessage:  task.ErrorMessage,
+			ConfigSnap:    task.ConfigSnapshot,
+		}
+	}
+
 	Success(c, gin.H{
 		"total": total,
-		"list":  tasks,
+		"list":  responses,
 	})
 }
 
