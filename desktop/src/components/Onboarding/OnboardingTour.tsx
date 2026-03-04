@@ -332,7 +332,12 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     settingsButton?.click();
   }, []);
 
+  const isSettingsModalOpen = useCallback(() => {
+    return Boolean(document.querySelector('[data-onboarding="settings-modal"]'));
+  }, []);
+
   const ensureAlbumFolderOpened = useCallback(() => {
+    if (isSettingsModalOpen()) return;
     const closeDialogButton = document.querySelector<HTMLElement>('[data-onboarding="create-folder-dialog-cancel"]');
     if (closeDialogButton) {
       closeDialogButton.click();
@@ -341,14 +346,15 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     if (hasFolderDetail) return;
     const firstFolderCard = document.querySelector<HTMLElement>('[data-onboarding="album-folder-card"]');
     firstFolderCard?.click();
-  }, []);
+  }, [isSettingsModalOpen]);
 
   const ensureCreateFolderDialogOpened = useCallback(() => {
+    if (isSettingsModalOpen()) return;
     const hasDialog = document.querySelector('[data-onboarding="create-folder-dialog"]');
     if (hasDialog) return;
     const createButton = document.querySelector<HTMLElement>('[data-onboarding="create-folder-button"]');
     createButton?.click();
-  }, []);
+  }, [isSettingsModalOpen]);
 
   const closeCreateFolderDialogIfOpen = useCallback(() => {
     const closeDialogButton = document.querySelector<HTMLElement>('[data-onboarding="create-folder-dialog-cancel"]');
@@ -534,6 +540,12 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       clearStepTimers();
     };
   }, [clearStepTimers]);
+
+  useEffect(() => {
+    if (!run) return;
+    if (!isSettingsModalOpen()) return;
+    closeCreateFolderDialogIfOpen();
+  }, [closeCreateFolderDialogIfOpen, isSettingsModalOpen, run, stepIndex]);
 
   // 清理引导时的示例数据
   const cleanupDemoData = useCallback(() => {

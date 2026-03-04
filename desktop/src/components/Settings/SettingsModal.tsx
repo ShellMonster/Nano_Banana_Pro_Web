@@ -794,7 +794,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       contentScrollable={false}
       contentClassName="h-full min-h-0"
     >
-      <div className="relative h-full min-h-0">
+      <div className="relative h-full min-h-0" data-onboarding="settings-modal">
         <div className="grid grid-cols-[220px_minmax(0,1fr)] gap-8 h-full min-h-0">
           <div className="space-y-2">
             {menuItems.map((item) => {
