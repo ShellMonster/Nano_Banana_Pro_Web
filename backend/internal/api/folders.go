@@ -109,7 +109,7 @@ func GetFoldersHandler(c *gin.Context) {
 		countMap[uint(id)] = c.Count
 	}
 
-	// 按创建时间倒序拉取任务，取每个文件夹第一张作为封面
+	// 每个文件夹仅查询一条最新任务作为封面，避免全量加载任务导致内存压力
 	type folderCoverCandidate struct {
 		FolderID      string `gorm:"column:folder_id"`
 		ThumbnailPath string `gorm:"column:thumbnail_path"`
@@ -118,10 +118,15 @@ func GetFoldersHandler(c *gin.Context) {
 		ImageURL      string `gorm:"column:image_url"`
 	}
 	var coverCandidates []folderCoverCandidate
-	if err := model.DB.Model(&model.Task{}).
-		Select("folder_id, thumbnail_path, local_path, thumbnail_url, image_url").
+	latestPerFolderSubQuery := model.DB.Model(&model.Task{}).
+		Select("folder_id, MAX(created_at) AS max_created_at").
 		Where("folder_id <> '' AND deleted_at IS NULL").
-		Order("created_at DESC").
+		Group("folder_id")
+
+	if err := model.DB.Table("tasks AS t").
+		Select("t.folder_id, t.thumbnail_path, t.local_path, t.thumbnail_url, t.image_url").
+		Joins("JOIN (?) AS latest ON t.folder_id = latest.folder_id AND t.created_at = latest.max_created_at", latestPerFolderSubQuery).
+		Where("t.deleted_at IS NULL").
 		Find(&coverCandidates).Error; err != nil {
 		log.Printf("[API] 查询文件夹封面候选失败: %v\n", err)
 	}
