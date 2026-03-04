@@ -276,7 +276,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     {
       target: '[data-onboarding="create-folder-dialog"]',
       data: { key: 'historyCreateFolderDialog' satisfies OnboardingStepKey },
-      placement: 'bottom',
+      placement: 'top',
       title: t('onboarding.historyCreateFolderDialog.title'),
       content: t('onboarding.historyCreateFolderDialog.content'),
       spotlightPadding: 4,
@@ -572,9 +572,10 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
         const key = getStepKey(index);
         const retryAction = key ? getRetryAction(key) : undefined;
         if (key && retryAction) {
+          const maxRetry = key === 'historyCreateFolderDialog' ? 5 : 2;
           const attempt = getRetryCount(key) + 1;
           setRetryCount(key, attempt);
-          if (attempt <= 2) {
+          if (attempt <= maxRetry) {
             retryAction();
             if (retryStepTimerRef.current !== null) {
               window.clearTimeout(retryStepTimerRef.current);
