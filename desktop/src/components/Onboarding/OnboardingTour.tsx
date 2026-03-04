@@ -128,7 +128,7 @@ const STEP_KEYS: OnboardingStepKey[] = [
 
 export function OnboardingTour({ onReady }: OnboardingTourProps) {
   const { t, i18n } = useTranslation();
-  const { showOnboarding, setShowOnboarding, prompt, setPrompt, refFiles, setRefFiles, clearRefFiles } = useConfigStore();
+  const { showOnboarding, setShowOnboarding, setPrompt, setRefFiles, clearRefFiles } = useConfigStore();
   const setTab = useGenerateStore((s) => s.setTab);
   const setHistoryViewMode = useHistoryStore((s) => s.setViewMode);
   const [run, setRun] = useState(false);
@@ -420,20 +420,21 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       onboardingSessionRef.current += 1;
       const currentSession = onboardingSessionRef.current;
       demoRefFileRef.current = null;
+      const { prompt: currentPrompt, refFiles: currentRefFiles } = useConfigStore.getState();
       // 保存引导前的状态
       prevStateRef.current = {
-        prompt: prompt,
-        hadRefFiles: refFiles.length > 0,
+        prompt: currentPrompt,
+        hadRefFiles: currentRefFiles.length > 0,
       };
 
       // 如果提示词为空，填充示例提示词
-      if (!prompt.trim()) {
+      if (!currentPrompt.trim()) {
         const demoPrompt = i18n.language.startsWith('zh') ? DEMO_PROMPT_ZH : DEMO_PROMPT_EN;
         setPrompt(demoPrompt);
       }
 
       // 如果没有参考图，加载示例参考图（app icon）用于展示逆向提示词功能
-      if (refFiles.length === 0 && !demoFileLoadedRef.current) {
+      if (currentRefFiles.length === 0 && !demoFileLoadedRef.current) {
         demoFileLoadedRef.current = true;
         createDemoRefFile(appIcon).then((file) => {
           if (!file) return;
@@ -466,7 +467,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       document.body.classList.remove('onboarding-active');
       clearStepTimers();
     }
-  }, [clearStepTimers, showOnboarding, i18n.language, prompt, refFiles.length, setPrompt, setRefFiles, setTab]);
+  }, [clearStepTimers, showOnboarding, i18n.language, setPrompt, setRefFiles, setTab]);
 
   // 根据步骤自动切换上下文，确保目标元素可见
   useEffect(() => {

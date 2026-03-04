@@ -949,7 +949,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </div>
 
             {/* API Key */}
-            <div className="space-y-3" data-onboarding="settings-ref-compression">
+            <div className="space-y-3">
               <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
                 <Key className="w-4 h-4 text-blue-600" />
                 API Key
@@ -973,7 +973,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </div>
 
             {/* Model Name */}
-            <div className="space-y-3">
+            <div className="space-y-3" data-onboarding="settings-ref-compression">
               <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
                 <Box className="w-4 h-4 text-blue-600" />
                 {t('settings.model.default')}
