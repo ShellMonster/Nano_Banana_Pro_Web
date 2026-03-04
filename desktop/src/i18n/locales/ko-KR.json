@@ -564,6 +564,7 @@
       "noDownload": "다운로드할 이미지가 없습니다",
       "downloadStarted": "다운로드를 시작했습니다",
       "downloadFailed": "다운로드 실패",
+      "downloadSuccess": "다운로드 완료",
       "applied": "템플릿이 적용되었습니다",
       "applyFailed": "템플릿 적용 실패",
       "moreRefsNeeded": "참고 이미지를 추가해 주세요"

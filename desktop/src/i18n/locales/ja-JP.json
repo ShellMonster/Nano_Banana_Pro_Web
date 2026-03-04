@@ -564,6 +564,7 @@
       "noDownload": "ダウンロードできる画像がありません",
       "downloadStarted": "ダウンロードを開始しました",
       "downloadFailed": "ダウンロードに失敗しました",
+      "downloadSuccess": "ダウンロードが完了しました",
       "applied": "テンプレートを適用しました",
       "applyFailed": "テンプレートの適用に失敗しました",
       "moreRefsNeeded": "参照画像を追加してください"
