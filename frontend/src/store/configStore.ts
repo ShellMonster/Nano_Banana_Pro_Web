@@ -2,13 +2,35 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { PersistedRefImage } from '../types';
 
+// Model constants to avoid magic strings
+export const IMAGE_MODELS = {
+  FLASH: { value: 'gemini-3-flash-image-preview', label: 'Flash' },
+  PRO: { value: 'gemini-3-pro-image-preview', label: 'Pro' },
+} as const;
+
 // Model options for the dropdown selectors
 export const IMAGE_MODEL_OPTIONS = [
-  { value: 'gemini-3-flash-image-preview', label: 'Flash (gemini-3-flash-image-preview)' },
-  { value: 'gemini-3-pro-image-preview', label: 'Pro (gemini-3-pro-image-preview)' },
+  { value: IMAGE_MODELS.FLASH.value, label: `${IMAGE_MODELS.FLASH.label} (${IMAGE_MODELS.FLASH.value})` },
+  { value: IMAGE_MODELS.PRO.value, label: `${IMAGE_MODELS.PRO.label} (${IMAGE_MODELS.PRO.value})` },
 ] as const;
 
 export const CUSTOM_MODEL_VALUE = '__custom__';
+
+// Model configuration with supported aspect ratios
+export const IMAGE_MODEL_CONFIG: Record<string, { aspectRatios: string[] }> = {
+  [IMAGE_MODELS.FLASH.value]: {
+    aspectRatios: ['1:1', '1:4', '1:8', '2:3', '3:2', '3:4', '4:1', '4:3', '4:5', '5:4', '8:1', '9:16', '16:9', '21:9']
+  },
+  [IMAGE_MODELS.PRO.value]: {
+    aspectRatios: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']
+  }
+};
+
+// Helper function to get supported aspect ratios for a model
+export const getModelAspectRatios = (model: string): string[] => {
+  const ratios = IMAGE_MODEL_CONFIG[model]?.aspectRatios;
+  return (ratios && ratios.length > 0) ? ratios : ['1:1'];
+};
 
 interface ConfigState {
   // 生图配置

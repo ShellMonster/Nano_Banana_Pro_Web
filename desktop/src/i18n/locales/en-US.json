@@ -48,10 +48,7 @@
     "copyFailed": "Copy failed",
     "deleteFailed": "Delete failed",
     "imageSrcEmpty": "Image source is empty",
-    "imageFetchFailed": "Failed to fetch image: {{status}}",
-    "fileTooLarge": "File too large",
-    "downloadFailed": "Download failed",
-    "downloadSuccess": "Download successful"
+    "imageFetchFailed": "Failed to fetch image: {{status}}"
   },
   "preview": {
     "copyImage": "Copy image",
@@ -83,12 +80,6 @@
       "time": "Time"
     },
     "downloadOriginal": "Download original"
-,
-    "failed": {
-      "title": "Generation Failed",
-      "copyError": "Copy Error Info",
-      "errorCopied": "Error Info Copied"
-    }
   },
   "prompt": {
     "label": "Prompt",
@@ -142,12 +133,8 @@
       "adding": "Adding images...",
       "pasteFailed": "Paste failed: {{message}}",
       "deduped": "Duplicate images filtered",
-      "timeout": "Operation timed out ({{seconds}}s)",
-      "promptExtracted": "Prompt extracted from image",
-      "extractFailed": "Failed to extract prompt",
-      "chatConfigMissing": "Please configure Chat Model API Key in Settings first"
+      "timeout": "Operation timed out ({{seconds}}s)"
     },
-    "extractPrompt": "Extract prompt",
     "compressReason": {
       "fileTooLarge": "File too large ({{size}}MB)",
       "dimensions": "Dimensions too large ({{width}}x{{height}})"
@@ -157,7 +144,6 @@
     "title": "Settings",
     "tabs": {
       "image": "Image Model",
-      "vision": "Vision Model",
       "chat": "Chat Model"
     },
     "language": {
@@ -169,39 +155,25 @@
       "recommended": "Recommended:",
       "yunwu": "Yunwu API",
       "openaiImageLimit": "OpenAI providers currently support only 1K images",
-      "geminiBasePathHint": "For Gemini, use only the host as Base URL (avoid /v1 or endpoint paths).",
-      "yunwuExtraPathHint": "For Yunwu API, enter only the domain (e.g., https://yunwu.ai). Do not include /v1 or /v1beta paths - the backend handles this automatically.",
-      "yunwuMissingV1Hint": "For Yunwu API (OpenAI type), enter the full URL with /v1 (e.g., https://yunwu.ai/v1)."
-    },
-    "vision": {
-      "hint": "Vision config for reverse prompt feature. Leave empty to use image config.",
-      "apiKeyPlaceholder": "Leave empty to use image API key",
-      "apiKeyHint": "Leave empty to use image config API key"
+      "geminiBasePathHint": "For Gemini, use only the host as Base URL (avoid /v1 or endpoint paths)."
     },
     "model": {
       "default": "Default Model",
       "chat": "Chat Model",
-      "vision": "Vision Model",
       "custom": "Custom",
       "customPlaceholder": "Enter custom model ID"
+    },
+    "vision": {
+      "title": "Vision Config"
+    },
+    "timeout": {
+      "image": "Image timeout (s)",
+      "chat": "Text timeout (s)"
     },
     "refImageCompression": {
       "label": "Reference Image Compression",
       "hint": "When enabled, reference images will be automatically compressed to save bandwidth and storage",
       "speedHint": "Only improves generation speed when using reference images; it should not affect image quality."
-    },
-    "timeout": {
-      "image": "Image timeout (s)",
-      "vision": "Vision timeout (s)",
-      "chat": "Text timeout (s)"
-    },
-    "onboarding": {
-      "label": "Onboarding",
-      "hint": "Click the button to restart the onboarding guide",
-      "restart": "Show Guide Again",
-      "confirmTitle": "Start Onboarding",
-      "confirmHint": "This will close settings and start the onboarding guide. Continue?",
-      "confirmStart": "Start Guide"
     },
     "update": {
       "title": "Updates",
@@ -230,7 +202,6 @@
       "chatConfigIncomplete": "Please complete the chat model config",
       "openaiGeminiUnsupported": "OpenAI base URL does not support Gemini models. Please use a compatible endpoint.",
       "geminiBasePathWarning": "Gemini Base URL contains a path (such as /v1). It is recommended to use a host-only URL.",
-      "timeoutTooSmall": "Timeout cannot be less than {{min}} seconds",
       "saveSuccess": "Config synced to server",
       "saveFailed": "Save failed: {{msg}}",
       "checkNetwork": "Please check your network",
@@ -371,8 +342,7 @@
       "failed": "Generation failed",
       "failedWith": "Generation failed: {{message}}",
       "partial": "Task partially completed",
-      "recovered": "Generation progress restored",
-      "timeout": "Image generation timed out ({{seconds}}s), please check your network or increase timeout"
+      "recovered": "Generation progress restored"
     }
   },
   "config": {
@@ -460,10 +430,6 @@
         "description": "Unknown task status"
       }
     },
-    "viewMode": {
-      "timeline": "Timeline",
-      "album": "Album"
-    },
     "toast": {
       "updated": "History updated",
       "loadFailed": "Failed to load history",
@@ -474,22 +440,26 @@
       "imageDeleted": "Image deleted",
       "imageDeleteFailed": "Image delete failed"
     },
+    "viewMode": {
+      "timeline": "Timeline",
+      "album": "Album"
+    },
     "folder": {
-      "title": "Folder",
+      "title": "Folders",
       "create": "Create Folder",
       "createPlaceholder": "Enter folder name",
-      "createSuccess": "Created successfully",
-      "createFailed": "Failed to create",
-      "nameRequired": "Folder name is required",
+      "createSuccess": "Folder created successfully",
+      "createFailed": "Failed to create folder",
+      "nameRequired": "Folder name cannot be empty",
       "nameExists": "Folder name already exists",
       "imageCount": "images",
-      "typeMonth": "Auto Month Folder",
-      "typeManual": "Manual",
+      "typeMonth": "Auto-generated monthly folder",
+      "typeManual": "Manually created",
       "loadFailed": "Failed to load folders",
-      "empty": "No folders yet",
-      "moveImage": "Move to Folder",
-      "moveSuccess": "Moved successfully",
-      "moveFailed": "Failed to move",
+      "empty": "No folders",
+      "moveImage": "Move to folder",
+      "moveSuccess": "Image moved successfully",
+      "moveFailed": "Failed to move image",
       "backToFolders": "Back to folders",
       "emptyInFolder": "No images in this folder",
       "moveButton": "Move",
@@ -580,7 +550,6 @@
       "noDownload": "No image to download",
       "downloadStarted": "Download started",
       "downloadFailed": "Download failed",
-      "downloadSuccess": "Download successful",
       "applied": "Template applied",
       "applyFailed": "Failed to apply template",
       "moreRefsNeeded": "Please add reference images"
@@ -646,96 +615,25 @@
       "architecture": "Architecture",
       "film": "Film",
       "ratio1_1": "1:1",
+      "ratio1_4": "1:4",
+      "ratio1_8": "1:8",
+      "ratio2_3": "2:3",
+      "ratio3_2": "3:2",
+      "ratio3_4": "3:4",
+      "ratio4_1": "4:1",
+      "ratio4_3": "4:3",
+      "ratio4_5": "4:5",
+      "ratio5_4": "5:4",
+      "ratio8_1": "8:1",
+      "ratio9_16": "9:16",
+      "ratio16_9": "16:9",
+      "ratio21_9": "21:9",
+      "ratioAutoAdjusted": "Aspect ratio {{from}} not supported, auto-adjusted to {{to}}",
       "ratio3_4": "3:4",
       "ratio4_5": "4:5",
       "ratio9_16": "9:16",
       "ratio16_9": "16:9",
       "ratio2_3": "2:3"
-    }
-  },
-  "onboarding": {
-    "progress": "Step {{current}}/{{total}}",
-    "buttons": {
-      "next": "Next",
-      "back": "Back",
-      "skip": "Skip",
-      "finish": "Get Started"
-    },
-    "welcome": {
-      "title": "Welcome to Banana AI",
-      "content": "This is a powerful AI image generation tool. Let me guide you through the main features. Click 'Next' to begin."
-    },
-    "settings": {
-      "title": "Configure API",
-      "content": "Click here to open settings and configure your API Key and model. Supports Gemini and OpenAI compatible interfaces."
-    },
-    "prompt": {
-      "title": "Enter Prompt",
-      "content": "Describe the image you want to generate here. More detailed descriptions lead to better results."
-    },
-    "optimizeNormal": {
-      "title": "Optimize Prompt",
-      "content": "Click this button to let AI expand your simple description into a more detailed, professional prompt for better results."
-    },
-    "optimizeJson": {
-      "title": "JSON Mode",
-      "content": "This button outputs structured JSON format prompts, suitable for scenarios requiring fine control over generation parameters."
-    },
-    "resolution": {
-      "title": "Quality & Aspect Ratio",
-      "content": "Select the generation resolution (1K/2K/4K) and aspect ratio (square, landscape, portrait, etc.)."
-    },
-    "refImageUpload": {
-      "title": "Upload Reference Images",
-      "content": "Click here to upload reference images. Supports drag & drop, paste, up to 10 images. Use them for image-to-image generation."
-    },
-    "refImageExtract": {
-      "title": "Extract Prompt",
-      "content": "After uploading, a purple button appears on each image. Click it to let AI analyze the image and generate a reusable prompt description."
-    },
-    "templateMarket": {
-      "title": "Template Market",
-      "content": "Pull down here to open the template market. Contains 900+ curated templates for one-click reuse."
-    },
-    "generate": {
-      "title": "Start Creating",
-      "content": "Everything is ready! Click this button to generate your first image!"
-    },
-    "historyTab": {
-      "title": "History Entry",
-      "content": "Click here to switch to the History panel and review your previous generations."
-    },
-    "historyViewToggle": {
-      "title": "Timeline / Album Toggle",
-      "content": "History supports two views: Timeline groups by tasks, Album groups by folders."
-    },
-    "historyAlbumCards": {
-      "title": "Album Folder Cards",
-      "content": "In Album view, folder cards show cover images and item counts, including date-based auto folders."
-    },
-    "historyCreateFolder": {
-      "title": "Create Folder",
-      "content": "Use this button to create a manual folder and organize images by your own topics."
-    },
-    "historyCreateFolderDialog": {
-      "title": "Create Folder Dialog",
-      "content": "Enter a folder name in this dialog and confirm to create a new manual folder."
-    },
-    "historyOpenFolderImages": {
-      "title": "Open Folder",
-      "content": "Click a folder card to enter and browse the images inside that folder."
-    },
-    "historyMoveToFolder": {
-      "title": "Move Image to Folder",
-      "content": "Right-click a history image to move it into another folder for cleaner organization."
-    },
-    "historyDragToRef": {
-      "title": "Drag Back to Reference Area",
-      "content": "You can drag an image from History directly into the reference area to continue creating."
-    },
-    "settingsCompression": {
-      "title": "Reference Compression Toggle",
-      "content": "This toggle controls reference-image compression, and changes take effect only after clicking Save."
     }
   }
 }

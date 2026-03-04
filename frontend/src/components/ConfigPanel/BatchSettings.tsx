@@ -1,13 +1,24 @@
-import React from 'react';
+import { useMemo, useEffect } from 'react';
 import { Settings2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useConfigStore } from '../../store/configStore';
+import { useConfigStore, getModelAspectRatios } from '../../store/configStore';
 import { Select } from '../common/Select';
 import { Input } from '../common/Input';
+import { toast } from '../../store/toastStore';
 
 export function BatchSettings() {
   const { t } = useTranslation();
-  const { count, setCount, imageSize, setImageSize, aspectRatio, setAspectRatio } = useConfigStore();
+  const { count, setCount, imageSize, setImageSize, aspectRatio, setAspectRatio, imageModel } = useConfigStore();
+
+  const supportedRatios = useMemo(() => getModelAspectRatios(imageModel), [imageModel]);
+
+  useEffect(() => {
+    if (supportedRatios.length > 0 && !supportedRatios.includes(aspectRatio)) {
+      const newRatio = supportedRatios[0];
+      setAspectRatio(newRatio);
+      toast.info(t('config.batch.ratioAutoAdjusted', { from: aspectRatio, to: newRatio }));
+    }
+  }, [imageModel, aspectRatio, setAspectRatio, supportedRatios, t]);
 
   return (
     <div className="space-y-3">
@@ -46,16 +57,16 @@ export function BatchSettings() {
         <div className="space-y-1">
             <label className="text-xs text-gray-500">{t('config.batch.aspectRatio')}</label>
              <Select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="h-9 text-sm">
-                <option value="1:1">{t('config.batch.ratio.1_1')}</option>
-                <option value="2:3">{t('config.batch.ratio.2_3')}</option>
-                <option value="3:2">{t('config.batch.ratio.3_2')}</option>
-                <option value="3:4">{t('config.batch.ratio.3_4')}</option>
-                <option value="4:3">{t('config.batch.ratio.4_3')}</option>
-                <option value="4:5">{t('config.batch.ratio.4_5')}</option>
-                <option value="5:4">{t('config.batch.ratio.5_4')}</option>
-                <option value="9:16">{t('config.batch.ratio.9_16')}</option>
-                <option value="16:9">{t('config.batch.ratio.16_9')}</option>
-                <option value="21:9">{t('config.batch.ratio.21_9')}</option>
+                {supportedRatios.map((ratio) => {
+                  const key = ratio.replace(':', '_');
+                  const labelKey = `config.batch.ratio.${key}`;
+                  const label = t(labelKey, { defaultValue: ratio });
+                  return (
+                    <option key={ratio} value={ratio}>
+                      {label}
+                    </option>
+                  );
+                })}
             </Select>
         </div>
     </div>
