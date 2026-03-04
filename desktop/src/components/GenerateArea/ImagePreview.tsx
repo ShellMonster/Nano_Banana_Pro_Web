@@ -610,11 +610,29 @@ export const ImagePreview = React.memo(function ImagePreview({
                 
                 // 将绝对路径转换为相对于 AppData 的相对路径（安全读取）
                 const appDataDir = await invoke<string>('get_app_data_dir');
-                const normalizedAppData = appDataDir.replace(/\\/g, '/').replace(/\/$/, '');
-                
-                // 路径规范化：解析并移除所有 .. 序列
-                const normalizePath = (path: string): string => {
-                    const parts = path.replace(/\\/g, '/').split('/').filter(p => p && p !== '.');
+
+                // 路径规范化：解析并移除所有 .. 序列，同时保留 Windows 盘符/UNC 根路径
+                const normalizePathForCompare = (path: string): string => {
+                    const source = String(path || '').trim().replace(/\\/g, '/');
+                    if (!source) return '';
+
+                    let root = '';
+                    let rest = source;
+                    const uncMatch = rest.match(/^\/\/[^/]+\/[^/]+/);
+                    const driveMatch = rest.match(/^[a-zA-Z]:/);
+
+                    if (uncMatch) {
+                        root = uncMatch[0].toLowerCase();
+                        rest = rest.slice(uncMatch[0].length);
+                    } else if (driveMatch) {
+                        root = driveMatch[0].toLowerCase();
+                        rest = rest.slice(driveMatch[0].length);
+                    } else if (rest.startsWith('/')) {
+                        root = '/';
+                        rest = rest.slice(1);
+                    }
+
+                    const parts = rest.split('/').filter((p) => p && p !== '.');
                     const stack: string[] = [];
                     for (const part of parts) {
                         if (part === '..') {
@@ -623,19 +641,36 @@ export const ImagePreview = React.memo(function ImagePreview({
                             stack.push(part);
                         }
                     }
-                    return '/' + stack.join('/');
+
+                    const suffix = stack.join('/');
+                    if (!root) return suffix;
+                    if (root === '/') return suffix ? `/${suffix}` : '/';
+                    return suffix ? `${root}/${suffix}` : root;
                 };
-                
-                const normalizedFilePath = normalizePath(image.filePath);
+
+                const normalizedAppData = normalizePathForCompare(appDataDir);
+                const normalizedFilePath = normalizePathForCompare(image.filePath);
+
+                const isWindowsPath = /^[a-z]:/i.test(normalizedAppData) || normalizedAppData.startsWith('//');
+                const appDataForCompare = isWindowsPath ? normalizedAppData.toLowerCase() : normalizedAppData;
+                const filePathForCompare = isWindowsPath ? normalizedFilePath.toLowerCase() : normalizedFilePath;
 
                 // 安全校验：确保文件路径在 AppData 目录内（防止路径遍历攻击）
-                if (!normalizedFilePath.startsWith(normalizedAppData + '/')) {
+                const isSamePath = filePathForCompare === appDataForCompare;
+                const isSubPath = filePathForCompare.startsWith(`${appDataForCompare}/`);
+                if (!isSamePath && !isSubPath) {
                     console.error(`[Security] Attempted to read file outside of app data directory: ${image.filePath}`);
                     toast.error(t('toast.downloadFailed'));
                     return;
                 }
-                
-                const relativePath = normalizedFilePath.substring(normalizedAppData.length + 1);
+
+                const relativePath = normalizedFilePath
+                    .slice(normalizedAppData.length)
+                    .replace(/^\/+/, '');
+                if (!relativePath) {
+                    toast.error(t('toast.downloadFailed'));
+                    return;
+                }
 
                 // 读取本地文件并写入目标位置
                 const bytes = await readFile(relativePath, { baseDir: BaseDirectory.AppData });
