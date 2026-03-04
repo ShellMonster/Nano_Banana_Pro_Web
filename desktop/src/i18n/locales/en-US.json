@@ -356,12 +356,16 @@
       "aspectRatio": "Aspect Ratio",
       "ratio": {
         "1_1": "1:1 (Square)",
+        "1_4": "1:4 (Tall Portrait)",
+        "1_8": "1:8 (Ultra-tall Portrait)",
         "2_3": "2:3 (Portrait 2:3)",
         "3_2": "3:2 (Landscape 3:2)",
         "3_4": "3:4 (Portrait 3:4)",
+        "4_1": "4:1 (Panorama)",
         "4_3": "4:3 (Standard 4:3)",
         "4_5": "4:5 (Portrait 4:5)",
         "5_4": "5:4 (Landscape 5:4)",
+        "8_1": "8:1 (Ultra-wide Panorama)",
         "9_16": "9:16 (Mobile)",
         "16_9": "16:9 (Widescreen)",
         "21_9": "21:9 (Ultra-wide)"
