@@ -9,6 +9,7 @@ import { getImageUrl } from '../../services/api';
 import { ImagePreview } from '../GenerateArea/ImagePreview';
 import { ImageCard } from './ImageCard';
 import { FailedTaskCard } from './FailedTaskCard';
+import { formatAspectRatioLabel } from '../../utils/aspectRatio';
 
 // 扩展 Image 类型以包含展示信息
 export interface FlattenedImage extends GeneratedImage {
@@ -96,28 +97,7 @@ export function HistoryList() {
       return 'SD';
   }, []);
 
-  // 辅助函数：根据像素计算比例标签（简化为最简比例）
-  const getRatioLabel = useCallback((w: number, h: number) => {
-      if (!w || !h) return '1:1';
-
-      // 计算最大公约数（GCD - Greatest Common Divisor）
-      const gcd = (a: number, b: number): number => {
-          a = Math.abs(a);
-          b = Math.abs(b);
-          while (b) {
-              const t = b;
-              b = a % b;
-              a = t;
-          }
-          return a;
-      };
-
-      const divisor = gcd(w, h);
-      const ratioW = w / divisor;
-      const ratioH = h / divisor;
-
-      return `${ratioW}:${ratioH}`;
-  }, []);
+  const getRatioLabel = useCallback((w: number, h: number) => formatAspectRatioLabel(w, h), []);
 
   // 处理图片点击
   const handleImageClick = useCallback((image: FlattenedImage) => {

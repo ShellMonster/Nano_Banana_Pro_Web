@@ -144,6 +144,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
     const handleMoveSuccess = useCallback(async () => {
         if (!image.taskId) {
             useHistoryStore.getState().loadHistory(true);
+            window.dispatchEvent(new CustomEvent('history:image-moved'));
             setIsMoveDialogOpen(false);
             return;
         }
@@ -157,6 +158,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
             // Fallback to full refresh on failure
             useHistoryStore.getState().loadHistory(true);
         }
+        window.dispatchEvent(new CustomEvent('history:image-moved'));
         setIsMoveDialogOpen(false);
     }, [image.taskId]);
 
