@@ -11,6 +11,7 @@ import { getFolders, getFolderImages, Folder } from '../../services/folderApi';
 import { getImageUrl } from '../../services/api';
 import { toast } from '../../store/toastStore';
 import { mapBackendHistoryResponse } from '../../utils/mapping';
+import { formatAspectRatioLabel } from '../../utils/aspectRatio';
 
 interface FolderWithCount extends Folder {
   imageCount: number;
@@ -51,28 +52,7 @@ const getResolutionLabel = (w: number, h: number) => {
   return 'SD';
 };
 
-// 辅助函数：根据像素计算比例标签（简化为最简比例）
-const getRatioLabel = (w: number, h: number) => {
-  if (!w || !h) return '1:1';
-
-  // 计算最大公约数（GCD - Greatest Common Divisor）
-  const gcd = (a: number, b: number): number => {
-    a = Math.abs(a);
-    b = Math.abs(b);
-    while (b) {
-      const t = b;
-      b = a % b;
-      a = t;
-    }
-    return a;
-  };
-
-  const divisor = gcd(w, h);
-  const ratioW = w / divisor;
-  const ratioH = h / divisor;
-
-  return `${ratioW}:${ratioH}`;
-};
+const getRatioLabel = (w: number, h: number) => formatAspectRatioLabel(w, h);
 
 const getSafeArrayItem = <T,>(items: T[], idx: number): T | undefined => {
   if (!Number.isInteger(idx) || idx < 0 || idx >= items.length) {
@@ -228,6 +208,20 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
   useEffect(() => {
     void loadFolders();
   }, [loadFolders]);
+
+  useEffect(() => {
+    const handleImageMoved = () => {
+      void loadFolders();
+      if (selectedFolder) {
+        void openFolder(selectedFolder);
+      }
+    };
+
+    window.addEventListener('history:image-moved', handleImageMoved as EventListener);
+    return () => {
+      window.removeEventListener('history:image-moved', handleImageMoved as EventListener);
+    };
+  }, [loadFolders, openFolder, selectedFolder]);
 
   const folderCell = useCallback(({
     columnIndex,
