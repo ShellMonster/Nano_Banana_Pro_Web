@@ -121,7 +121,7 @@ export function CreateFolderDialog({
       density="compact"
       className="max-w-md"
     >
-      <div className="space-y-6">
+      <div className="space-y-6" data-onboarding="create-folder-dialog">
         {/* 图标和说明 */}
         <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-2xl">
           <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -140,7 +140,6 @@ export function CreateFolderDialog({
             {t('history.folder.title')}
           </label>
           <input
-            data-onboarding="create-folder-dialog"
             type="text"
             value={folderName}
             onChange={handleInputChange}
