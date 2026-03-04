@@ -220,9 +220,9 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       spotlightPadding: 4,
     },
     {
-      target: '[data-onboarding="album-folder-grid"]',
+      target: '[data-onboarding="album-folder-card"]',
       data: { key: 'historyAlbumCards' satisfies OnboardingStepKey },
-      placement: 'top',
+      placement: 'right',
       title: t('onboarding.historyAlbumCards.title'),
       content: t('onboarding.historyAlbumCards.content'),
       spotlightPadding: 4,
