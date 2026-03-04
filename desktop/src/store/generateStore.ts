@@ -247,9 +247,36 @@ export const useGenerateStore = create<GenerateState>()(
       }),
       failTask: (error) => set((state) => {
         const finishedTaskId = state.taskId;
-        const images = finishedTaskId
+        let images = finishedTaskId
           ? state.images.filter((img) => !(img.taskId === finishedTaskId && img.status === 'pending'))
           : state.images;
+
+        if (finishedTaskId) {
+          const taskImages = state.images.filter((img) => img.taskId === finishedTaskId);
+          const hasFailedCard = images.some((img) => img.taskId === finishedTaskId && img.status === 'failed');
+          if (!hasFailedCard) {
+            const seed = taskImages[0];
+            const failedCard: GeneratedImage = {
+              id: `failed-${finishedTaskId}`,
+              taskId: finishedTaskId,
+              filePath: '',
+              thumbnailPath: '',
+              fileSize: 0,
+              width: seed?.width || 0,
+              height: seed?.height || 0,
+              mimeType: seed?.mimeType || 'image/png',
+              createdAt: seed?.createdAt || new Date().toISOString(),
+              prompt: seed?.prompt || '',
+              status: 'failed',
+              model: seed?.model || '',
+              options: seed?.options,
+              errorMessage: error,
+              url: '',
+              thumbnailUrl: ''
+            };
+            images = [failedCard, ...images];
+          }
+        }
 
         return {
           status: 'failed',

@@ -12,6 +12,8 @@ import (
 
 var DB *gorm.DB
 
+const staleTaskErrorMessage = "任务因应用重启中断，请重新生成"
+
 // InitDB 初始化 SQLite 数据库
 func InitDB(dbPath string) {
 	var err error
@@ -48,10 +50,32 @@ func InitDB(dbPath string) {
 		log.Printf("更新对话默认超时失败: %v", err)
 	}
 
+	reconcileStaleActiveTasks()
+
 	log.Println("数据库初始化成功")
 
 	// 异步迁移旧任务到月份文件夹
 	go migrateOldTasksToMonthFolders()
+}
+
+func reconcileStaleActiveTasks() {
+	now := time.Now()
+	updates := map[string]interface{}{
+		"status":        "failed",
+		"error_message": staleTaskErrorMessage,
+		"completed_at":  &now,
+	}
+
+	result := DB.Model(&Task{}).
+		Where("status IN ?", []string{"pending", "processing"}).
+		Updates(updates)
+	if result.Error != nil {
+		log.Printf("收敛遗留任务状态失败: %v", result.Error)
+		return
+	}
+	if result.RowsAffected > 0 {
+		log.Printf("已收敛 %d 个遗留任务（pending/processing -> failed）", result.RowsAffected)
+	}
 }
 
 // migrateOldTasksToMonthFolders 将旧版本未归类的任务自动迁移到月份文件夹
