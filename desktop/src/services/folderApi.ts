@@ -42,14 +42,12 @@ export const getFolderImages = async (folderId: number, params: FolderImagesQuer
     }
   });
 
-  // 兼容拦截器已解包和未解包两种返回形态
-  const payload = response as unknown as Partial<BackendHistoryResponse> & { data?: Partial<BackendHistoryResponse> };
-  if (Array.isArray(payload.list) && typeof payload.total === 'number') {
-    return { list: payload.list as BackendHistoryResponse['list'], total: payload.total };
+  const data = response as Partial<BackendHistoryResponse>;
+  if (Array.isArray(data.list) && typeof data.total === 'number') {
+    return { list: data.list as BackendHistoryResponse['list'], total: data.total };
   }
-  if (payload.data && Array.isArray(payload.data.list) && typeof payload.data.total === 'number') {
-    return { list: payload.data.list as BackendHistoryResponse['list'], total: payload.data.total };
-  }
+
+  console.warn('getFolderImages received an unexpected response shape:', response);
   return { list: [], total: 0 };
 };
 

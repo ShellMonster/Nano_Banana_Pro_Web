@@ -83,13 +83,6 @@ func toPublicImagePath(raw string) string {
 	}
 
 	normalized := strings.ReplaceAll(trimmed, "\\", "/")
-	if strings.HasPrefix(normalized, "/storage/") {
-		return normalized
-	}
-	if strings.HasPrefix(normalized, "storage/") {
-		return "/" + normalized
-	}
-
 	if idx := strings.Index(normalized, "/storage/"); idx >= 0 {
 		return normalized[idx:]
 	}
