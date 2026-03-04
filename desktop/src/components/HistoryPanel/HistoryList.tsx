@@ -96,15 +96,27 @@ export function HistoryList() {
       return 'SD';
   }, []);
 
-  // 辅助函数：根据像素计算比例标签
+  // 辅助函数：根据像素计算比例标签（简化为最简比例）
   const getRatioLabel = useCallback((w: number, h: number) => {
-      const r = w / h;
-      if (Math.abs(r - 1) < 0.1) return '1:1';
-      if (Math.abs(r - 1.77) < 0.1) return '16:9';
-      if (Math.abs(r - 0.56) < 0.1) return '9:16';
-      if (Math.abs(r - 1.33) < 0.1) return '4:3';
-      if (Math.abs(r - 0.75) < 0.1) return '3:4';
-      return `${w}:${h}`;
+      if (!w || !h) return '1:1';
+
+      // 计算最大公约数（GCD - Greatest Common Divisor）
+      const gcd = (a: number, b: number): number => {
+          a = Math.abs(a);
+          b = Math.abs(b);
+          while (b) {
+              const t = b;
+              b = a % b;
+              a = t;
+          }
+          return a;
+      };
+
+      const divisor = gcd(w, h);
+      const ratioW = w / divisor;
+      const ratioH = h / divisor;
+
+      return `${ratioW}:${ratioH}`;
   }, []);
 
   // 处理图片点击
