@@ -217,7 +217,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
                     `}
                 >
                     <button
-                        onClick={handleMoveImage}
+                        onClick={(e) => { e.stopPropagation(); handleMoveImage(); }}
                         className={`
                             rounded-full flex items-center justify-center shadow-lg
                             transition-all duration-200
