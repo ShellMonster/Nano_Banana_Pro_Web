@@ -577,6 +577,7 @@
       "noDownload": "No image to download",
       "downloadStarted": "Download started",
       "downloadFailed": "Download failed",
+      "downloadSuccess": "Download successful",
       "applied": "Template applied",
       "applyFailed": "Failed to apply template",
       "moreRefsNeeded": "Please add reference images"

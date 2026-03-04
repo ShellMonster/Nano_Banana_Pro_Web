@@ -12,6 +12,9 @@
     "fs:default",
     "fs:allow-appdata-read-recursive",
     "fs:allow-appdata-write-recursive",
+    "fs:allow-write",
+    "fs:allow-read",
+    "fs:allow-read-dir",
     "os:default",
     "updater:default",
     {

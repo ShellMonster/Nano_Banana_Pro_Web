@@ -579,6 +579,7 @@
       "noDownload": "没有可下载的图片",
       "downloadStarted": "已开始下载",
       "downloadFailed": "下载失败",
+      "downloadSuccess": "下载成功",
       "applied": "模板已套用",
       "applyFailed": "模板套用失败",
       "moreRefsNeeded": "请添加参考图"
