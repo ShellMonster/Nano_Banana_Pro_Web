@@ -1008,7 +1008,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <div className="flex items-center gap-3 px-1">
                 <ToggleSwitch
                   checked={draftEnableRefImageCompression}
-                  onChange={(checked) => setDraftEnableRefImageCompression(checked)}
+                  onChange={(checked) => {
+                    setDraftEnableRefImageCompression(checked);
+                  }}
                 />
                 <span className="text-sm text-slate-600">
                   {draftEnableRefImageCompression ? t('common.enabled') : t('common.disabled')}
