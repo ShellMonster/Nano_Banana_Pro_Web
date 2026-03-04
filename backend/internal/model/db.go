@@ -12,7 +12,7 @@ import (
 
 var DB *gorm.DB
 
-const staleTaskErrorMessage = "任务因应用重启中断，请重新生成"
+const STALE_TASK_ERROR_MESSAGE = "任务因应用重启中断，请重新生成"
 
 // InitDB 初始化 SQLite 数据库
 func InitDB(dbPath string) {
@@ -62,8 +62,8 @@ func reconcileStaleActiveTasks() {
 	now := time.Now()
 	updates := map[string]interface{}{
 		"status":        "failed",
-		"error_message": staleTaskErrorMessage,
-		"completed_at":  &now,
+		"error_message": STALE_TASK_ERROR_MESSAGE,
+		"completed_at":  now,
 	}
 
 	result := DB.Model(&Task{}).
