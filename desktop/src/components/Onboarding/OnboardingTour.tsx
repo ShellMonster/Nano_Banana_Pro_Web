@@ -150,6 +150,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
   const retryStepTimerRef = useRef<number | null>(null);
   const runRef = useRef(run);
   const stepIndexRef = useRef(stepIndex);
+  const onboardingSessionRef = useRef(0);
 
   // 定义引导步骤 - 拆分为更细的步骤
   const steps: Step[] = [
@@ -396,6 +397,8 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
   // 当 showOnboarding 变化时，启动或停止引导
   useEffect(() => {
     if (showOnboarding) {
+      onboardingSessionRef.current += 1;
+      const currentSession = onboardingSessionRef.current;
       // 保存引导前的状态
       prevStateRef.current = {
         prompt: prompt,
@@ -412,9 +415,10 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       if (refFiles.length === 0 && !demoFileLoadedRef.current) {
         demoFileLoadedRef.current = true;
         createDemoRefFile(appIcon).then((file) => {
-          if (file) {
+          if (!file) return;
+          if (onboardingSessionRef.current !== currentSession) return;
+          if (prevStateRef.current?.hadRefFiles) return;
             setRefFiles([file]);
-          }
         });
       }
 
@@ -435,6 +439,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
         document.body.classList.remove('onboarding-active');
       };
     } else {
+      onboardingSessionRef.current += 1;
       setRun(false);
       document.body.classList.remove('onboarding-active');
       clearStepTimers();
