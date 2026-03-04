@@ -275,7 +275,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       spotlightPadding: 4,
     },
     {
-      target: '[data-onboarding="history-image-card"], [data-onboarding="album-folder-detail"], [data-onboarding="history-panel"]',
+      target: '[data-onboarding="history-image-move-action"], [data-onboarding="history-image-card"], [data-onboarding="album-folder-detail"], [data-onboarding="history-panel"]',
       data: { key: 'historyMoveToFolder' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.historyMoveToFolder.title'),
@@ -318,6 +318,24 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     firstFolderCard?.click();
   }, [isSettingsModalOpen]);
 
+  const ensureHistoryImageMoveMenuVisible = useCallback(() => {
+    if (isSettingsModalOpen()) return;
+    ensureAlbumFolderOpened();
+    const hasMoveAction = document.querySelector('[data-onboarding="history-image-move-action"]');
+    if (hasMoveAction) return;
+    const imageCard = document.querySelector<HTMLElement>('[data-onboarding="history-image-card"]');
+    if (!imageCard) return;
+    const rect = imageCard.getBoundingClientRect();
+    imageCard.dispatchEvent(
+      new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: rect.left + Math.min(24, rect.width / 2),
+        clientY: rect.top + Math.min(24, rect.height / 2),
+      })
+    );
+  }, [ensureAlbumFolderOpened, isSettingsModalOpen]);
+
   const closeCreateFolderDialogIfOpen = useCallback(() => {
     const closeDialogButton = document.querySelector<HTMLElement>('[data-onboarding="create-folder-dialog-cancel"]');
     closeDialogButton?.click();
@@ -327,13 +345,14 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     (key: OnboardingStepKey): (() => void) | undefined => {
       switch (key) {
         case 'historyOpenFolderImages':
-        case 'historyMoveToFolder':
           return ensureAlbumFolderOpened;
+        case 'historyMoveToFolder':
+          return ensureHistoryImageMoveMenuVisible;
         default:
           return undefined;
       }
     },
-    [ensureAlbumFolderOpened]
+    [ensureAlbumFolderOpened, ensureHistoryImageMoveMenuVisible]
   );
 
   const getRetryCount = useCallback((key: OnboardingStepKey): number => {
@@ -463,10 +482,14 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
         setHistoryViewMode('album');
         break;
       case 'historyOpenFolderImages':
+        setTab('history');
+        setHistoryViewMode('album');
+        scheduleStepAction('historyOpenFolderImages', ensureAlbumFolderOpened);
+        break;
       case 'historyMoveToFolder':
         setTab('history');
         setHistoryViewMode('album');
-        scheduleStepAction(key, ensureAlbumFolderOpened);
+        scheduleStepAction('historyMoveToFolder', ensureHistoryImageMoveMenuVisible);
         break;
       case 'historyDragToRef':
         setTab('generate');
@@ -474,7 +497,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       default:
         break;
     }
-  }, [ensureAlbumFolderOpened, getStepKey, run, scheduleStepAction, setHistoryViewMode, setTab, stepIndex]);
+  }, [ensureAlbumFolderOpened, ensureHistoryImageMoveMenuVisible, getStepKey, run, scheduleStepAction, setHistoryViewMode, setTab, stepIndex]);
 
   useEffect(() => {
     return () => {
