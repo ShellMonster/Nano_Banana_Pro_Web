@@ -120,6 +120,10 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
   // 加载示例参考图的状态
   const demoFileLoadedRef = useRef(false);
   const stepRetryRef = useRef<Partial<Record<OnboardingStepKey, number>>>({});
+  const stepActionTimerRef = useRef<number | null>(null);
+  const retryStepTimerRef = useRef<number | null>(null);
+  const runRef = useRef(run);
+  const stepIndexRef = useRef(stepIndex);
 
   // 定义引导步骤 - 拆分为更细的步骤
   const steps: Step[] = [
@@ -322,6 +326,40 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     historyCreateFolderDialog: ensureCreateFolderDialogOpened,
   };
 
+  const clearStepTimers = useCallback(() => {
+    if (stepActionTimerRef.current !== null) {
+      window.clearTimeout(stepActionTimerRef.current);
+      stepActionTimerRef.current = null;
+    }
+    if (retryStepTimerRef.current !== null) {
+      window.clearTimeout(retryStepTimerRef.current);
+      retryStepTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleStepAction = useCallback(
+    (expectedKey: OnboardingStepKey, action: () => void) => {
+      if (stepActionTimerRef.current !== null) {
+        window.clearTimeout(stepActionTimerRef.current);
+      }
+      stepActionTimerRef.current = window.setTimeout(() => {
+        stepActionTimerRef.current = null;
+        if (!runRef.current) return;
+        if (getStepKey(stepIndexRef.current) !== expectedKey) return;
+        action();
+      }, 80);
+    },
+    [getStepKey]
+  );
+
+  useEffect(() => {
+    runRef.current = run;
+  }, [run]);
+
+  useEffect(() => {
+    stepIndexRef.current = stepIndex;
+  }, [stepIndex]);
+
   // 当 showOnboarding 变化时，启动或停止引导
   useEffect(() => {
     if (showOnboarding) {
@@ -351,6 +389,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       document.body.classList.add('onboarding-active');
       setTab('generate');
       stepRetryRef.current = {};
+      clearStepTimers();
 
       // 延迟启动，等待 DOM 完全加载
       const timer = setTimeout(() => {
@@ -364,8 +403,9 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     } else {
       setRun(false);
       document.body.classList.remove('onboarding-active');
+      clearStepTimers();
     }
-  }, [showOnboarding, i18n.language, prompt, refFiles.length, setPrompt, setRefFiles, setTab]);
+  }, [clearStepTimers, showOnboarding, i18n.language, prompt, refFiles.length, setPrompt, setRefFiles, setTab]);
 
   // 根据步骤自动切换上下文，确保目标元素可见
   useEffect(() => {
@@ -386,31 +426,31 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       case 'historyCreateFolderDialog':
         setTab('history');
         setHistoryViewMode('album');
-        setTimeout(() => {
-          ensureCreateFolderDialogOpened();
-        }, 80);
+        scheduleStepAction('historyCreateFolderDialog', ensureCreateFolderDialogOpened);
         break;
       case 'historyOpenFolderImages':
       case 'historyMoveToFolder':
         setTab('history');
         setHistoryViewMode('album');
-        setTimeout(() => {
-          ensureAlbumFolderOpened();
-        }, 80);
+        scheduleStepAction(key, ensureAlbumFolderOpened);
         break;
       case 'historyDragToRef':
         setTab('generate');
         break;
       case 'settingsCompression':
         setTab('generate');
-        setTimeout(() => {
-          ensureSettingsModalOpen();
-        }, 80);
+        scheduleStepAction('settingsCompression', ensureSettingsModalOpen);
         break;
       default:
         break;
     }
-  }, [ensureAlbumFolderOpened, ensureCreateFolderDialogOpened, ensureSettingsModalOpen, getStepKey, run, setHistoryViewMode, setTab, stepIndex]);
+  }, [ensureAlbumFolderOpened, ensureCreateFolderDialogOpened, ensureSettingsModalOpen, getStepKey, run, scheduleStepAction, setHistoryViewMode, setTab, stepIndex]);
+
+  useEffect(() => {
+    return () => {
+      clearStepTimers();
+    };
+  }, [clearStepTimers]);
 
   // 清理引导时的示例数据
   const cleanupDemoData = useCallback(() => {
@@ -436,6 +476,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
 
       // 引导完成或跳过
       if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+        clearStepTimers();
         setRun(false);
         setShowOnboarding(false);
         // 清理示例数据
@@ -452,7 +493,13 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
           stepRetryRef.current[key] = attempt;
           if (attempt <= 2) {
             retryAction();
-            setTimeout(() => {
+            if (retryStepTimerRef.current !== null) {
+              window.clearTimeout(retryStepTimerRef.current);
+            }
+            retryStepTimerRef.current = window.setTimeout(() => {
+              retryStepTimerRef.current = null;
+              if (!runRef.current) return;
+              if (stepIndexRef.current !== index) return;
               setStepIndex(index);
             }, 220);
             return;
@@ -470,7 +517,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
         setStepIndex(nextStepIndex);
       }
     },
-    [setShowOnboarding, cleanupDemoData, ensureAlbumFolderOpened, ensureCreateFolderDialogOpened, ensureSettingsModalOpen, getStepKey]
+    [clearStepTimers, setShowOnboarding, cleanupDemoData, ensureAlbumFolderOpened, ensureCreateFolderDialogOpened, ensureSettingsModalOpen, getStepKey]
   );
 
   // 通知父组件引导已准备好
