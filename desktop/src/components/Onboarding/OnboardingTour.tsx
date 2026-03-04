@@ -97,7 +97,6 @@ type OnboardingStepKey =
   | 'historyViewToggle'
   | 'historyAlbumCards'
   | 'historyCreateFolder'
-  | 'historyCreateFolderDialog'
   | 'historyOpenFolderImages'
   | 'historyMoveToFolder'
   | 'historyDragToRef';
@@ -105,7 +104,6 @@ type OnboardingStepKey =
 interface StepRetryState {
   historyOpenFolderImages: number;
   historyMoveToFolder: number;
-  historyCreateFolderDialog: number;
 }
 
 const STEP_KEYS: OnboardingStepKey[] = [
@@ -123,7 +121,6 @@ const STEP_KEYS: OnboardingStepKey[] = [
   'historyViewToggle',
   'historyAlbumCards',
   'historyCreateFolder',
-  'historyCreateFolderDialog',
   'historyOpenFolderImages',
   'historyMoveToFolder',
   'historyDragToRef',
@@ -148,7 +145,6 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
   const stepRetryRef = useRef<StepRetryState>({
     historyOpenFolderImages: 0,
     historyMoveToFolder: 0,
-    historyCreateFolderDialog: 0,
   });
   const stepActionTimerRef = useRef<number | null>(null);
   const retryStepTimerRef = useRef<number | null>(null);
@@ -270,14 +266,6 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       spotlightPadding: 4,
     },
     {
-      target: '[data-onboarding="create-folder-dialog"], [data-onboarding="create-folder-button"]',
-      data: { key: 'historyCreateFolderDialog' satisfies OnboardingStepKey },
-      placement: 'top',
-      title: t('onboarding.historyCreateFolderDialog.title'),
-      content: t('onboarding.historyCreateFolderDialog.content'),
-      spotlightPadding: 4,
-    },
-    {
       target: '[data-onboarding="album-folder-detail"], [data-onboarding="album-folder-card"], [data-onboarding="history-panel"]',
       data: { key: 'historyOpenFolderImages' satisfies OnboardingStepKey },
       placement: 'bottom',
@@ -353,8 +341,6 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
         return stepRetryRef.current.historyOpenFolderImages;
       case 'historyMoveToFolder':
         return stepRetryRef.current.historyMoveToFolder;
-      case 'historyCreateFolderDialog':
-        return stepRetryRef.current.historyCreateFolderDialog;
       default:
         return 0;
     }
@@ -367,9 +353,6 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
         return;
       case 'historyMoveToFolder':
         stepRetryRef.current.historyMoveToFolder = value;
-        return;
-      case 'historyCreateFolderDialog':
-        stepRetryRef.current.historyCreateFolderDialog = value;
         return;
       default:
         return;
@@ -440,7 +423,6 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       setTab('generate');
       stepRetryRef.current.historyOpenFolderImages = 0;
       stepRetryRef.current.historyMoveToFolder = 0;
-      stepRetryRef.current.historyCreateFolderDialog = 0;
       clearStepTimers();
 
       // 延迟启动，等待 DOM 完全加载
@@ -472,10 +454,6 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       case 'historyViewToggle':
       case 'historyAlbumCards':
       case 'historyCreateFolder':
-        setTab('history');
-        setHistoryViewMode('album');
-        break;
-      case 'historyCreateFolderDialog':
         setTab('history');
         setHistoryViewMode('album');
         break;
