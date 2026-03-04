@@ -555,9 +555,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     setDraftEnableRefImageCompression(checked);
                   }}
                 />
-                <span className="text-sm text-slate-600">
-                  {draftEnableRefImageCompression ? t('common.enabled') : t('common.disabled')}
-                </span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm text-slate-600">
+                    {draftEnableRefImageCompression ? t('common.enabled') : t('common.disabled')}
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {t('settings.refImageCompression.speedHint')}
+                  </span>
+                </div>
               </div>
               <p className="text-xs text-slate-500 px-1">
                 {t('settings.refImageCompression.hint')}

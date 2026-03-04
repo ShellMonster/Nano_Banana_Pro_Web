@@ -172,7 +172,8 @@
     },
     "refImageCompression": {
       "label": "Reference Image Compression",
-      "hint": "When enabled, reference images will be automatically compressed to save bandwidth and storage"
+      "hint": "When enabled, reference images will be automatically compressed to save bandwidth and storage",
+      "speedHint": "Only improves generation speed when using reference images; it should not affect image quality."
     },
     "update": {
       "title": "Updates",
