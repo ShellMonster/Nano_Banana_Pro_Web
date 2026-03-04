@@ -13,13 +13,15 @@ interface TabButtonProps {
   isExpanded: boolean;
   onClick: () => void;
   disabled?: boolean;
+  onboardingId?: string;
 }
 
-function TabButton({ icon, label, active, isExpanded, onClick, disabled }: TabButtonProps) {
+function TabButton({ icon, label, active, isExpanded, onClick, disabled, onboardingId }: TabButtonProps) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      data-onboarding={onboardingId}
       className={cn(
         "flex items-center justify-center rounded-xl transition-all duration-200",
         "relative overflow-hidden",
@@ -229,6 +231,7 @@ export function FloatingTabSwitch() {
           isExpanded={isExpanded}
           onClick={() => handleTabChange('history')}
           disabled={isDraggingRef.current}
+          onboardingId="tab-history"
         />
       </div>
     </div>

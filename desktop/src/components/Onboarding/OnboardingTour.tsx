@@ -2,18 +2,21 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Joyride, { CallBackProps, STATUS, Step, ACTIONS, EVENTS } from 'react-joyride';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '../../store/configStore';
+import { useGenerateStore } from '../../store/generateStore';
+import { useHistoryStore } from '../../store/historyStore';
 import appIcon from '../../assets/app-icon.png';
 
 // 引导时使用的示例提示词
 const DEMO_PROMPT_ZH = '一只可爱的橘猫坐在窗台上，阳光洒在它的毛发上，温暖而惬意，高清摄影风格';
 const DEMO_PROMPT_EN = 'A cute orange cat sitting on a windowsill, sunlight streaming through its fur, warm and cozy atmosphere, high-quality photography style';
+const DEMO_REF_FILE_NAME = 'demo-image.png';
 
 // 从 URL 创建 File 对象
 async function createDemoRefFile(url: string): Promise<File | null> {
   try {
     const response = await fetch(url);
     const blob = await response.blob();
-    return new File([blob], 'demo-image.png', { type: 'image/png' });
+    return new File([blob], DEMO_REF_FILE_NAME, { type: 'image/png' });
   } catch (error) {
     console.error('Failed to create demo ref file:', error);
     return null;
@@ -80,9 +83,55 @@ interface OnboardingTourProps {
   onReady?: () => void;
 }
 
+type OnboardingStepKey =
+  | 'welcome'
+  | 'settingsEntry'
+  | 'prompt'
+  | 'optimizeNormal'
+  | 'optimizeJson'
+  | 'resolution'
+  | 'refUpload'
+  | 'refExtract'
+  | 'templateMarket'
+  | 'generate'
+  | 'historyTab'
+  | 'historyViewToggle'
+  | 'historyAlbumCards'
+  | 'historyCreateFolder'
+  | 'historyOpenFolderImages'
+  | 'historyMoveToFolder'
+  | 'historyDragToRef';
+
+interface StepRetryState {
+  historyOpenFolderImages: number;
+  historyMoveToFolder: number;
+}
+
+const STEP_KEYS: OnboardingStepKey[] = [
+  'welcome',
+  'settingsEntry',
+  'prompt',
+  'optimizeNormal',
+  'optimizeJson',
+  'resolution',
+  'refUpload',
+  'refExtract',
+  'templateMarket',
+  'generate',
+  'historyTab',
+  'historyViewToggle',
+  'historyAlbumCards',
+  'historyCreateFolder',
+  'historyOpenFolderImages',
+  'historyMoveToFolder',
+  'historyDragToRef',
+];
+
 export function OnboardingTour({ onReady }: OnboardingTourProps) {
   const { t, i18n } = useTranslation();
-  const { showOnboarding, setShowOnboarding, prompt, setPrompt, refFiles, setRefFiles, clearRefFiles } = useConfigStore();
+  const { showOnboarding, setShowOnboarding, setPrompt, setRefFiles, clearRefFiles } = useConfigStore();
+  const setTab = useGenerateStore((s) => s.setTab);
+  const setHistoryViewMode = useHistoryStore((s) => s.setViewMode);
   const [run, setRun] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
 
@@ -94,11 +143,22 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
 
   // 加载示例参考图的状态
   const demoFileLoadedRef = useRef(false);
+  const stepRetryRef = useRef<StepRetryState>({
+    historyOpenFolderImages: 0,
+    historyMoveToFolder: 0,
+  });
+  const stepActionTimerRef = useRef<number | null>(null);
+  const retryStepTimerRef = useRef<number | null>(null);
+  const runRef = useRef(run);
+  const stepIndexRef = useRef(stepIndex);
+  const onboardingSessionRef = useRef(0);
+  const demoRefFileRef = useRef<File | null>(null);
 
   // 定义引导步骤 - 拆分为更细的步骤
   const steps: Step[] = [
     {
       target: 'body',
+      data: { key: 'welcome' satisfies OnboardingStepKey },
       placement: 'center',
       title: t('onboarding.welcome.title'),
       content: t('onboarding.welcome.content'),
@@ -106,6 +166,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="settings-button"]',
+      data: { key: 'settingsEntry' satisfies OnboardingStepKey },
       placement: 'left',
       title: t('onboarding.settings.title'),
       content: t('onboarding.settings.content'),
@@ -113,6 +174,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="prompt-input"]',
+      data: { key: 'prompt' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.prompt.title'),
       content: t('onboarding.prompt.content'),
@@ -120,6 +182,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="optimize-normal"]',
+      data: { key: 'optimizeNormal' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.optimizeNormal.title'),
       content: t('onboarding.optimizeNormal.content'),
@@ -127,6 +190,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="optimize-json"]',
+      data: { key: 'optimizeJson' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.optimizeJson.title'),
       content: t('onboarding.optimizeJson.content'),
@@ -134,6 +198,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="resolution-ratio"]',
+      data: { key: 'resolution' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.resolution.title'),
       content: t('onboarding.resolution.content'),
@@ -141,6 +206,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="ref-image-area"]',
+      data: { key: 'refUpload' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.refImageUpload.title'),
       content: t('onboarding.refImageUpload.content'),
@@ -148,6 +214,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="ref-image-extract"]',
+      data: { key: 'refExtract' satisfies OnboardingStepKey },
       placement: 'right',
       title: t('onboarding.refImageExtract.title'),
       content: t('onboarding.refImageExtract.content'),
@@ -155,6 +222,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="template-market"]',
+      data: { key: 'templateMarket' satisfies OnboardingStepKey },
       placement: 'bottom',
       title: t('onboarding.templateMarket.title'),
       content: t('onboarding.templateMarket.content'),
@@ -162,40 +230,228 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     },
     {
       target: '[data-onboarding="generate-button"]',
+      data: { key: 'generate' satisfies OnboardingStepKey },
       placement: 'left',
       title: t('onboarding.generate.title'),
       content: t('onboarding.generate.content'),
       spotlightPadding: 4,
     },
+    {
+      target: '[data-onboarding="tab-history"]',
+      data: { key: 'historyTab' satisfies OnboardingStepKey },
+      placement: 'left',
+      title: t('onboarding.historyTab.title'),
+      content: t('onboarding.historyTab.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="history-view-toggle"]',
+      data: { key: 'historyViewToggle' satisfies OnboardingStepKey },
+      placement: 'bottom',
+      title: t('onboarding.historyViewToggle.title'),
+      content: t('onboarding.historyViewToggle.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="album-folder-card"]',
+      data: { key: 'historyAlbumCards' satisfies OnboardingStepKey },
+      placement: 'right',
+      title: t('onboarding.historyAlbumCards.title'),
+      content: t('onboarding.historyAlbumCards.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="create-folder-button"]',
+      data: { key: 'historyCreateFolder' satisfies OnboardingStepKey },
+      placement: 'bottom',
+      title: t('onboarding.historyCreateFolder.title'),
+      content: t('onboarding.historyCreateFolder.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="album-folder-detail"], [data-onboarding="album-folder-card"], [data-onboarding="history-panel"]',
+      data: { key: 'historyOpenFolderImages' satisfies OnboardingStepKey },
+      placement: 'bottom',
+      title: t('onboarding.historyOpenFolderImages.title'),
+      content: t('onboarding.historyOpenFolderImages.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="history-image-move-action"], [data-onboarding="history-image-card"], [data-onboarding="album-folder-detail"], [data-onboarding="history-panel"]',
+      data: { key: 'historyMoveToFolder' satisfies OnboardingStepKey },
+      placement: 'right',
+      title: t('onboarding.historyMoveToFolder.title'),
+      content: t('onboarding.historyMoveToFolder.content'),
+      spotlightPadding: 4,
+    },
+    {
+      target: '[data-onboarding="ref-image-area"]',
+      data: { key: 'historyDragToRef' satisfies OnboardingStepKey },
+      placement: 'right',
+      title: t('onboarding.historyDragToRef.title'),
+      content: t('onboarding.historyDragToRef.content'),
+      spotlightPadding: 4,
+    },
   ];
+
+  const getStepKey = useCallback(
+    (index: number): OnboardingStepKey | undefined => {
+      if (!Number.isInteger(index) || index < 0 || index >= STEP_KEYS.length) {
+        return undefined;
+      }
+      return STEP_KEYS[index];
+    },
+    []
+  );
+
+  const isSettingsModalOpen = useCallback(() => {
+    return Boolean(document.querySelector('[data-onboarding="settings-modal"]'));
+  }, []);
+
+  const ensureAlbumFolderOpened = useCallback(() => {
+    if (isSettingsModalOpen()) return;
+    const closeDialogButton = document.querySelector<HTMLElement>('[data-onboarding="create-folder-dialog-cancel"]');
+    if (closeDialogButton) {
+      closeDialogButton.click();
+    }
+    const hasFolderDetail = document.querySelector('[data-onboarding="album-folder-detail"]');
+    if (hasFolderDetail) return;
+    const firstFolderCard = document.querySelector<HTMLElement>('[data-onboarding="album-folder-card"]');
+    firstFolderCard?.click();
+  }, [isSettingsModalOpen]);
+
+  const ensureHistoryImageMoveMenuVisible = useCallback(() => {
+    if (isSettingsModalOpen()) return;
+    ensureAlbumFolderOpened();
+    const hasMoveAction = document.querySelector('[data-onboarding="history-image-move-action"]');
+    if (hasMoveAction) return;
+    const imageCard = document.querySelector<HTMLElement>('[data-onboarding="history-image-card"]');
+    if (!imageCard) return;
+    const rect = imageCard.getBoundingClientRect();
+    imageCard.dispatchEvent(
+      new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: rect.left + Math.min(24, rect.width / 2),
+        clientY: rect.top + Math.min(24, rect.height / 2),
+      })
+    );
+  }, [ensureAlbumFolderOpened, isSettingsModalOpen]);
+
+  const closeCreateFolderDialogIfOpen = useCallback(() => {
+    const closeDialogButton = document.querySelector<HTMLElement>('[data-onboarding="create-folder-dialog-cancel"]');
+    closeDialogButton?.click();
+  }, []);
+
+  const getRetryAction = useCallback(
+    (key: OnboardingStepKey): (() => void) | undefined => {
+      switch (key) {
+        case 'historyOpenFolderImages':
+          return ensureAlbumFolderOpened;
+        case 'historyMoveToFolder':
+          return ensureHistoryImageMoveMenuVisible;
+        default:
+          return undefined;
+      }
+    },
+    [ensureAlbumFolderOpened, ensureHistoryImageMoveMenuVisible]
+  );
+
+  const getRetryCount = useCallback((key: OnboardingStepKey): number => {
+    switch (key) {
+      case 'historyOpenFolderImages':
+        return stepRetryRef.current.historyOpenFolderImages;
+      case 'historyMoveToFolder':
+        return stepRetryRef.current.historyMoveToFolder;
+      default:
+        return 0;
+    }
+  }, []);
+
+  const setRetryCount = useCallback((key: OnboardingStepKey, value: number) => {
+    switch (key) {
+      case 'historyOpenFolderImages':
+        stepRetryRef.current.historyOpenFolderImages = value;
+        return;
+      case 'historyMoveToFolder':
+        stepRetryRef.current.historyMoveToFolder = value;
+        return;
+      default:
+        return;
+    }
+  }, []);
+
+  const clearStepTimers = useCallback(() => {
+    if (stepActionTimerRef.current !== null) {
+      window.clearTimeout(stepActionTimerRef.current);
+      stepActionTimerRef.current = null;
+    }
+    if (retryStepTimerRef.current !== null) {
+      window.clearTimeout(retryStepTimerRef.current);
+      retryStepTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleStepAction = useCallback(
+    (expectedKey: OnboardingStepKey, action: () => void) => {
+      if (stepActionTimerRef.current !== null) {
+        window.clearTimeout(stepActionTimerRef.current);
+      }
+      stepActionTimerRef.current = window.setTimeout(() => {
+        stepActionTimerRef.current = null;
+        if (!runRef.current) return;
+        if (getStepKey(stepIndexRef.current) !== expectedKey) return;
+        action();
+      }, 80);
+    },
+    [getStepKey]
+  );
+
+  useEffect(() => {
+    runRef.current = run;
+  }, [run]);
+
+  useEffect(() => {
+    stepIndexRef.current = stepIndex;
+  }, [stepIndex]);
 
   // 当 showOnboarding 变化时，启动或停止引导
   useEffect(() => {
     if (showOnboarding) {
+      onboardingSessionRef.current += 1;
+      const currentSession = onboardingSessionRef.current;
+      demoRefFileRef.current = null;
+      const { prompt: currentPrompt, refFiles: currentRefFiles } = useConfigStore.getState();
       // 保存引导前的状态
       prevStateRef.current = {
-        prompt: prompt,
-        hadRefFiles: refFiles.length > 0,
+        prompt: currentPrompt,
+        hadRefFiles: currentRefFiles.length > 0,
       };
 
       // 如果提示词为空，填充示例提示词
-      if (!prompt.trim()) {
+      if (!currentPrompt.trim()) {
         const demoPrompt = i18n.language.startsWith('zh') ? DEMO_PROMPT_ZH : DEMO_PROMPT_EN;
         setPrompt(demoPrompt);
       }
 
       // 如果没有参考图，加载示例参考图（app icon）用于展示逆向提示词功能
-      if (refFiles.length === 0 && !demoFileLoadedRef.current) {
+      if (currentRefFiles.length === 0 && !demoFileLoadedRef.current) {
         demoFileLoadedRef.current = true;
         createDemoRefFile(appIcon).then((file) => {
-          if (file) {
-            setRefFiles([file]);
-          }
+          if (!file) return;
+          if (onboardingSessionRef.current !== currentSession) return;
+          if (prevStateRef.current?.hadRefFiles) return;
+          demoRefFileRef.current = file;
+          setRefFiles([file]);
         });
       }
 
       // 添加引导模式的 body class，用于强制显示 hover 元素
       document.body.classList.add('onboarding-active');
+      setTab('generate');
+      stepRetryRef.current.historyOpenFolderImages = 0;
+      stepRetryRef.current.historyMoveToFolder = 0;
+      clearStepTimers();
 
       // 延迟启动，等待 DOM 完全加载
       const timer = setTimeout(() => {
@@ -207,14 +463,73 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
         document.body.classList.remove('onboarding-active');
       };
     } else {
+      onboardingSessionRef.current += 1;
       setRun(false);
       document.body.classList.remove('onboarding-active');
+      clearStepTimers();
     }
-  }, [showOnboarding]);
+  }, [clearStepTimers, showOnboarding, i18n.language, setPrompt, setRefFiles, setTab]);
+
+  // 根据步骤自动切换上下文，确保目标元素可见
+  useEffect(() => {
+    if (!run) return;
+    const key = getStepKey(stepIndex);
+    if (!key) return;
+    switch (key) {
+      case 'historyTab':
+        setTab('history');
+        setHistoryViewMode('timeline');
+        break;
+      case 'historyViewToggle':
+      case 'historyAlbumCards':
+      case 'historyCreateFolder':
+        setTab('history');
+        setHistoryViewMode('album');
+        break;
+      case 'historyOpenFolderImages':
+        setTab('history');
+        setHistoryViewMode('album');
+        scheduleStepAction('historyOpenFolderImages', ensureAlbumFolderOpened);
+        break;
+      case 'historyMoveToFolder':
+        setTab('history');
+        setHistoryViewMode('album');
+        scheduleStepAction('historyMoveToFolder', ensureHistoryImageMoveMenuVisible);
+        break;
+      case 'historyDragToRef':
+        setTab('generate');
+        break;
+      default:
+        break;
+    }
+  }, [ensureAlbumFolderOpened, ensureHistoryImageMoveMenuVisible, getStepKey, run, scheduleStepAction, setHistoryViewMode, setTab, stepIndex]);
+
+  useEffect(() => {
+    return () => {
+      clearStepTimers();
+    };
+  }, [clearStepTimers]);
+
+  useEffect(() => {
+    if (!run) return;
+    if (!isSettingsModalOpen()) return;
+    closeCreateFolderDialogIfOpen();
+  }, [closeCreateFolderDialogIfOpen, isSettingsModalOpen, run, stepIndex]);
 
   // 清理引导时的示例数据
   const cleanupDemoData = useCallback(() => {
+    closeCreateFolderDialogIfOpen();
     if (prevStateRef.current) {
+      const demoRefFile = demoRefFileRef.current;
+      const currentFiles = useConfigStore.getState().refFiles;
+      const cleanedFiles = currentFiles.filter((file) => {
+        if (demoRefFile && file === demoRefFile) return false;
+        if (file.name === DEMO_REF_FILE_NAME) return false;
+        return true;
+      });
+      if (cleanedFiles.length !== currentFiles.length) {
+        setRefFiles(cleanedFiles);
+      }
       // 如果之前没有提示词，清除我们添加的示例
       if (!prevStateRef.current.prompt.trim()) {
         setPrompt('');
@@ -224,9 +539,10 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
         clearRefFiles();
       }
       demoFileLoadedRef.current = false;
+      demoRefFileRef.current = null;
       prevStateRef.current = null;
     }
-  }, [setPrompt, clearRefFiles]);
+  }, [closeCreateFolderDialogIfOpen, setPrompt, clearRefFiles, setRefFiles]);
 
   // 处理引导回调
   const handleJoyrideCallback = useCallback(
@@ -235,6 +551,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
 
       // 引导完成或跳过
       if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+        clearStepTimers();
         setRun(false);
         setShowOnboarding(false);
         // 清理示例数据
@@ -242,13 +559,41 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
         return;
       }
 
+      // 处理 target 不存在：对关键步骤做有限次重试（切 tab / 开弹窗 / 进文件夹）
+      if (type === EVENTS.TARGET_NOT_FOUND) {
+        const key = getStepKey(index);
+        const retryAction = key ? getRetryAction(key) : undefined;
+        if (key && retryAction) {
+          const maxRetry = 2;
+          const attempt = getRetryCount(key) + 1;
+          setRetryCount(key, attempt);
+          if (attempt <= maxRetry) {
+            retryAction();
+            if (retryStepTimerRef.current !== null) {
+              window.clearTimeout(retryStepTimerRef.current);
+            }
+            retryStepTimerRef.current = window.setTimeout(() => {
+              retryStepTimerRef.current = null;
+              if (!runRef.current) return;
+              if (stepIndexRef.current !== index) return;
+              setStepIndex(index);
+            }, 220);
+            return;
+          }
+        }
+      }
+
       // 处理下一步/上一步
       if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {
+        const key = getStepKey(index);
+        if (key) {
+          setRetryCount(key, 0);
+        }
         const nextStepIndex = index + (action === ACTIONS.PREV ? -1 : 1);
         setStepIndex(nextStepIndex);
       }
     },
-    [setShowOnboarding, cleanupDemoData]
+    [clearStepTimers, setShowOnboarding, cleanupDemoData, getRetryAction, getRetryCount, setRetryCount, getStepKey]
   );
 
   // 通知父组件引导已准备好

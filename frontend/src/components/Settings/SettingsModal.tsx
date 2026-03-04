@@ -564,9 +564,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   </span>
                 </div>
               </div>
-              <p className="text-xs text-slate-500 px-1">
-                {t('settings.refImageCompression.hint')}
-              </p>
             </div>
             {/* 识图配置 */}
             <div className="space-y-3">
