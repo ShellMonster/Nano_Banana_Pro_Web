@@ -310,6 +310,11 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     createButton?.click();
   }, []);
 
+  const closeCreateFolderDialogIfOpen = useCallback(() => {
+    const closeDialogButton = document.querySelector<HTMLElement>('[data-onboarding="create-folder-dialog-cancel"]');
+    closeDialogButton?.click();
+  }, []);
+
   const retryableActions: Partial<Record<OnboardingStepKey, () => void>> = {
     settingsCompression: ensureSettingsModalOpen,
     historyOpenFolderImages: ensureAlbumFolderOpened,
@@ -409,6 +414,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
 
   // 清理引导时的示例数据
   const cleanupDemoData = useCallback(() => {
+    closeCreateFolderDialogIfOpen();
     if (prevStateRef.current) {
       // 如果之前没有提示词，清除我们添加的示例
       if (!prevStateRef.current.prompt.trim()) {
@@ -421,7 +427,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       demoFileLoadedRef.current = false;
       prevStateRef.current = null;
     }
-  }, [setPrompt, clearRefFiles]);
+  }, [closeCreateFolderDialogIfOpen, setPrompt, clearRefFiles]);
 
   // 处理引导回调
   const handleJoyrideCallback = useCallback(
