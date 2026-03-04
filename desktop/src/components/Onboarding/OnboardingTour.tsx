@@ -103,6 +103,35 @@ type OnboardingStepKey =
   | 'historyDragToRef'
   | 'settingsCompression';
 
+interface StepRetryState {
+  settingsCompression: number;
+  historyOpenFolderImages: number;
+  historyMoveToFolder: number;
+  historyCreateFolderDialog: number;
+}
+
+const STEP_KEYS: OnboardingStepKey[] = [
+  'welcome',
+  'settingsEntry',
+  'prompt',
+  'optimizeNormal',
+  'optimizeJson',
+  'resolution',
+  'refUpload',
+  'refExtract',
+  'templateMarket',
+  'generate',
+  'historyTab',
+  'historyViewToggle',
+  'historyAlbumCards',
+  'historyCreateFolder',
+  'historyCreateFolderDialog',
+  'historyOpenFolderImages',
+  'historyMoveToFolder',
+  'historyDragToRef',
+  'settingsCompression',
+];
+
 export function OnboardingTour({ onReady }: OnboardingTourProps) {
   const { t, i18n } = useTranslation();
   const { showOnboarding, setShowOnboarding, prompt, setPrompt, refFiles, setRefFiles, clearRefFiles } = useConfigStore();
@@ -119,7 +148,12 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
 
   // 加载示例参考图的状态
   const demoFileLoadedRef = useRef(false);
-  const stepRetryRef = useRef<Partial<Record<OnboardingStepKey, number>>>({});
+  const stepRetryRef = useRef<StepRetryState>({
+    settingsCompression: 0,
+    historyOpenFolderImages: 0,
+    historyMoveToFolder: 0,
+    historyCreateFolderDialog: 0,
+  });
   const stepActionTimerRef = useRef<number | null>(null);
   const retryStepTimerRef = useRef<number | null>(null);
   const runRef = useRef(run);
@@ -283,10 +317,12 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
 
   const getStepKey = useCallback(
     (index: number): OnboardingStepKey | undefined => {
-      const step = steps[index] as Step & { data?: { key?: OnboardingStepKey } };
-      return step?.data?.key;
+      if (!Number.isInteger(index) || index < 0 || index >= STEP_KEYS.length) {
+        return undefined;
+      }
+      return STEP_KEYS[index];
     },
-    [steps]
+    []
   );
 
   const ensureSettingsModalOpen = useCallback(() => {
@@ -319,12 +355,56 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     closeDialogButton?.click();
   }, []);
 
-  const retryableActions: Partial<Record<OnboardingStepKey, () => void>> = {
-    settingsCompression: ensureSettingsModalOpen,
-    historyOpenFolderImages: ensureAlbumFolderOpened,
-    historyMoveToFolder: ensureAlbumFolderOpened,
-    historyCreateFolderDialog: ensureCreateFolderDialogOpened,
-  };
+  const getRetryAction = useCallback(
+    (key: OnboardingStepKey): (() => void) | undefined => {
+      switch (key) {
+        case 'settingsCompression':
+          return ensureSettingsModalOpen;
+        case 'historyOpenFolderImages':
+        case 'historyMoveToFolder':
+          return ensureAlbumFolderOpened;
+        case 'historyCreateFolderDialog':
+          return ensureCreateFolderDialogOpened;
+        default:
+          return undefined;
+      }
+    },
+    [ensureAlbumFolderOpened, ensureCreateFolderDialogOpened, ensureSettingsModalOpen]
+  );
+
+  const getRetryCount = useCallback((key: OnboardingStepKey): number => {
+    switch (key) {
+      case 'settingsCompression':
+        return stepRetryRef.current.settingsCompression;
+      case 'historyOpenFolderImages':
+        return stepRetryRef.current.historyOpenFolderImages;
+      case 'historyMoveToFolder':
+        return stepRetryRef.current.historyMoveToFolder;
+      case 'historyCreateFolderDialog':
+        return stepRetryRef.current.historyCreateFolderDialog;
+      default:
+        return 0;
+    }
+  }, []);
+
+  const setRetryCount = useCallback((key: OnboardingStepKey, value: number) => {
+    switch (key) {
+      case 'settingsCompression':
+        stepRetryRef.current.settingsCompression = value;
+        return;
+      case 'historyOpenFolderImages':
+        stepRetryRef.current.historyOpenFolderImages = value;
+        return;
+      case 'historyMoveToFolder':
+        stepRetryRef.current.historyMoveToFolder = value;
+        return;
+      case 'historyCreateFolderDialog':
+        stepRetryRef.current.historyCreateFolderDialog = value;
+        return;
+      default:
+        return;
+    }
+  }, []);
 
   const clearStepTimers = useCallback(() => {
     if (stepActionTimerRef.current !== null) {
@@ -388,7 +468,10 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       // 添加引导模式的 body class，用于强制显示 hover 元素
       document.body.classList.add('onboarding-active');
       setTab('generate');
-      stepRetryRef.current = {};
+      stepRetryRef.current.settingsCompression = 0;
+      stepRetryRef.current.historyOpenFolderImages = 0;
+      stepRetryRef.current.historyMoveToFolder = 0;
+      stepRetryRef.current.historyCreateFolderDialog = 0;
       clearStepTimers();
 
       // 延迟启动，等待 DOM 完全加载
@@ -487,10 +570,10 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       // 处理 target 不存在：对关键步骤做有限次重试（切 tab / 开弹窗 / 进文件夹）
       if (type === EVENTS.TARGET_NOT_FOUND) {
         const key = getStepKey(index);
-        const retryAction = key ? retryableActions[key] : undefined;
+        const retryAction = key ? getRetryAction(key) : undefined;
         if (key && retryAction) {
-          const attempt = (stepRetryRef.current[key] ?? 0) + 1;
-          stepRetryRef.current[key] = attempt;
+          const attempt = getRetryCount(key) + 1;
+          setRetryCount(key, attempt);
           if (attempt <= 2) {
             retryAction();
             if (retryStepTimerRef.current !== null) {
@@ -511,13 +594,13 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {
         const key = getStepKey(index);
         if (key) {
-          stepRetryRef.current[key] = 0;
+          setRetryCount(key, 0);
         }
         const nextStepIndex = index + (action === ACTIONS.PREV ? -1 : 1);
         setStepIndex(nextStepIndex);
       }
     },
-    [clearStepTimers, setShowOnboarding, cleanupDemoData, ensureAlbumFolderOpened, ensureCreateFolderDialogOpened, ensureSettingsModalOpen, getStepKey]
+    [clearStepTimers, setShowOnboarding, cleanupDemoData, getRetryAction, getRetryCount, setRetryCount, getStepKey]
   );
 
   // 通知父组件引导已准备好
