@@ -119,7 +119,7 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
 
   // 加载示例参考图的状态
   const demoFileLoadedRef = useRef(false);
-  const stepRetryRef = useRef<Record<string, number>>({});
+  const stepRetryRef = useRef<Partial<Record<OnboardingStepKey, number>>>({});
 
   // 定义引导步骤 - 拆分为更细的步骤
   const steps: Step[] = [
@@ -310,6 +310,13 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     createButton?.click();
   }, []);
 
+  const retryableActions: Partial<Record<OnboardingStepKey, () => void>> = {
+    settingsCompression: ensureSettingsModalOpen,
+    historyOpenFolderImages: ensureAlbumFolderOpened,
+    historyMoveToFolder: ensureAlbumFolderOpened,
+    historyCreateFolderDialog: ensureCreateFolderDialogOpened,
+  };
+
   // 当 showOnboarding 变化时，启动或停止引导
   useEffect(() => {
     if (showOnboarding) {
@@ -360,46 +367,43 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
     if (!run) return;
     const key = getStepKey(stepIndex);
     if (!key) return;
-
-    if (key === 'historyTab') {
-      setTab('history');
-      setHistoryViewMode('timeline');
-      return;
-    }
-
-    if (
-      key === 'historyViewToggle' ||
-      key === 'historyAlbumCards' ||
-      key === 'historyCreateFolder' ||
-      key === 'historyCreateFolderDialog' ||
-      key === 'historyOpenFolderImages' ||
-      key === 'historyMoveToFolder'
-    ) {
-      setTab('history');
-      setHistoryViewMode('album');
-    }
-
-    if (key === 'historyOpenFolderImages' || key === 'historyMoveToFolder') {
-      setTimeout(() => {
-        ensureAlbumFolderOpened();
-      }, 80);
-    }
-
-    if (key === 'historyCreateFolderDialog') {
-      setTimeout(() => {
-        ensureCreateFolderDialogOpened();
-      }, 80);
-    }
-
-    if (key === 'historyDragToRef') {
-      setTab('generate');
-    }
-
-    if (key === 'settingsCompression') {
-      setTab('generate');
-      setTimeout(() => {
-        ensureSettingsModalOpen();
-      }, 80);
+    switch (key) {
+      case 'historyTab':
+        setTab('history');
+        setHistoryViewMode('timeline');
+        break;
+      case 'historyViewToggle':
+      case 'historyAlbumCards':
+      case 'historyCreateFolder':
+        setTab('history');
+        setHistoryViewMode('album');
+        break;
+      case 'historyCreateFolderDialog':
+        setTab('history');
+        setHistoryViewMode('album');
+        setTimeout(() => {
+          ensureCreateFolderDialogOpened();
+        }, 80);
+        break;
+      case 'historyOpenFolderImages':
+      case 'historyMoveToFolder':
+        setTab('history');
+        setHistoryViewMode('album');
+        setTimeout(() => {
+          ensureAlbumFolderOpened();
+        }, 80);
+        break;
+      case 'historyDragToRef':
+        setTab('generate');
+        break;
+      case 'settingsCompression':
+        setTab('generate');
+        setTimeout(() => {
+          ensureSettingsModalOpen();
+        }, 80);
+        break;
+      default:
+        break;
     }
   }, [ensureAlbumFolderOpened, ensureCreateFolderDialogOpened, ensureSettingsModalOpen, getStepKey, run, setHistoryViewMode, setTab, stepIndex]);
 
@@ -436,22 +440,12 @@ export function OnboardingTour({ onReady }: OnboardingTourProps) {
       // 处理 target 不存在：对关键步骤做有限次重试（切 tab / 开弹窗 / 进文件夹）
       if (type === EVENTS.TARGET_NOT_FOUND) {
         const key = getStepKey(index);
-        if (
-          key === 'settingsCompression' ||
-          key === 'historyOpenFolderImages' ||
-          key === 'historyMoveToFolder' ||
-          key === 'historyCreateFolderDialog'
-        ) {
+        const retryAction = key ? retryableActions[key] : undefined;
+        if (key && retryAction) {
           const attempt = (stepRetryRef.current[key] ?? 0) + 1;
           stepRetryRef.current[key] = attempt;
           if (attempt <= 2) {
-            if (key === 'settingsCompression') {
-              ensureSettingsModalOpen();
-            } else if (key === 'historyCreateFolderDialog') {
-              ensureCreateFolderDialogOpened();
-            } else {
-              ensureAlbumFolderOpened();
-            }
+            retryAction();
             setTimeout(() => {
               setStepIndex(index);
             }, 220);
