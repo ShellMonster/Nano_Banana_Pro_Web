@@ -124,6 +124,62 @@ func defaultTimeoutSecondsForProvider(providerName string) int {
 	}
 }
 
+func isTauriSidecarMode() bool {
+	return os.Getenv("TAURI_PLATFORM") != "" || os.Getenv("TAURI_FAMILY") != ""
+}
+
+func normalizePathForCheck(path string) string {
+	cleaned := filepath.Clean(path)
+	cleaned = strings.TrimRight(cleaned, string(filepath.Separator))
+	if cleaned == "" {
+		return string(filepath.Separator)
+	}
+	return cleaned
+}
+
+func pathWithinRoot(path, root string) bool {
+	nPath := normalizePathForCheck(path)
+	nRoot := normalizePathForCheck(root)
+	if nPath == nRoot {
+		return true
+	}
+	return strings.HasPrefix(nPath, nRoot+string(filepath.Separator))
+}
+
+func allowedRefPathRoots() []string {
+	roots := make([]string, 0, 4)
+	if configDir, err := os.UserConfigDir(); err == nil && strings.TrimSpace(configDir) != "" {
+		roots = append(roots, filepath.Join(configDir, "com.dztool.banana"))
+	}
+	if cacheDir, err := os.UserCacheDir(); err == nil && strings.TrimSpace(cacheDir) != "" {
+		roots = append(roots, filepath.Join(cacheDir, "com.dztool.banana"))
+	}
+	roots = append(roots, os.TempDir())
+	return roots
+}
+
+func validateRefPathForTauri(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", fmt.Errorf("empty ref path")
+	}
+	abs, err := filepath.Abs(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("invalid ref path: %w", err)
+	}
+	abs = filepath.Clean(abs)
+	real := abs
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil && strings.TrimSpace(resolved) != "" {
+		real = filepath.Clean(resolved)
+	}
+	for _, root := range allowedRefPathRoots() {
+		if pathWithinRoot(real, root) {
+			return real, nil
+		}
+	}
+	return "", fmt.Errorf("ref path is outside allowed directories")
+}
+
 // ProviderConfigRequest 设置 Provider 配置请求
 type ProviderConfigRequest struct {
 	ProviderName string `json:"provider_name" binding:"required"`
@@ -429,9 +485,19 @@ func GenerateWithImagesHandler(c *gin.Context) {
 	// 处理本地路径请求 (Tauri 优化)
 	for _, path := range req.RefPaths {
 		if path != "" {
-			content, err := os.ReadFile(path)
+			targetPath := path
+			if isTauriSidecarMode() {
+				validatedPath, validateErr := validateRefPathForTauri(path)
+				if validateErr != nil {
+					log.Printf("[API] 非法本地参考图路径: %s, err: %v\n", path, validateErr)
+					Error(c, http.StatusBadRequest, 400, "参考图路径不在允许目录内")
+					return
+				}
+				targetPath = validatedPath
+			}
+			content, err := os.ReadFile(targetPath)
 			if err != nil {
-				log.Printf("[API] 读取本地参考图失败: %s, err: %v\n", path, err)
+				log.Printf("[API] 读取本地参考图失败: %s, err: %v\n", targetPath, err)
 				continue
 			}
 			refImageBytes = append(refImageBytes, content)

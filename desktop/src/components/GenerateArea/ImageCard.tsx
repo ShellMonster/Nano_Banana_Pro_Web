@@ -6,6 +6,7 @@ import { formatDateTime } from '../../utils/date';
 import { useHistoryStore } from '../../store/historyStore';
 import { useInternalDragStore } from '../../store/internalDragStore';
 import { useTranslation } from 'react-i18next';
+import { formatAspectRatioLabel } from '../../utils/aspectRatio';
 
 interface ImageCardProps {
   image: GeneratedImage;
@@ -141,29 +142,9 @@ export const ImageCard = React.memo(function ImageCard({
         }
       } catch {}
 
-      // 2) 回退到 width/height 推断比例（常见比例做归一化显示）
+      // 2) 回退到 width/height 推断比例（与历史区使用同一算法）
       if (w > 0 && h > 0) {
-        const r = w / h;
-        const close = (a: number, b: number) => Math.abs(a - b) < 0.1;
-        if (close(r, 1)) return '1:1';
-        if (close(r, 16 / 9)) return '16:9';
-        if (close(r, 9 / 16)) return '9:16';
-        if (close(r, 4 / 3)) return '4:3';
-        if (close(r, 3 / 4)) return '3:4';
-
-        // 最后兜底：约分显示（避免直接展示 1024:576 这种“分辨率感”太强的数字）
-        const gcd = (a: number, b: number): number => {
-          let x = Math.abs(a);
-          let y = Math.abs(b);
-          while (y) {
-            const t = x % y;
-            x = y;
-            y = t;
-          }
-          return x || 1;
-        };
-        const g = gcd(w, h);
-        return `${Math.round(w / g)}:${Math.round(h / g)}`;
+        return formatAspectRatioLabel(w, h);
       }
 
       return '—';

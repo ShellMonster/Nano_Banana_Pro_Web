@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -36,6 +37,30 @@ func getWorkDir() string {
 		}
 	}
 	return "."
+}
+
+func isTauriSidecar() bool {
+	return os.Getenv("TAURI_PLATFORM") != "" || os.Getenv("TAURI_FAMILY") != ""
+}
+
+func isLoopbackOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || u == nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+func isAllowedTauriOrigin(origin string) bool {
+	origin = strings.TrimSpace(origin)
+	if origin == "" {
+		return true
+	}
+	if strings.HasPrefix(strings.ToLower(origin), "tauri://") {
+		return true
+	}
+	return isLoopbackOrigin(origin)
 }
 
 // isRunningInDocker 检测是否运行在 Docker 容器中
@@ -139,10 +164,24 @@ func main() {
 		origin := c.Request.Header.Get("Origin")
 		log.Printf("[CORS] Request from Origin: %s, Method: %s, Path: %s", origin, c.Request.Method, c.Request.URL.Path)
 
-		if origin != "" {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+		if isTauriSidecar() {
+			if !isAllowedTauriOrigin(origin) {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+					"code":    403,
+					"message": "origin not allowed",
+					"data":    nil,
+				})
+				return
+			}
+			if origin != "" {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			}
 		} else {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+			if origin != "" {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			} else {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+			}
 		}
 
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
