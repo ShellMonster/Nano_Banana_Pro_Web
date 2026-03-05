@@ -360,15 +360,27 @@ export const useGenerateStore = create<GenerateState>()(
     {
       name: 'generate-ui-storage',
       storage: createJSONStorage(() => localStorage),
-      // 持久化 UI 状态 + 任务 ID（用于刷新后恢复）
+      version: 2,
+      // 仅持久化 UI 偏好，任务状态由后端权威管理，避免冷启动“僵尸生成中”
       partialize: (state) => ({
-          currentTab: state.currentTab,
-          isSidebarOpen: state.isSidebarOpen,
-          // 只在 processing 时保存任务相关状态，其他情况清空避免状态不一致
-          taskId: state.status === 'processing' ? state.taskId : null,
-          startTime: state.status === 'processing' ? state.startTime : null,
-          status: state.status === 'processing' ? 'processing' : 'idle'
+        currentTab: state.currentTab,
+        isSidebarOpen: state.isSidebarOpen
       }),
+      // 忽略历史版本中已持久化的 taskId/status/startTime 等字段，彻底切断回灌
+      merge: (persistedState, currentState) => {
+        const incoming = (persistedState as Partial<GenerateState> | undefined) ?? {};
+        return {
+          ...currentState,
+          currentTab:
+            incoming.currentTab === 'generate' || incoming.currentTab === 'history'
+              ? incoming.currentTab
+              : currentState.currentTab,
+          isSidebarOpen:
+            typeof incoming.isSidebarOpen === 'boolean'
+              ? incoming.isSidebarOpen
+              : currentState.isSidebarOpen
+        };
+      },
       // 水合后恢复 selectedIds 为空 Set
       onRehydrateStorage: () => (state) => {
         if (state) {
