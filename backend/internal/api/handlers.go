@@ -513,8 +513,13 @@ func GenerateWithImagesHandler(c *gin.Context) {
 func GetTaskHandler(c *gin.Context) {
 	taskID := c.Param("task_id")
 	var task model.Task
-	if err := model.DB.Where("task_id = ?", taskID).First(&task).Error; err != nil {
+	query := model.DB.WithContext(c.Request.Context())
+	if err := query.Where("task_id = ?", taskID).First(&task).Error; err != nil {
 		Error(c, http.StatusNotFound, 404, "任务未找到")
+		return
+	}
+	if _, err := reconcileSingleTaskTimeoutOnDemand(c.Request.Context(), &task); err != nil {
+		Error(c, http.StatusInternalServerError, 500, "任务状态收敛失败")
 		return
 	}
 
@@ -523,6 +528,10 @@ func GetTaskHandler(c *gin.Context) {
 
 // ListImagesHandler 获取图片列表（含搜索）
 func ListImagesHandler(c *gin.Context) {
+	if err := reconcileActiveTasksTimeoutOnDemand(c.Request.Context()); err != nil {
+		log.Printf("[API] 懒收敛超时任务失败: %v\n", err)
+	}
+
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSizeStr := strings.TrimSpace(c.Query("page_size"))
 	if pageSizeStr == "" {

@@ -95,6 +95,10 @@ func toPublicImagePath(raw string) string {
 
 // GetFoldersHandler 获取所有文件夹
 func GetFoldersHandler(c *gin.Context) {
+	if err := reconcileActiveTasksTimeoutOnDemand(c.Request.Context()); err != nil {
+		log.Printf("[API] 文件夹列表懒收敛超时任务失败: %v\n", err)
+	}
+
 	var folders []model.Folder
 	query := model.DB.WithContext(c.Request.Context())
 
@@ -228,6 +232,10 @@ type FolderImageTaskResponse struct {
 
 // GetFolderImagesHandler 获取指定文件夹下的图片列表（分页）
 func GetFolderImagesHandler(c *gin.Context) {
+	if err := reconcileActiveTasksTimeoutOnDemand(c.Request.Context()); err != nil {
+		log.Printf("[API] 文件夹图片懒收敛超时任务失败: %v\n", err)
+	}
+
 	folderID := strings.TrimSpace(c.Param("id"))
 	if folderID == "" {
 		Error(c, http.StatusBadRequest, 400, "文件夹ID不能为空")
