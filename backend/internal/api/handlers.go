@@ -12,12 +12,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
 	"image-gen-service/internal/config"
 	"image-gen-service/internal/model"
+	"image-gen-service/internal/platform"
 	"image-gen-service/internal/provider"
 	"image-gen-service/internal/storage"
 	"image-gen-service/internal/worker"
@@ -122,6 +124,77 @@ func defaultTimeoutSecondsForProvider(providerName string) int {
 	default:
 		return 150
 	}
+}
+
+func normalizePathForCheck(path string) string {
+	cleaned := filepath.Clean(path)
+	cleaned = strings.TrimRight(cleaned, string(filepath.Separator))
+	if cleaned == "" {
+		return string(filepath.Separator)
+	}
+	return cleaned
+}
+
+func pathWithinRoot(path, root string) bool {
+	nPath := normalizePathForCheck(path)
+	nRoot := normalizePathForCheck(root)
+	if runtime.GOOS == "windows" {
+		nPath = strings.ToLower(nPath)
+		nRoot = strings.ToLower(nRoot)
+	}
+	if nPath == nRoot {
+		return true
+	}
+	rel, err := filepath.Rel(nRoot, nPath)
+	if err != nil {
+		return false
+	}
+	rel = strings.TrimSpace(rel)
+	if rel == "." {
+		return true
+	}
+	if rel == "" {
+		return false
+	}
+	return !strings.HasPrefix(rel, "..")
+}
+
+func allowedRefPathRoots() []string {
+	roots := make([]string, 0, 4)
+	if configDir, err := os.UserConfigDir(); err == nil && strings.TrimSpace(configDir) != "" {
+		roots = append(roots, filepath.Join(configDir, "com.dztool.banana"))
+	}
+	if cacheDir, err := os.UserCacheDir(); err == nil && strings.TrimSpace(cacheDir) != "" {
+		roots = append(roots, filepath.Join(cacheDir, "com.dztool.banana"))
+	}
+	roots = append(roots, os.TempDir())
+	return roots
+}
+
+func validateRefPathForTauri(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", fmt.Errorf("empty ref path")
+	}
+	abs, err := filepath.Abs(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("invalid ref path: %w", err)
+	}
+	abs = filepath.Clean(abs)
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", fmt.Errorf("ref path could not be resolved: %w", err)
+	}
+	real := filepath.Clean(strings.TrimSpace(resolved))
+	if real == "" {
+		return "", fmt.Errorf("ref path could not be resolved")
+	}
+	for _, root := range allowedRefPathRoots() {
+		if pathWithinRoot(real, root) {
+			return real, nil
+		}
+	}
+	return "", fmt.Errorf("ref path is outside allowed directories")
 }
 
 // ProviderConfigRequest 设置 Provider 配置请求
@@ -429,10 +502,23 @@ func GenerateWithImagesHandler(c *gin.Context) {
 	// 处理本地路径请求 (Tauri 优化)
 	for _, path := range req.RefPaths {
 		if path != "" {
-			content, err := os.ReadFile(path)
+			if !platform.IsTauriSidecar() {
+				Error(c, http.StatusBadRequest, 400, "refPaths 仅支持桌面端模式")
+				return
+			}
+			targetPath := path
+			validatedPath, validateErr := validateRefPathForTauri(path)
+			if validateErr != nil {
+				log.Printf("[API] 非法本地参考图路径: %s, err: %v\n", path, validateErr)
+				Error(c, http.StatusBadRequest, 400, "参考图路径不在允许目录内")
+				return
+			}
+			targetPath = validatedPath
+			content, err := os.ReadFile(targetPath)
 			if err != nil {
-				log.Printf("[API] 读取本地参考图失败: %s, err: %v\n", path, err)
-				continue
+				log.Printf("[API] 读取本地参考图失败: %s, err: %v\n", targetPath, err)
+				Error(c, http.StatusBadRequest, 400, "读取本地参考图失败")
+				return
 			}
 			refImageBytes = append(refImageBytes, content)
 		}

@@ -227,7 +227,7 @@ func migrateOldTasksToMonthFolders() {
 	folderCache := make(map[string]uint)
 
 	batchSize := 100
-	offset := 0
+	processed := 0
 	totalMigrated := 0
 	var totalTasks int64
 
@@ -242,10 +242,10 @@ func migrateOldTasksToMonthFolders() {
 	// 分批处理任务
 	for {
 		var tasks []Task
-		// 分批查询未归类的任务
+		// 每批都从当前剩余未归类任务中取前 N 条，避免更新后使用 offset 漏扫
 		result := DB.Where("folder_id = ? OR folder_id IS NULL", "").
+			Order("id ASC").
 			Limit(batchSize).
-			Offset(offset).
 			Find(&tasks)
 
 		if result.Error != nil {
@@ -312,9 +312,8 @@ func migrateOldTasksToMonthFolders() {
 			totalMigrated++
 		}
 
-		// 下一批任务
-		offset += len(tasks)
-		log.Printf("[Migration] 已处理 %d/%d 个任务，继续下一批...\n", offset, totalTasks)
+		processed += len(tasks)
+		log.Printf("[Migration] 已处理 %d/%d 个任务，继续下一批...\n", processed, totalTasks)
 	}
 
 	log.Printf("[Migration] 迁移完成: %d/%d 个任务已归类\n", totalMigrated, totalTasks)
