@@ -79,6 +79,11 @@
       "size": "サイズ",
       "time": "時間"
     },
+    "failed": {
+      "title": "生成に失敗しました",
+      "errorCopied": "エラー詳細をコピーしました",
+      "copyError": "エラー詳細をコピー"
+    },
     "downloadOriginal": "元画像をダウンロード"
   },
   "prompt": {

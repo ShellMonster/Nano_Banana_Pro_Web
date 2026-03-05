@@ -79,6 +79,11 @@
       "size": "Size",
       "time": "Time"
     },
+    "failed": {
+      "title": "Generation failed",
+      "errorCopied": "Error details copied",
+      "copyError": "Copy error details"
+    },
     "downloadOriginal": "Download original"
   },
   "prompt": {
