@@ -1,6 +1,11 @@
 import api from './api';
 import { BackendHistoryResponse } from '../types';
 
+interface BackendImageSource {
+  kind: 'http_url' | 'storage_relative' | 'absolute_file' | 'legacy_path';
+  value: string;
+}
+
 export interface Folder {
   id: number;
   name: string;
@@ -11,6 +16,7 @@ export interface Folder {
   updated_at?: string;
   image_count?: number;
   cover_image?: string;
+  cover_image_source?: BackendImageSource;
 }
 
 export interface FolderImagesQuery {

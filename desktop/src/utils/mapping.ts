@@ -1,5 +1,5 @@
 import { GenerationTask, GeneratedImage, BackendTask, BackendHistoryResponse } from '../types';
-import { getImageUrl } from '../services/api';
+import { getImageUrlFromSource } from '../services/api';
 
 function sanitizeBackendErrorMessage(message?: string): string {
   if (!message) return '';
@@ -15,8 +15,8 @@ function sanitizeBackendErrorMessage(message?: string): string {
  * 将后端 Task 模型映射为前端 GenerationTask 模型
  */
 export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
-  const getFullUrl = (path: string | undefined) => {
-    return getImageUrl(path || '');
+  const getFullUrl = (path: string | undefined, source?: BackendTask['image_source']) => {
+    return getImageUrlFromSource(source, path || '');
   };
 
   const sanitizedErrorMessage = sanitizeBackendErrorMessage(task.error_message);
@@ -37,9 +37,9 @@ export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
     errorMessage: sanitizedErrorMessage,
     status: task.status === 'completed' ? 'success' : (task.status === 'failed' ? 'failed' : 'pending'),
     // 弹窗预览使用原图
-    url: getFullUrl(task.local_path || task.image_url || task.thumbnail_path || task.thumbnail_url),
+    url: getFullUrl(task.local_path || task.image_url || task.thumbnail_path || task.thumbnail_url, task.image_source),
     // 卡片展示优先使用缩略图
-    thumbnailUrl: getFullUrl(task.thumbnail_path || task.local_path || task.thumbnail_url || task.image_url)
+    thumbnailUrl: getFullUrl(task.thumbnail_path || task.local_path || task.thumbnail_url || task.image_url, task.thumbnail_source || task.image_source)
   };
 
   return {
