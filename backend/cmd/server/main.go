@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"image-gen-service/internal/api"
 	"image-gen-service/internal/config"
 	"image-gen-service/internal/model"
+	"image-gen-service/internal/platform"
 	"image-gen-service/internal/provider"
 	"image-gen-service/internal/storage"
 	"image-gen-service/internal/templates"
@@ -27,7 +29,7 @@ import (
 
 func getWorkDir() string {
 	// 如果是作为 Tauri 边车运行，使用用户目录下的应用支持目录
-	if os.Getenv("TAURI_PLATFORM") != "" || os.Getenv("TAURI_FAMILY") != "" {
+	if platform.IsTauriSidecar() {
 		configDir, err := os.UserConfigDir()
 		if err == nil {
 			appDir := configDir + "/com.dztool.banana"
@@ -36,6 +38,69 @@ func getWorkDir() string {
 		}
 	}
 	return "."
+}
+
+func isLoopbackOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || u == nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+func isNullOrigin(origin string) bool {
+	return strings.EqualFold(strings.TrimSpace(origin), "null")
+}
+
+func isAllowedTauriOrigin(origin string) bool {
+	origin = strings.TrimSpace(origin)
+	if origin == "" || isNullOrigin(origin) {
+		return false
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u == nil {
+		return false
+	}
+	if !strings.EqualFold(u.Scheme, "tauri") {
+		return isLoopbackOrigin(origin)
+	}
+	if !strings.EqualFold(u.Hostname(), "localhost") {
+		return false
+	}
+	if strings.TrimSpace(u.Path) != "" && strings.TrimSpace(u.Path) != "/" {
+		return false
+	}
+	return true
+}
+
+func loadCORSAllowlistFromEnv() map[string]struct{} {
+	raw := strings.TrimSpace(os.Getenv("CORS_ALLOW_ORIGINS"))
+	if raw == "" {
+		return map[string]struct{}{}
+	}
+	allowlist := make(map[string]struct{})
+	for _, part := range strings.Split(raw, ",") {
+		v := strings.TrimSpace(part)
+		if v == "" {
+			continue
+		}
+		allowlist[v] = struct{}{}
+	}
+	return allowlist
+}
+
+func originInAllowlist(origin string, allowlist map[string]struct{}) bool {
+	if len(allowlist) == 0 {
+		return false
+	}
+	_, ok := allowlist[origin]
+	return ok
+}
+
+func allowlistHasWildcard(allowlist map[string]struct{}) bool {
+	_, ok := allowlist["*"]
+	return ok
 }
 
 // isRunningInDocker 检测是否运行在 Docker 容器中
@@ -133,19 +198,54 @@ func main() {
 
 	// 5. 设置路由
 	r := gin.Default()
+	corsAllowlist := loadCORSAllowlistFromEnv()
 
 	// 允许跨域请求
 	r.Use(func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		log.Printf("[CORS] Request from Origin: %s, Method: %s, Path: %s", origin, c.Request.Method, c.Request.URL.Path)
 
-		if origin != "" {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+		if platform.IsTauriSidecar() {
+			if !isAllowedTauriOrigin(origin) {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+					"code":    403,
+					"message": "origin not allowed",
+					"data":    nil,
+				})
+				return
+			}
+			if origin != "" {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			}
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		} else {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+			trimmedOrigin := strings.TrimSpace(origin)
+			hasWildcard := allowlistHasWildcard(corsAllowlist)
+			if isNullOrigin(trimmedOrigin) {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+					"code":    403,
+					"message": "origin not allowed",
+					"data":    nil,
+				})
+				return
+			} else if trimmedOrigin == "" || (hasWildcard && len(corsAllowlist) > 0) {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+			} else if len(corsAllowlist) == 0 {
+				// 非 Tauri 模式默认放开跨域，但不允许携带凭证，避免“反射 Origin + credentials”风险
+				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+			} else if originInAllowlist(trimmedOrigin, corsAllowlist) {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", trimmedOrigin)
+				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			} else {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+					"code":    403,
+					"message": "origin not allowed",
+					"data":    nil,
+				})
+				return
+			}
 		}
 
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, *")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 

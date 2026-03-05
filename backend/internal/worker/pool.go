@@ -8,6 +8,7 @@ import (
 	"log"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"image-gen-service/internal/model"
@@ -28,6 +29,7 @@ type WorkerPool struct {
 	wg          sync.WaitGroup
 	ctx         context.Context
 	cancel      context.CancelFunc
+	stopping    int32
 }
 
 var Pool *WorkerPool
@@ -54,22 +56,26 @@ func (wp *WorkerPool) Start() {
 
 // Stop 优雅停止 Worker 池
 func (wp *WorkerPool) Stop() {
-	// 1. 首先关闭任务队列通道，不再接收新提交的任务
-	// 已经提交到通道中的任务会继续保留在通道中
-	close(wp.taskQueue)
+	atomic.StoreInt32(&wp.stopping, 1)
 
-	// 2. 等待所有正在运行的 Worker 完成任务
-	// 由于通道已关闭，Worker 会在处理完通道中剩余的所有任务后退出
+	// 先 cancel，确保进行中的 provider 调用尽快退出，避免“退出后仍长时间运行”
+	wp.cancel()
+	close(wp.taskQueue)
 	wp.wg.Wait()
 
-	// 3. 最后取消 Context，通知所有依赖该 Context 的操作（如正在进行的 HTTP 请求）停止
-	wp.cancel()
-
-	log.Println("Worker 池已优雅停止，所有队列中的任务已处理完毕")
+	log.Println("Worker 池已停止，进行中的任务已中断，队列遗留任务已标记失败")
 }
 
 // Submit 提交任务到队列
-func (wp *WorkerPool) Submit(task *Task) bool {
+func (wp *WorkerPool) Submit(task *Task) (ok bool) {
+	if atomic.LoadInt32(&wp.stopping) == 1 {
+		return false
+	}
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
 	select {
 	case wp.taskQueue <- task:
 		return true
@@ -87,12 +93,38 @@ func (wp *WorkerPool) worker(id int) {
 		select {
 		case <-wp.ctx.Done():
 			log.Printf("Worker %d 收到停止信号", id)
+			wp.drainPendingTasks(id)
 			return
 		case task, ok := <-wp.taskQueue:
 			if !ok {
 				return
 			}
 			wp.processTask(task)
+		}
+	}
+}
+
+func (wp *WorkerPool) drainPendingTasks(workerID int) {
+	drained := 0
+	for {
+		select {
+		case task, ok := <-wp.taskQueue:
+			if !ok {
+				if drained > 0 {
+					log.Printf("Worker %d 退出前收敛了 %d 个队列遗留任务", workerID, drained)
+				}
+				return
+			}
+			if task == nil || task.TaskModel == nil {
+				continue
+			}
+			wp.failTask(task.TaskModel, errors.New(model.STALE_TASK_ERROR_MESSAGE))
+			drained++
+		default:
+			if drained > 0 {
+				log.Printf("Worker %d 退出前收敛了 %d 个队列遗留任务", workerID, drained)
+			}
+			return
 		}
 	}
 }
