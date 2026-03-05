@@ -18,6 +18,7 @@ import (
 	"image-gen-service/internal/api"
 	"image-gen-service/internal/config"
 	"image-gen-service/internal/model"
+	"image-gen-service/internal/platform"
 	"image-gen-service/internal/provider"
 	"image-gen-service/internal/storage"
 	"image-gen-service/internal/templates"
@@ -28,7 +29,7 @@ import (
 
 func getWorkDir() string {
 	// 如果是作为 Tauri 边车运行，使用用户目录下的应用支持目录
-	if os.Getenv("TAURI_PLATFORM") != "" || os.Getenv("TAURI_FAMILY") != "" {
+	if platform.IsTauriSidecar() {
 		configDir, err := os.UserConfigDir()
 		if err == nil {
 			appDir := configDir + "/com.dztool.banana"
@@ -37,10 +38,6 @@ func getWorkDir() string {
 		}
 	}
 	return "."
-}
-
-func isTauriSidecar() bool {
-	return os.Getenv("TAURI_PLATFORM") != "" || os.Getenv("TAURI_FAMILY") != ""
 }
 
 func isLoopbackOrigin(origin string) bool {
@@ -52,15 +49,46 @@ func isLoopbackOrigin(origin string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
+func isNullOrigin(origin string) bool {
+	return strings.EqualFold(strings.TrimSpace(origin), "null")
+}
+
 func isAllowedTauriOrigin(origin string) bool {
 	origin = strings.TrimSpace(origin)
-	if origin == "" {
-		return true
+	if origin == "" || isNullOrigin(origin) {
+		return false
 	}
 	if strings.HasPrefix(strings.ToLower(origin), "tauri://") {
 		return true
 	}
 	return isLoopbackOrigin(origin)
+}
+
+func loadCORSAllowlistFromEnv() map[string]struct{} {
+	raw := strings.TrimSpace(os.Getenv("CORS_ALLOW_ORIGINS"))
+	if raw == "" {
+		return map[string]struct{}{}
+	}
+	allowlist := make(map[string]struct{})
+	for _, part := range strings.Split(raw, ",") {
+		v := strings.TrimSpace(part)
+		if v == "" {
+			continue
+		}
+		allowlist[v] = struct{}{}
+	}
+	return allowlist
+}
+
+func originInAllowlist(origin string, allowlist map[string]struct{}) bool {
+	if len(allowlist) == 0 {
+		return false
+	}
+	if _, ok := allowlist["*"]; ok {
+		return true
+	}
+	_, ok := allowlist[origin]
+	return ok
 }
 
 // isRunningInDocker 检测是否运行在 Docker 容器中
@@ -158,13 +186,14 @@ func main() {
 
 	// 5. 设置路由
 	r := gin.Default()
+	corsAllowlist := loadCORSAllowlistFromEnv()
 
 	// 允许跨域请求
 	r.Use(func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		log.Printf("[CORS] Request from Origin: %s, Method: %s, Path: %s", origin, c.Request.Method, c.Request.URL.Path)
 
-		if isTauriSidecar() {
+		if platform.IsTauriSidecar() {
 			if !isAllowedTauriOrigin(origin) {
 				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 					"code":    403,
@@ -176,15 +205,34 @@ func main() {
 			if origin != "" {
 				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 			}
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		} else {
-			if origin != "" {
-				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-			} else {
+			trimmedOrigin := strings.TrimSpace(origin)
+			if trimmedOrigin == "" {
 				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+			} else if isNullOrigin(trimmedOrigin) {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+					"code":    403,
+					"message": "origin not allowed",
+					"data":    nil,
+				})
+				return
+			} else if len(corsAllowlist) == 0 {
+				// 非 Tauri 模式默认放开跨域，但不允许携带凭证，避免“反射 Origin + credentials”风险
+				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+			} else if originInAllowlist(trimmedOrigin, corsAllowlist) {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", trimmedOrigin)
+				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			} else {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+					"code":    403,
+					"message": "origin not allowed",
+					"data":    nil,
+				})
+				return
 			}
 		}
 
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, *")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 

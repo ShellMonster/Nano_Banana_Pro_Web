@@ -63,7 +63,7 @@ func (wp *WorkerPool) Stop() {
 	close(wp.taskQueue)
 	wp.wg.Wait()
 
-	log.Println("Worker 池已优雅停止，所有队列中的任务已处理完毕")
+	log.Println("Worker 池已停止，进行中的任务已中断，队列遗留任务已标记失败")
 }
 
 // Submit 提交任务到队列
@@ -93,12 +93,38 @@ func (wp *WorkerPool) worker(id int) {
 		select {
 		case <-wp.ctx.Done():
 			log.Printf("Worker %d 收到停止信号", id)
+			wp.drainPendingTasks(id)
 			return
 		case task, ok := <-wp.taskQueue:
 			if !ok {
 				return
 			}
 			wp.processTask(task)
+		}
+	}
+}
+
+func (wp *WorkerPool) drainPendingTasks(workerID int) {
+	drained := 0
+	for {
+		select {
+		case task, ok := <-wp.taskQueue:
+			if !ok {
+				if drained > 0 {
+					log.Printf("Worker %d 退出前收敛了 %d 个队列遗留任务", workerID, drained)
+				}
+				return
+			}
+			if task == nil || task.TaskModel == nil {
+				continue
+			}
+			wp.failTask(task.TaskModel, errors.New(model.STALE_TASK_ERROR_MESSAGE))
+			drained++
+		default:
+			if drained > 0 {
+				log.Printf("Worker %d 退出前收敛了 %d 个队列遗留任务", workerID, drained)
+			}
+			return
 		}
 	}
 }
