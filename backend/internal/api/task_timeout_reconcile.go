@@ -9,7 +9,7 @@ import (
 	"image-gen-service/internal/model"
 )
 
-const onDemandTimeoutGrace = 60 * time.Second
+const onDemandTimeoutGrace = 10 * time.Second
 const activeReconcileMinInterval = 10 * time.Second
 const activeReconcileScanBatchSize = 500
 const activeReconcileUpdateBatchSize = 200
@@ -61,7 +61,11 @@ func isTaskTimedOut(task model.Task, now time.Time, timeoutMap map[string]time.D
 		return false
 	}
 	timeout := taskTimeoutForProvider(task.ProviderName, timeoutMap)
-	return now.Sub(task.CreatedAt) > timeout+onDemandTimeoutGrace
+	startAt := task.CreatedAt
+	if task.ProcessingStartedAt != nil && !task.ProcessingStartedAt.IsZero() {
+		startAt = *task.ProcessingStartedAt
+	}
+	return now.Sub(startAt) > timeout+onDemandTimeoutGrace
 }
 
 func reconcileSingleTaskTimeoutOnDemand(ctx context.Context, task *model.Task) (bool, error) {
@@ -123,7 +127,7 @@ func reconcileActiveTasksTimeoutOnDemand(ctx context.Context) error {
 	for {
 		var activeTasks []model.Task
 		if err := model.DB.WithContext(ctx).
-			Select("id", "task_id", "status", "provider_name", "created_at").
+			Select("id", "task_id", "status", "provider_name", "created_at", "processing_started_at").
 			Where("status IN ?", []string{"pending", "processing"}).
 			Where("id > ?", lastID).
 			Order("id ASC").
