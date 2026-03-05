@@ -58,10 +58,20 @@ func isAllowedTauriOrigin(origin string) bool {
 	if origin == "" || isNullOrigin(origin) {
 		return false
 	}
-	if strings.HasPrefix(strings.ToLower(origin), "tauri://") {
-		return true
+	u, err := url.Parse(origin)
+	if err != nil || u == nil {
+		return false
 	}
-	return isLoopbackOrigin(origin)
+	if !strings.EqualFold(u.Scheme, "tauri") {
+		return isLoopbackOrigin(origin)
+	}
+	if !strings.EqualFold(u.Hostname(), "localhost") {
+		return false
+	}
+	if strings.TrimSpace(u.Path) != "" && strings.TrimSpace(u.Path) != "/" {
+		return false
+	}
+	return true
 }
 
 func loadCORSAllowlistFromEnv() map[string]struct{} {
@@ -84,10 +94,12 @@ func originInAllowlist(origin string, allowlist map[string]struct{}) bool {
 	if len(allowlist) == 0 {
 		return false
 	}
-	if _, ok := allowlist["*"]; ok {
-		return true
-	}
 	_, ok := allowlist[origin]
+	return ok
+}
+
+func allowlistHasWildcard(allowlist map[string]struct{}) bool {
+	_, ok := allowlist["*"]
 	return ok
 }
 
@@ -208,15 +220,16 @@ func main() {
 			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		} else {
 			trimmedOrigin := strings.TrimSpace(origin)
-			if trimmedOrigin == "" {
-				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-			} else if isNullOrigin(trimmedOrigin) {
+			hasWildcard := allowlistHasWildcard(corsAllowlist)
+			if isNullOrigin(trimmedOrigin) {
 				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 					"code":    403,
 					"message": "origin not allowed",
 					"data":    nil,
 				})
 				return
+			} else if trimmedOrigin == "" || (hasWildcard && len(corsAllowlist) > 0) {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 			} else if len(corsAllowlist) == 0 {
 				// 非 Tauri 模式默认放开跨域，但不允许携带凭证，避免“反射 Origin + credentials”风险
 				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")

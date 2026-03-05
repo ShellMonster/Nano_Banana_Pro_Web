@@ -181,9 +181,13 @@ func validateRefPathForTauri(raw string) (string, error) {
 		return "", fmt.Errorf("invalid ref path: %w", err)
 	}
 	abs = filepath.Clean(abs)
-	real := abs
-	if resolved, err := filepath.EvalSymlinks(abs); err == nil && strings.TrimSpace(resolved) != "" {
-		real = filepath.Clean(resolved)
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", fmt.Errorf("ref path could not be resolved: %w", err)
+	}
+	real := filepath.Clean(strings.TrimSpace(resolved))
+	if real == "" {
+		return "", fmt.Errorf("ref path could not be resolved")
 	}
 	for _, root := range allowedRefPathRoots() {
 		if pathWithinRoot(real, root) {
