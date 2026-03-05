@@ -60,15 +60,70 @@ func CreateFolderHandler(c *gin.Context) {
 
 // FolderResponse 文件夹响应（包含图片数量）
 type FolderResponse struct {
-	ID         uint   `json:"id"`
-	Name       string `json:"name"`
-	Type       string `json:"type"`
-	Year       int    `json:"year"`
-	Month      int    `json:"month"`
-	CreatedAt  string `json:"created_at"`
-	UpdatedAt  string `json:"updated_at"`
-	ImageCount int64  `json:"image_count"`
-	CoverImage string `json:"cover_image,omitempty"`
+	ID               uint         `json:"id"`
+	Name             string       `json:"name"`
+	Type             string       `json:"type"`
+	Year             int          `json:"year"`
+	Month            int          `json:"month"`
+	CreatedAt        string       `json:"created_at"`
+	UpdatedAt        string       `json:"updated_at"`
+	ImageCount       int64        `json:"image_count"`
+	CoverImage       string       `json:"cover_image,omitempty"`
+	CoverImageSource *ImageSource `json:"cover_image_source,omitempty"`
+}
+
+type ImageSource struct {
+	Kind  string `json:"kind"`
+	Value string `json:"value"`
+}
+
+const (
+	IMAGE_SOURCE_KIND_HTTP_URL         = "http_url"
+	IMAGE_SOURCE_KIND_STORAGE_RELATIVE = "storage_relative"
+)
+
+func normalizeStoragePath(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+
+	normalized := strings.ReplaceAll(trimmed, "\\", "/")
+	if idx := strings.Index(normalized, "/storage/"); idx >= 0 {
+		return normalized[idx:]
+	}
+	if idx := strings.Index(normalized, "storage/"); idx >= 0 {
+		return "/" + normalized[idx:]
+	}
+	return ""
+}
+
+func buildImageSource(raw string) *ImageSource {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return &ImageSource{Kind: IMAGE_SOURCE_KIND_HTTP_URL, Value: trimmed}
+	}
+
+	if storagePath := normalizeStoragePath(trimmed); storagePath != "" {
+		return &ImageSource{Kind: IMAGE_SOURCE_KIND_STORAGE_RELATIVE, Value: storagePath}
+	}
+
+	// 安全兜底：不向前端暴露无法识别的本地路径（尤其绝对路径）
+	return nil
+}
+
+func pickFirstImageSource(candidates ...string) *ImageSource {
+	for _, candidate := range candidates {
+		if source := buildImageSource(candidate); source != nil {
+			return source
+		}
+	}
+	return nil
 }
 
 func toPublicImagePath(raw string) string {
@@ -82,12 +137,8 @@ func toPublicImagePath(raw string) string {
 		return trimmed
 	}
 
-	normalized := strings.ReplaceAll(trimmed, "\\", "/")
-	if idx := strings.Index(normalized, "/storage/"); idx >= 0 {
-		return normalized[idx:]
-	}
-	if idx := strings.Index(normalized, "storage/"); idx >= 0 {
-		return "/" + normalized[idx:]
+	if storagePath := normalizeStoragePath(trimmed); storagePath != "" {
+		return storagePath
 	}
 
 	return ""
@@ -158,20 +209,16 @@ func GetFoldersHandler(c *gin.Context) {
 		log.Printf("[API] 查询文件夹封面候选失败: %v\n", err)
 	}
 
-	pickCover := func(c folderCoverCandidate) string {
-		for _, v := range []string{
-			toPublicImagePath(c.ThumbnailPath),
-			toPublicImagePath(c.LocalPath),
-			strings.TrimSpace(c.ThumbnailURL),
-			strings.TrimSpace(c.ImageURL),
-		} {
-			if strings.TrimSpace(v) != "" {
-				return v
-			}
-		}
-		return ""
+	pickCoverSource := func(c folderCoverCandidate) *ImageSource {
+		return pickFirstImageSource(
+			c.ThumbnailPath,
+			c.LocalPath,
+			c.ThumbnailURL,
+			c.ImageURL,
+		)
 	}
 	coverMap := make(map[uint]string, len(folders))
+	coverSourceMap := make(map[uint]*ImageSource, len(folders))
 	for _, candidate := range coverCandidates {
 		if candidate.FolderID == "" {
 			continue
@@ -184,26 +231,28 @@ func GetFoldersHandler(c *gin.Context) {
 		if _, exists := coverMap[fid]; exists {
 			continue
 		}
-		cover := pickCover(candidate)
-		if cover == "" {
+		coverSource := pickCoverSource(candidate)
+		if coverSource == nil {
 			continue
 		}
-		coverMap[fid] = cover
+		coverMap[fid] = coverSource.Value
+		coverSourceMap[fid] = coverSource
 	}
 
 	// 构建响应，包含图片数量
 	responses := make([]FolderResponse, len(folders))
 	for i, folder := range folders {
 		responses[i] = FolderResponse{
-			ID:         folder.ID,
-			Name:       folder.Name,
-			Type:       folder.Type,
-			Year:       folder.Year,
-			Month:      folder.Month,
-			CreatedAt:  folder.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt:  folder.UpdatedAt.Format("2006-01-02 15:04:05"),
-			ImageCount: countMap[folder.ID],
-			CoverImage: coverMap[folder.ID],
+			ID:               folder.ID,
+			Name:             folder.Name,
+			Type:             folder.Type,
+			Year:             folder.Year,
+			Month:            folder.Month,
+			CreatedAt:        folder.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:        folder.UpdatedAt.Format("2006-01-02 15:04:05"),
+			ImageCount:       countMap[folder.ID],
+			CoverImage:       coverMap[folder.ID],
+			CoverImageSource: coverSourceMap[folder.ID],
 		}
 	}
 
@@ -212,22 +261,24 @@ func GetFoldersHandler(c *gin.Context) {
 }
 
 type FolderImageTaskResponse struct {
-	TaskID        string `json:"task_id"`
-	Prompt        string `json:"prompt"`
-	ModelID       string `json:"model_id,omitempty"`
-	ProviderName  string `json:"provider_name,omitempty"`
-	LocalPath     string `json:"local_path,omitempty"`
-	ThumbnailPath string `json:"thumbnail_path,omitempty"`
-	ImageURL      string `json:"image_url,omitempty"`
-	ThumbnailURL  string `json:"thumbnail_url,omitempty"`
-	Width         int    `json:"width,omitempty"`
-	Height        int    `json:"height,omitempty"`
-	CreatedAt     string `json:"created_at"`
-	UpdatedAt     string `json:"updated_at,omitempty"`
-	Status        string `json:"status"`
-	TotalCount    int    `json:"total_count,omitempty"`
-	ErrorMessage  string `json:"error_message,omitempty"`
-	ConfigSnap    string `json:"config_snapshot,omitempty"`
+	TaskID          string       `json:"task_id"`
+	Prompt          string       `json:"prompt"`
+	ModelID         string       `json:"model_id,omitempty"`
+	ProviderName    string       `json:"provider_name,omitempty"`
+	LocalPath       string       `json:"local_path,omitempty"`
+	ThumbnailPath   string       `json:"thumbnail_path,omitempty"`
+	ImageURL        string       `json:"image_url,omitempty"`
+	ThumbnailURL    string       `json:"thumbnail_url,omitempty"`
+	ImageSource     *ImageSource `json:"image_source,omitempty"`
+	ThumbnailSource *ImageSource `json:"thumbnail_source,omitempty"`
+	Width           int          `json:"width,omitempty"`
+	Height          int          `json:"height,omitempty"`
+	CreatedAt       string       `json:"created_at"`
+	UpdatedAt       string       `json:"updated_at,omitempty"`
+	Status          string       `json:"status"`
+	TotalCount      int          `json:"total_count,omitempty"`
+	ErrorMessage    string       `json:"error_message,omitempty"`
+	ConfigSnap      string       `json:"config_snapshot,omitempty"`
 }
 
 // GetFolderImagesHandler 获取指定文件夹下的图片列表（分页）
@@ -304,21 +355,23 @@ func GetFolderImagesHandler(c *gin.Context) {
 	responses := make([]FolderImageTaskResponse, len(tasks))
 	for i, task := range tasks {
 		responses[i] = FolderImageTaskResponse{
-			TaskID:        task.TaskID,
-			Prompt:        task.Prompt,
-			ModelID:       task.ModelID,
-			ProviderName:  task.ProviderName,
-			LocalPath:     toPublicImagePath(task.LocalPath),
-			ThumbnailPath: toPublicImagePath(task.ThumbnailPath),
-			ImageURL:      strings.TrimSpace(task.ImageURL),
-			ThumbnailURL:  strings.TrimSpace(task.ThumbnailURL),
-			Width:         task.Width,
-			Height:        task.Height,
-			CreatedAt:     task.CreatedAt.Format(time.RFC3339),
-			Status:        task.Status,
-			TotalCount:    task.TotalCount,
-			ErrorMessage:  task.ErrorMessage,
-			ConfigSnap:    task.ConfigSnapshot,
+			TaskID:          task.TaskID,
+			Prompt:          task.Prompt,
+			ModelID:         task.ModelID,
+			ProviderName:    task.ProviderName,
+			LocalPath:       toPublicImagePath(task.LocalPath),
+			ThumbnailPath:   toPublicImagePath(task.ThumbnailPath),
+			ImageURL:        strings.TrimSpace(task.ImageURL),
+			ThumbnailURL:    strings.TrimSpace(task.ThumbnailURL),
+			ImageSource:     pickFirstImageSource(task.LocalPath, task.ImageURL, task.ThumbnailPath, task.ThumbnailURL),
+			ThumbnailSource: pickFirstImageSource(task.ThumbnailPath, task.LocalPath, task.ThumbnailURL, task.ImageURL),
+			Width:           task.Width,
+			Height:          task.Height,
+			CreatedAt:       task.CreatedAt.Format(time.RFC3339),
+			Status:          task.Status,
+			TotalCount:      task.TotalCount,
+			ErrorMessage:    task.ErrorMessage,
+			ConfigSnap:      task.ConfigSnapshot,
 		}
 	}
 

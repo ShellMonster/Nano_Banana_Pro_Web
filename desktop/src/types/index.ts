@@ -142,6 +142,11 @@ export interface TemplateListResponse {
   items: TemplateItem[];
 }
 
+export interface BackendImageSource {
+  kind: 'http_url' | 'storage_relative' | string;
+  value: string;
+}
+
 // 后端 Task 模型（用于 API 响应）
 export interface BackendTask {
   task_id: string;
@@ -152,6 +157,8 @@ export interface BackendTask {
   thumbnail_path?: string;
   image_url?: string;
   thumbnail_url?: string;
+  image_source?: BackendImageSource;
+  thumbnail_source?: BackendImageSource;
   width?: number;
   height?: number;
   created_at: string;

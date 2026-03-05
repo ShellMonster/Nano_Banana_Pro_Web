@@ -1,5 +1,5 @@
 import api from './api';
-import { BackendHistoryResponse } from '../types';
+import { BackendHistoryResponse, BackendImageSource } from '../types';
 
 export interface Folder {
   id: number;
@@ -11,6 +11,7 @@ export interface Folder {
   updated_at?: string;
   image_count?: number;
   cover_image?: string;
+  cover_image_source?: BackendImageSource;
 }
 
 export interface FolderImagesQuery {

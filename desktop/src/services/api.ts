@@ -5,6 +5,11 @@ export interface ApiRequestConfig extends AxiosRequestConfig {
   __returnResponse?: boolean;
 }
 
+export interface ImageSource {
+  kind?: 'http_url' | 'storage_relative' | string;
+  value?: string;
+}
+
 // 根据 API 文档，后端地址默认为 http://127.0.0.1:8080
 export let BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8080/api/v1';
 
@@ -239,7 +244,12 @@ export const getImageUrl = (path: string) => {
     | undefined;
 
   const isWindowsAbsolutePath = (p: string) => /^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('\\\\');
-  const isPosixAbsolutePath = (p: string) => p.startsWith('/');
+  const isStorageRelativePath = (p: string) => {
+    const normalized = p.replace(/\\/g, '/');
+    return normalized.startsWith('/storage/') || normalized.startsWith('storage/');
+  };
+  // 注意：/storage/... 是后端静态资源相对路径，不是磁盘绝对路径
+  const isPosixAbsolutePath = (p: string) => p.startsWith('/') && !isStorageRelativePath(p);
   const looksLikeAbsolutePath = (p: string) => isPosixAbsolutePath(p) || isWindowsAbsolutePath(p);
 
   const convertFileSrcSync: ((filePath: string) => string) | null = (() => {
@@ -303,6 +313,17 @@ export const getImageUrl = (path: string) => {
   const url = `${baseHost}${normalizedPath}`;
   console.log('[getImageUrl] HTTP Fallback URL:', url);
   return url;
+};
+
+export const getImageUrlFromSource = (source?: ImageSource | null, fallbackPath: string = '') => {
+  if (!source?.value) return getImageUrl(fallbackPath);
+  const kind = (source.kind || '').trim();
+  const value = source.value.trim();
+  if (!value) return getImageUrl(fallbackPath);
+  if (kind && kind !== 'http_url' && kind !== 'storage_relative') {
+    return getImageUrl(fallbackPath);
+  }
+  return getImageUrl(value);
 };
 
 // 获取图片下载 URL
