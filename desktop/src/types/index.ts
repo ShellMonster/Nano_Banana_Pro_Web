@@ -143,7 +143,7 @@ export interface TemplateListResponse {
 }
 
 export interface BackendImageSource {
-  kind: 'http_url' | 'storage_relative' | 'absolute_file' | 'legacy_path';
+  kind: 'http_url' | 'storage_relative' | string;
   value: string;
 }
 

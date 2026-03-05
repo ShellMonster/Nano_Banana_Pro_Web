@@ -78,10 +78,8 @@ type ImageSource struct {
 }
 
 const (
-	ImageSourceKindHTTPURL       = "http_url"
-	ImageSourceKindStoragePath   = "storage_relative"
-	ImageSourceKindAbsoluteFile  = "absolute_file"
-	ImageSourceKindUnknownLegacy = "legacy_path"
+	IMAGE_SOURCE_KIND_HTTP_URL         = "http_url"
+	IMAGE_SOURCE_KIND_STORAGE_RELATIVE = "storage_relative"
 )
 
 func normalizeStoragePath(raw string) string {
@@ -100,29 +98,6 @@ func normalizeStoragePath(raw string) string {
 	return ""
 }
 
-func looksLikeAbsoluteLocalPath(raw string) bool {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return false
-	}
-	if strings.HasPrefix(trimmed, "file://") {
-		return true
-	}
-	if strings.HasPrefix(trimmed, "/") {
-		return true
-	}
-	if len(trimmed) >= 3 {
-		c0, c1, c2 := trimmed[0], trimmed[1], trimmed[2]
-		if ((c0 >= 'a' && c0 <= 'z') || (c0 >= 'A' && c0 <= 'Z')) && c1 == ':' && (c2 == '\\' || c2 == '/') {
-			return true
-		}
-	}
-	if strings.HasPrefix(trimmed, "\\\\") {
-		return true
-	}
-	return false
-}
-
 func buildImageSource(raw string) *ImageSource {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -131,18 +106,15 @@ func buildImageSource(raw string) *ImageSource {
 
 	lower := strings.ToLower(trimmed)
 	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
-		return &ImageSource{Kind: ImageSourceKindHTTPURL, Value: trimmed}
+		return &ImageSource{Kind: IMAGE_SOURCE_KIND_HTTP_URL, Value: trimmed}
 	}
 
 	if storagePath := normalizeStoragePath(trimmed); storagePath != "" {
-		return &ImageSource{Kind: ImageSourceKindStoragePath, Value: storagePath}
+		return &ImageSource{Kind: IMAGE_SOURCE_KIND_STORAGE_RELATIVE, Value: storagePath}
 	}
 
-	if looksLikeAbsoluteLocalPath(trimmed) {
-		return &ImageSource{Kind: ImageSourceKindAbsoluteFile, Value: trimmed}
-	}
-
-	return &ImageSource{Kind: ImageSourceKindUnknownLegacy, Value: trimmed}
+	// 安全兜底：不向前端暴露无法识别的本地路径（尤其绝对路径）
+	return nil
 }
 
 func pickFirstImageSource(candidates ...string) *ImageSource {

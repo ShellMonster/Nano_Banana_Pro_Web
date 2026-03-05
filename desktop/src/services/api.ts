@@ -6,7 +6,7 @@ export interface ApiRequestConfig extends AxiosRequestConfig {
 }
 
 export interface ImageSource {
-  kind?: 'http_url' | 'storage_relative' | 'absolute_file' | 'legacy_path';
+  kind?: 'http_url' | 'storage_relative' | string;
   value?: string;
 }
 
@@ -320,15 +320,10 @@ export const getImageUrlFromSource = (source?: ImageSource | null, fallbackPath:
   const kind = (source.kind || '').trim();
   const value = source.value.trim();
   if (!value) return getImageUrl(fallbackPath);
-
-  switch (kind) {
-    case 'http_url':
-    case 'absolute_file':
-    case 'legacy_path':
-    case 'storage_relative':
-    default:
-      return getImageUrl(value);
+  if (kind && kind !== 'http_url' && kind !== 'storage_relative') {
+    return getImageUrl(fallbackPath);
   }
+  return getImageUrl(value);
 };
 
 // 获取图片下载 URL

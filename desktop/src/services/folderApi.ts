@@ -1,10 +1,5 @@
 import api from './api';
-import { BackendHistoryResponse } from '../types';
-
-interface BackendImageSource {
-  kind: 'http_url' | 'storage_relative' | 'absolute_file' | 'legacy_path';
-  value: string;
-}
+import { BackendHistoryResponse, BackendImageSource } from '../types';
 
 export interface Folder {
   id: number;
