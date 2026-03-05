@@ -12,12 +12,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
 	"image-gen-service/internal/config"
 	"image-gen-service/internal/model"
+	"image-gen-service/internal/platform"
 	"image-gen-service/internal/provider"
 	"image-gen-service/internal/storage"
 	"image-gen-service/internal/worker"
@@ -124,10 +126,6 @@ func defaultTimeoutSecondsForProvider(providerName string) int {
 	}
 }
 
-func isTauriSidecarMode() bool {
-	return os.Getenv("TAURI_PLATFORM") != "" || os.Getenv("TAURI_FAMILY") != ""
-}
-
 func normalizePathForCheck(path string) string {
 	cleaned := filepath.Clean(path)
 	cleaned = strings.TrimRight(cleaned, string(filepath.Separator))
@@ -140,10 +138,25 @@ func normalizePathForCheck(path string) string {
 func pathWithinRoot(path, root string) bool {
 	nPath := normalizePathForCheck(path)
 	nRoot := normalizePathForCheck(root)
+	if runtime.GOOS == "windows" {
+		nPath = strings.ToLower(nPath)
+		nRoot = strings.ToLower(nRoot)
+	}
 	if nPath == nRoot {
 		return true
 	}
-	return strings.HasPrefix(nPath, nRoot+string(filepath.Separator))
+	rel, err := filepath.Rel(nRoot, nPath)
+	if err != nil {
+		return false
+	}
+	rel = strings.TrimSpace(rel)
+	if rel == "." {
+		return true
+	}
+	if rel == "" {
+		return false
+	}
+	return !strings.HasPrefix(rel, "..")
 }
 
 func allowedRefPathRoots() []string {
@@ -485,20 +498,23 @@ func GenerateWithImagesHandler(c *gin.Context) {
 	// 处理本地路径请求 (Tauri 优化)
 	for _, path := range req.RefPaths {
 		if path != "" {
-			targetPath := path
-			if isTauriSidecarMode() {
-				validatedPath, validateErr := validateRefPathForTauri(path)
-				if validateErr != nil {
-					log.Printf("[API] 非法本地参考图路径: %s, err: %v\n", path, validateErr)
-					Error(c, http.StatusBadRequest, 400, "参考图路径不在允许目录内")
-					return
-				}
-				targetPath = validatedPath
+			if !platform.IsTauriSidecar() {
+				Error(c, http.StatusBadRequest, 400, "refPaths 仅支持桌面端模式")
+				return
 			}
+			targetPath := path
+			validatedPath, validateErr := validateRefPathForTauri(path)
+			if validateErr != nil {
+				log.Printf("[API] 非法本地参考图路径: %s, err: %v\n", path, validateErr)
+				Error(c, http.StatusBadRequest, 400, "参考图路径不在允许目录内")
+				return
+			}
+			targetPath = validatedPath
 			content, err := os.ReadFile(targetPath)
 			if err != nil {
 				log.Printf("[API] 读取本地参考图失败: %s, err: %v\n", targetPath, err)
-				continue
+				Error(c, http.StatusBadRequest, 400, "读取本地参考图失败")
+				return
 			}
 			refImageBytes = append(refImageBytes, content)
 		}
