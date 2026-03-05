@@ -23,6 +23,11 @@ export const FolderCard = React.memo(function FolderCard({
   onClick 
 }: FolderCardProps) {
   const { t } = useTranslation();
+  const [coverLoadFailed, setCoverLoadFailed] = React.useState(false);
+
+  React.useEffect(() => {
+    setCoverLoadFailed(false);
+  }, [coverImage]);
 
   return (
     <div 
@@ -32,13 +37,14 @@ export const FolderCard = React.memo(function FolderCard({
     >
       {/* 封面图区域 - 正方形裁剪 */}
       <div className="relative w-full aspect-square bg-gray-100 overflow-hidden">
-        {coverImage ? (
+        {coverImage && !coverLoadFailed ? (
           <img 
             src={coverImage} 
             alt={folder.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
             decoding="async"
+            onError={() => setCoverLoadFailed(true)}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gradient-to-br from-gray-50 to-gray-100">

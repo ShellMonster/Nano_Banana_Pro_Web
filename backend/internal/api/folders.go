@@ -147,13 +147,13 @@ func GetFoldersHandler(c *gin.Context) {
 	var coverCandidates []folderCoverCandidate
 	latestPerFolderSubQuery := query.Model(&model.Task{}).
 		Select("folder_id, MAX(created_at) AS max_created_at").
-		Where("folder_id <> '' AND deleted_at IS NULL").
+		Where("folder_id <> '' AND deleted_at IS NULL AND status = ?", "completed").
 		Group("folder_id")
 
 	if err := query.Table("tasks AS t").
 		Select("t.folder_id, t.thumbnail_path, t.local_path, t.thumbnail_url, t.image_url").
 		Joins("JOIN (?) AS latest ON t.folder_id = latest.folder_id AND t.created_at = latest.max_created_at", latestPerFolderSubQuery).
-		Where("t.deleted_at IS NULL").
+		Where("t.deleted_at IS NULL AND t.status = ?", "completed").
 		Find(&coverCandidates).Error; err != nil {
 		log.Printf("[API] 查询文件夹封面候选失败: %v\n", err)
 	}

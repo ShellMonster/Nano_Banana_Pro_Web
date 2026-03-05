@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -146,7 +147,11 @@ func (wp *WorkerPool) processTask(task *Task) {
 	}
 
 	// 1. 更新状态为 processing
-	model.DB.Model(task.TaskModel).Update("status", "processing")
+	startedAt := time.Now()
+	model.DB.Model(task.TaskModel).Updates(map[string]interface{}{
+		"status":                "processing",
+		"processing_started_at": &startedAt,
+	})
 
 	// 2. 获取 Provider
 	p := provider.GetProvider(task.TaskModel.ProviderName)
@@ -273,15 +278,31 @@ func (wp *WorkerPool) failTask(taskModel *model.Task, err error) {
 }
 
 func fetchProviderTimeout(providerName string) time.Duration {
-	if model.DB == nil || providerName == "" {
-		return 500 * time.Second
+	name := strings.TrimSpace(strings.ToLower(providerName))
+	if strings.HasPrefix(name, "gemini") {
+		name = "gemini"
+	} else if strings.HasPrefix(name, "openai") {
+		name = "openai"
+	}
+
+	defaultTimeout := func(p string) time.Duration {
+		switch p {
+		case "gemini", "openai":
+			return 500 * time.Second
+		default:
+			return 150 * time.Second
+		}
+	}
+
+	if model.DB == nil || name == "" {
+		return defaultTimeout(name)
 	}
 	var cfg model.ProviderConfig
-	if err := model.DB.Select("timeout_seconds").Where("provider_name = ?", providerName).First(&cfg).Error; err != nil {
-		return 500 * time.Second
+	if err := model.DB.Select("timeout_seconds").Where("provider_name = ?", name).First(&cfg).Error; err != nil {
+		return defaultTimeout(name)
 	}
 	if cfg.TimeoutSeconds <= 0 {
-		return 500 * time.Second
+		return defaultTimeout(name)
 	}
 	return time.Duration(cfg.TimeoutSeconds) * time.Second
 }

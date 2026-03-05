@@ -143,7 +143,7 @@ func reconcileStaleActiveTasks() {
 }
 
 func reconcileTimedOutActiveTasks() {
-	const timeoutGrace = 2 * time.Minute
+	const timeoutGrace = 10 * time.Second
 	const batchSize = 500
 
 	timeoutMap := make(map[string]time.Duration)
@@ -162,7 +162,7 @@ func reconcileTimedOutActiveTasks() {
 	for {
 		now := time.Now()
 		var activeTasks []Task
-		if err := DB.Select("id", "task_id", "provider_name", "status", "created_at").
+		if err := DB.Select("id", "task_id", "provider_name", "status", "created_at", "processing_started_at").
 			Where("status IN ?", []string{"pending", "processing"}).
 			Where("id > ?", lastID).
 			Order("id ASC").
@@ -181,7 +181,11 @@ func reconcileTimedOutActiveTasks() {
 			if timeout <= 0 {
 				timeout = defaultTimeoutForProvider(task.ProviderName)
 			}
-			if now.Sub(task.CreatedAt) > timeout+timeoutGrace {
+			startAt := task.CreatedAt
+			if task.ProcessingStartedAt != nil && !task.ProcessingStartedAt.IsZero() {
+				startAt = *task.ProcessingStartedAt
+			}
+			if now.Sub(startAt) > timeout+timeoutGrace {
 				staleTaskIDs = append(staleTaskIDs, task.TaskID)
 			}
 			lastID = task.ID
