@@ -20,7 +20,7 @@
   },
   "common": {
     "copy": "복사",
-"copied": "복사됨",
+    "copied": "복사됨",
     "disabled": "비활성화",
     "enabled": "활성화",
     "close": "닫기",
@@ -48,7 +48,10 @@
     "copyFailed": "복사 실패",
     "deleteFailed": "삭제 실패",
     "imageSrcEmpty": "이미지 소스가 비어 있습니다",
-    "imageFetchFailed": "이미지 가져오기 실패: {{status}}"
+    "imageFetchFailed": "이미지 가져오기 실패: {{status}}",
+    "downloadSuccess": "다운로드 완료",
+    "downloadFailed": "다운로드 실패",
+    "fileTooLarge": "파일이 너무 큽니다(최대 5MB)"
   },
   "preview": {
     "copyImage": "이미지 복사",
@@ -138,18 +141,23 @@
       "adding": "이미지 추가 중...",
       "pasteFailed": "붙여넣기 실패: {{message}}",
       "deduped": "중복 이미지를 제거했습니다",
-      "timeout": "작업 시간이 초과되었습니다 ({{seconds}}초)"
+      "timeout": "작업 시간이 초과되었습니다 ({{seconds}}초)",
+      "chatConfigMissing": "설정에서 비전 모델을 먼저 구성해 주세요",
+      "extractFailed": "프롬프트 추출 실패",
+      "promptExtracted": "프롬프트 추출 완료"
     },
     "compressReason": {
       "fileTooLarge": "파일 크기가 너무 큽니다 ({{size}}MB)",
       "dimensions": "해상도가 너무 큽니다 ({{width}}x{{height}})"
-    }
+    },
+    "extractPrompt": "이미지로 프롬프트 추출"
   },
   "settings": {
     "title": "설정",
     "tabs": {
       "image": "이미지 모델",
-      "chat": "채팅 모델"
+      "chat": "채팅 모델",
+      "vision": "비전 모델"
     },
     "language": {
       "label": "언어",
@@ -160,20 +168,27 @@
       "recommended": "추천:",
       "yunwu": "Yunwu API",
       "openaiImageLimit": "OpenAI 프로바이더는 현재 1K 이미지만 지원합니다",
-      "geminiBasePathHint": "Gemini 유형은 Base URL에 도메인만 입력하고 /v1 또는 엔드포인트 경로는 제외하는 것을 권장합니다."
+      "geminiBasePathHint": "Gemini 유형은 Base URL에 도메인만 입력하고 /v1 또는 엔드포인트 경로는 제외하는 것을 권장합니다.",
+      "yunwuMissingV1Hint": "Yunwu API Base URL에는 /v1 포함을 권장합니다",
+      "yunwuExtraPathHint": "Yunwu API Base URL은 /v1까지만 유지하세요(하위 경로 제거)"
     },
     "model": {
       "default": "기본 모델",
       "chat": "채팅 모델",
       "custom": "사용자 정의",
-      "customPlaceholder": "사용자 정의 모델 ID 입력"
+      "customPlaceholder": "사용자 정의 모델 ID 입력",
+      "vision": "비전 모델"
     },
     "vision": {
-      "title": "이미지 인식 설정"
+      "title": "이미지 인식 설정",
+      "hint": "이미지→프롬프트 등 비전 기능에 사용됩니다",
+      "apiKeyPlaceholder": "비전 API Key 입력",
+      "apiKeyHint": "위 Base URL 및 모델과 일치해야 합니다"
     },
     "timeout": {
       "image": "이미지 시간 제한(초)",
-      "chat": "텍스트 시간 제한(초)"
+      "chat": "텍스트 시간 제한(초)",
+      "vision": "비전 타임아웃(초)"
     },
     "refImageCompression": {
       "label": "참조 이미지 압축",
@@ -217,7 +232,16 @@
       "logDirCopyFailed": "로그 경로 복사 실패",
       "verboseEnabled": "상세 로그가 활성화되었습니다",
       "verboseDisabled": "상세 로그가 비활성화되었습니다",
-      "openLinkFailed": "링크 열기 실패"
+      "openLinkFailed": "링크 열기 실패",
+      "timeoutTooSmall": "타임아웃은 최소 {{min}}초 이상이어야 합니다"
+    },
+    "onboarding": {
+      "label": "온보딩 가이드",
+      "hint": "기능 가이드를 다시 실행해 흐름을 빠르게 확인할 수 있습니다",
+      "restart": "가이드 다시 시작",
+      "confirmTitle": "온보딩 다시 시작",
+      "confirmHint": "첫 단계부터 다시 시작합니다. 계속할까요?",
+      "confirmStart": "시작"
     }
   },
   "versionBadge": {
@@ -347,7 +371,8 @@
       "failed": "생성 실패",
       "failedWith": "생성 실패: {{message}}",
       "partial": "작업이 일부 완료되었습니다",
-      "recovered": "생성 진행 상황을 복원했습니다"
+      "recovered": "생성 진행 상황을 복원했습니다",
+      "timeout": "작업 시간 초과 ({{seconds}}초)"
     }
   },
   "config": {
@@ -374,7 +399,8 @@
         "9_16": "9:16 (모바일)",
         "16_9": "16:9 (와이드)",
         "21_9": "21:9 (울트라 와이드)"
-      }
+      },
+      "ratioAutoAdjusted": "비율 {{from}} 은(는) 지원되지 않아 {{to}} 로 자동 조정되었습니다"
     },
     "apiKeyHint": "먼저 오른쪽 상단 설정에서 이미지 API 키를 구성해 주세요"
   },
@@ -638,12 +664,84 @@
       "ratio9_16": "9:16",
       "ratio16_9": "16:9",
       "ratio21_9": "21:9",
-      "ratioAutoAdjusted": "비율 {{from}}은(는) 지원되지 않습니다. {{to}}(으)로 자동 조정되었습니다",
-      "ratio3_4": "3:4",
-      "ratio4_5": "4:5",
-      "ratio9_16": "9:16",
-      "ratio16_9": "16:9",
-      "ratio2_3": "2:3"
+      "ratioAutoAdjusted": "비율 {{from}}은(는) 지원되지 않습니다. {{to}}(으)로 자동 조정되었습니다"
+    }
+  },
+  "onboarding": {
+    "progress": "{{current}} / {{total}} 단계",
+    "buttons": {
+      "next": "다음",
+      "back": "이전",
+      "skip": "건너뛰기",
+      "finish": "완료"
+    },
+    "welcome": {
+      "title": "大香蕉 AI에 오신 것을 환영합니다",
+      "content": "약 1분 안에 핵심 기능을 빠르게 안내해 드립니다."
+    },
+    "settings": {
+      "title": "설정 진입",
+      "content": "모델, API Key, 언어, 업데이트 등을 설정할 수 있습니다."
+    },
+    "prompt": {
+      "title": "프롬프트 입력",
+      "content": "생성하고 싶은 이미지를 자연어로 설명하세요."
+    },
+    "optimizeNormal": {
+      "title": "일반 최적화",
+      "content": "자연어 설명을 더 안정적인 생성 프롬프트로 다듬습니다."
+    },
+    "optimizeJson": {
+      "title": "JSON 최적화",
+      "content": "세밀한 제어를 위한 구조화 프롬프트를 제공합니다."
+    },
+    "resolution": {
+      "title": "해상도와 비율",
+      "content": "화질과 가로세로 비율을 설정합니다."
+    },
+    "refImageUpload": {
+      "title": "참고 이미지 업로드",
+      "content": "드래그/붙여넣기로 참고 이미지를 추가할 수 있습니다."
+    },
+    "refImageExtract": {
+      "title": "이미지로 프롬프트 추출",
+      "content": "참고 이미지에서 프롬프트를 추출해 빠르게 시작합니다."
+    },
+    "templateMarket": {
+      "title": "템플릿 마켓",
+      "content": "인기 템플릿을 재사용해 생성 효율을 높일 수 있습니다."
+    },
+    "generate": {
+      "title": "생성 시작",
+      "content": "설정을 확인한 뒤 생성을 시작하세요."
+    },
+    "historyTab": {
+      "title": "히스토리 탭",
+      "content": "생성된 이미지를 조회하고 관리할 수 있습니다."
+    },
+    "historyViewToggle": {
+      "title": "보기 전환",
+      "content": "타임라인/앨범 보기 모드를 전환합니다."
+    },
+    "historyAlbumCards": {
+      "title": "앨범 카드",
+      "content": "폴더 단위로 이미지를 관리할 수 있습니다."
+    },
+    "historyCreateFolder": {
+      "title": "폴더 만들기",
+      "content": "수동 폴더를 만들어 이미지를 정리할 수 있습니다."
+    },
+    "historyOpenFolderImages": {
+      "title": "폴더 이미지 열기",
+      "content": "폴더를 클릭하면 내부 이미지를 볼 수 있습니다."
+    },
+    "historyMoveToFolder": {
+      "title": "폴더로 이동",
+      "content": "이미지를 원하는 폴더로 이동할 수 있습니다."
+    },
+    "historyDragToRef": {
+      "title": "참고 영역으로 드래그",
+      "content": "히스토리 이미지를 참고 영역으로 드래그해 이어서 생성하세요."
     }
   }
 }

@@ -20,7 +20,7 @@
   },
   "common": {
     "copy": "复制",
-"copied": "已复制",
+    "copied": "已复制",
     "disabled": "已关闭",
     "enabled": "已开启",
     "close": "关闭",
@@ -48,7 +48,10 @@
     "copyFailed": "复制失败",
     "deleteFailed": "删除失败",
     "imageSrcEmpty": "图片地址为空",
-    "imageFetchFailed": "图片获取失败: {{status}}"
+    "imageFetchFailed": "图片获取失败: {{status}}",
+    "downloadSuccess": "下载成功",
+    "downloadFailed": "下载失败",
+    "fileTooLarge": "文件过大（最大 5MB）"
   },
   "preview": {
     "copyImage": "复制图片",
@@ -138,18 +141,23 @@
       "adding": "正在添加图片...",
       "pasteFailed": "粘贴图片失败：{{message}}",
       "deduped": "已过滤重复图片",
-      "timeout": "操作超时（{{seconds}}秒）"
+      "timeout": "操作超时（{{seconds}}秒）",
+      "chatConfigMissing": "请先在设置中配置识图模型",
+      "extractFailed": "提示词提取失败",
+      "promptExtracted": "提示词提取成功"
     },
     "compressReason": {
       "fileTooLarge": "文件过大 ({{size}}MB)",
       "dimensions": "尺寸过大 ({{width}}x{{height}})"
-    }
+    },
+    "extractPrompt": "识图提词"
   },
   "settings": {
     "title": "系统设置",
     "tabs": {
       "image": "生图模型",
-      "chat": "对话模型"
+      "chat": "对话模型",
+      "vision": "识图模型"
     },
     "language": {
       "label": "语言",
@@ -160,20 +168,27 @@
       "recommended": "推荐平台：",
       "yunwu": "云雾API",
       "openaiImageLimit": "OpenAI 类型当前仅支持生成 1K 图片",
-      "geminiBasePathHint": "Gemini 类型建议 Base URL 仅填写域名，不要带 /v1 或具体接口路径"
+      "geminiBasePathHint": "Gemini 类型建议 Base URL 仅填写域名，不要带 /v1 或具体接口路径",
+      "yunwuMissingV1Hint": "云雾 API 的 Base URL 建议包含 /v1",
+      "yunwuExtraPathHint": "云雾 API 的 Base URL 建议只保留到 /v1，不要包含更深路径"
     },
     "model": {
       "default": "默认模型",
       "chat": "对话模型",
       "custom": "自定义",
-      "customPlaceholder": "输入自定义模型 ID"
+      "customPlaceholder": "输入自定义模型 ID",
+      "vision": "识图模型"
     },
     "vision": {
-      "title": "识图配置"
+      "title": "识图配置",
+      "hint": "用于图片逆向提示词等识图能力",
+      "apiKeyPlaceholder": "请输入识图 API Key",
+      "apiKeyHint": "需与上方 Base URL、模型保持匹配"
     },
     "timeout": {
       "image": "生图超时(秒)",
-      "chat": "生文字超时(秒)"
+      "chat": "生文字超时(秒)",
+      "vision": "识图超时(秒)"
     },
     "refImageCompression": {
       "label": "参考图压缩",
@@ -217,7 +232,16 @@
       "logDirCopyFailed": "复制日志路径失败",
       "verboseEnabled": "已启用详细日志",
       "verboseDisabled": "已关闭详细日志",
-      "openLinkFailed": "打开链接失败"
+      "openLinkFailed": "打开链接失败",
+      "timeoutTooSmall": "超时时间不能小于 {{min}} 秒"
+    },
+    "onboarding": {
+      "label": "新手引导",
+      "hint": "可重新播放功能引导，帮助快速熟悉操作",
+      "restart": "重新开始引导",
+      "confirmTitle": "重新开始新手引导",
+      "confirmHint": "将从第一步开始播放引导，是否继续？",
+      "confirmStart": "开始引导"
     }
   },
   "versionBadge": {
@@ -347,7 +371,8 @@
       "failed": "生成失败",
       "failedWith": "生成失败：{{message}}",
       "partial": "任务部分完成",
-      "recovered": "已恢复生成进度"
+      "recovered": "已恢复生成进度",
+      "timeout": "操作超时（{{seconds}}秒）"
     }
   },
   "config": {
@@ -374,7 +399,8 @@
         "9_16": "9:16 (手机宽屏)",
         "16_9": "16:9 (电脑宽屏)",
         "21_9": "21:9 (超宽屏)"
-      }
+      },
+      "ratioAutoAdjusted": "比例 {{from}} 不支持，已自动调整为 {{to}}"
     },
     "apiKeyHint": "请先在右上角配置生图 API Key"
   },
@@ -471,8 +497,7 @@
       "moveFailed": "移动失败",
       "selectFolder": "选择目标文件夹",
       "backToFolders": "返回文件夹",
-      "emptyInFolder": "当前文件夹暂无图片"
-,
+      "emptyInFolder": "当前文件夹暂无图片",
       "moveButton": "移动",
       "moveButtonTitle": "移动图片到文件夹"
     }
@@ -640,6 +665,83 @@
       "ratio16_9": "16:9",
       "ratio21_9": "21:9",
       "ratioAutoAdjusted": "比例 {{from}} 不支持，已自动调整为 {{to}}"
+    }
+  },
+  "onboarding": {
+    "progress": "第 {{current}} / {{total}} 步",
+    "buttons": {
+      "next": "下一步",
+      "back": "上一步",
+      "skip": "跳过",
+      "finish": "完成"
+    },
+    "welcome": {
+      "title": "欢迎使用大香蕉 AI",
+      "content": "本引导会带你快速了解核心功能，约 1 分钟。"
+    },
+    "settings": {
+      "title": "这里是设置入口",
+      "content": "可配置模型、API Key、语言与更新等。"
+    },
+    "prompt": {
+      "title": "先输入提示词",
+      "content": "用自然语言描述你想生成的画面内容。"
+    },
+    "optimizeNormal": {
+      "title": "普通优化",
+      "content": "可将口语化描述优化成更稳定的生图提示词。"
+    },
+    "optimizeJson": {
+      "title": "JSON 优化",
+      "content": "会输出结构化提示词，便于精细控制。"
+    },
+    "resolution": {
+      "title": "分辨率与比例",
+      "content": "在这里设置清晰度和画面宽高比。"
+    },
+    "refImageUpload": {
+      "title": "上传参考图",
+      "content": "支持拖拽/粘贴参考图，进行图生图。"
+    },
+    "refImageExtract": {
+      "title": "识图提词",
+      "content": "可从参考图反推提示词，快速起稿。"
+    },
+    "templateMarket": {
+      "title": "模板市场",
+      "content": "可直接复用热门模板，提高出图效率。"
+    },
+    "generate": {
+      "title": "开始生成",
+      "content": "确认参数后点击开始生成图片。"
+    },
+    "historyTab": {
+      "title": "查看历史",
+      "content": "可在历史中查看、管理已生成图片。"
+    },
+    "historyViewToggle": {
+      "title": "切换视图",
+      "content": "支持时间线与相册两种浏览方式。"
+    },
+    "historyAlbumCards": {
+      "title": "相册卡片",
+      "content": "按文件夹组织图片，便于批量管理。"
+    },
+    "historyCreateFolder": {
+      "title": "创建文件夹",
+      "content": "可创建手动文件夹整理图片。"
+    },
+    "historyOpenFolderImages": {
+      "title": "查看文件夹内容",
+      "content": "点击文件夹可进入查看其中图片。"
+    },
+    "historyMoveToFolder": {
+      "title": "移动到文件夹",
+      "content": "可将图片移动到目标文件夹中。"
+    },
+    "historyDragToRef": {
+      "title": "拖回参考图区域",
+      "content": "支持把历史图片拖拽到参考图区继续生成。"
     }
   }
 }
