@@ -79,6 +79,11 @@
       "size": "尺寸",
       "time": "时间"
     },
+    "failed": {
+      "title": "生成失败",
+      "errorCopied": "错误详情已复制",
+      "copyError": "复制错误详情"
+    },
     "downloadOriginal": "下载高清原图"
   },
   "prompt": {

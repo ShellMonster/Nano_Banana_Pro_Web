@@ -79,6 +79,11 @@
       "size": "크기",
       "time": "시간"
     },
+    "failed": {
+      "title": "생성 실패",
+      "errorCopied": "오류 상세를 복사했습니다",
+      "copyError": "오류 상세 복사"
+    },
     "downloadOriginal": "원본 다운로드"
   },
   "prompt": {
