@@ -62,10 +62,15 @@ func isAllowedTauriOrigin(origin string) bool {
 	if err != nil || u == nil {
 		return false
 	}
+	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
+	if host == "tauri.localhost" {
+		scheme := strings.ToLower(strings.TrimSpace(u.Scheme))
+		return scheme == "http" || scheme == "https"
+	}
 	if !strings.EqualFold(u.Scheme, "tauri") {
 		return isLoopbackOrigin(origin)
 	}
-	if !strings.EqualFold(u.Hostname(), "localhost") {
+	if !strings.EqualFold(host, "localhost") {
 		return false
 	}
 	if strings.TrimSpace(u.Path) != "" && strings.TrimSpace(u.Path) != "/" {
