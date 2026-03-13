@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"image-gen-service/internal/diagnostic"
 	"image-gen-service/internal/model"
 	"image-gen-service/internal/provider"
 	"image-gen-service/internal/storage"
@@ -119,7 +120,7 @@ func (wp *WorkerPool) drainPendingTasks(workerID int) {
 			if task == nil || task.TaskModel == nil {
 				continue
 			}
-			wp.failTask(task.TaskModel, errors.New(model.STALE_TASK_ERROR_MESSAGE))
+			wp.failTask(task, errors.New(model.STALE_TASK_ERROR_MESSAGE))
 			drained++
 		default:
 			if drained > 0 {
@@ -136,7 +137,7 @@ func (wp *WorkerPool) processTask(task *Task) {
 		if r := recover(); r != nil {
 			err := fmt.Errorf("任务处理异常崩溃: %v", r)
 			log.Printf("任务 %s panic: %v\n%s", task.TaskModel.TaskID, r, string(debug.Stack()))
-			wp.failTask(task.TaskModel, err)
+			wp.failTask(task, err)
 		}
 	}()
 
@@ -145,6 +146,22 @@ func (wp *WorkerPool) processTask(task *Task) {
 	} else {
 		log.Printf("任务 %s 开始处理: provider=%s model=%s", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID)
 	}
+	if task.Params == nil {
+		task.Params = map[string]interface{}{}
+	}
+	diagnostic.AttachTaskID(task.Params, task.TaskModel.TaskID)
+	queueWait := time.Duration(0)
+	if !task.TaskModel.CreatedAt.IsZero() {
+		queueWait = time.Since(task.TaskModel.CreatedAt)
+	}
+	diagnostic.Logf(task.Params, "worker_start",
+		"provider=%s model=%s total_count=%d queue_wait=%s status_before=%s",
+		task.TaskModel.ProviderName,
+		task.TaskModel.ModelID,
+		task.TaskModel.TotalCount,
+		queueWait,
+		task.TaskModel.Status,
+	)
 
 	// 1. 更新状态为 processing
 	startedAt := time.Now()
@@ -156,7 +173,7 @@ func (wp *WorkerPool) processTask(task *Task) {
 	// 2. 获取 Provider
 	p := provider.GetProvider(task.TaskModel.ProviderName)
 	if p == nil {
-		wp.failTask(task.TaskModel, fmt.Errorf("Provider %s 不存在", task.TaskModel.ProviderName))
+		wp.failTask(task, fmt.Errorf("Provider %s 不存在", task.TaskModel.ProviderName))
 		return
 	}
 
@@ -172,6 +189,14 @@ func (wp *WorkerPool) processTask(task *Task) {
 
 	callStartedAt := time.Now()
 	log.Printf("任务 %s 调用 Provider 开始: provider=%s model=%s timeout=%s", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, timeout)
+	diagnostic.Logf(task.Params, "provider_call_start",
+		"provider=%s model=%s timeout=%s prompt_hash=%s prompt_len=%d",
+		task.TaskModel.ProviderName,
+		task.TaskModel.ModelID,
+		timeout,
+		diagnostic.PromptHash(task.TaskModel.Prompt),
+		len([]rune(task.TaskModel.Prompt)),
+	)
 	done := make(chan generateResult, 1)
 	go func() {
 		defer func() {
@@ -185,12 +210,39 @@ func (wp *WorkerPool) processTask(task *Task) {
 		elapsed := time.Since(callStartedAt)
 		if err != nil {
 			log.Printf("任务 %s 调用 Provider 失败: provider=%s model=%s elapsed=%s err=%v", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, elapsed, err)
+			summary := diagnostic.SummarizeError(err)
+			diagnostic.Logf(task.Params, "provider_call_error",
+				"provider=%s model=%s elapsed=%s error_type=%s error_code=%s category=%s retryable=%t request_id=%s user_message=%q raw_error=%q",
+				task.TaskModel.ProviderName,
+				task.TaskModel.ModelID,
+				elapsed,
+				summary.Type,
+				summary.Code,
+				summary.Category,
+				summary.Retryable,
+				summary.RequestID,
+				summary.UserMessage,
+				err.Error(),
+			)
 		} else {
 			imageCount := 0
 			if result != nil {
 				imageCount = len(result.Images)
 			}
 			log.Printf("任务 %s 调用 Provider 成功: provider=%s model=%s elapsed=%s images=%d", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, elapsed, imageCount)
+			diagnostic.Logf(task.Params, "provider_call_success",
+				"provider=%s model=%s elapsed=%s images=%d metadata=%v",
+				task.TaskModel.ProviderName,
+				task.TaskModel.ModelID,
+				elapsed,
+				imageCount,
+				func() map[string]interface{} {
+					if result == nil || result.Metadata == nil {
+						return map[string]interface{}{}
+					}
+					return result.Metadata
+				}(),
+			)
 		}
 		done <- generateResult{result: result, err: err}
 	}()
@@ -200,17 +252,17 @@ func (wp *WorkerPool) processTask(task *Task) {
 	case <-ctx.Done():
 		err := ctx.Err()
 		if errors.Is(err, context.DeadlineExceeded) {
-			wp.failTask(task.TaskModel, fmt.Errorf("生成超时(%s)", timeout))
+			wp.failTask(task, fmt.Errorf("生成超时(%s)", timeout))
 		} else {
-			wp.failTask(task.TaskModel, err)
+			wp.failTask(task, err)
 		}
 		return
 	case out := <-done:
 		if out.err != nil {
 			if errors.Is(out.err, context.DeadlineExceeded) {
-				wp.failTask(task.TaskModel, fmt.Errorf("生成超时(%s)", timeout))
+				wp.failTask(task, fmt.Errorf("生成超时(%s)", timeout))
 			} else {
-				wp.failTask(task.TaskModel, out.err)
+				wp.failTask(task, out.err)
 			}
 			return
 		}
@@ -232,10 +284,15 @@ func (wp *WorkerPool) processTask(task *Task) {
 		if len(result.Images) > 1 {
 			log.Printf("任务 %s 生成了 %d 张图片，当前只保存第1张，其余 %d 张已丢弃", task.TaskModel.TaskID, len(result.Images), len(result.Images)-1)
 		}
+		diagnostic.Logf(task.Params, "storage_start",
+			"image_count=%d first_image_bytes=%d",
+			len(result.Images),
+			len(result.Images[0]),
+		)
 		reader := bytes.NewReader(result.Images[0])
 		localPath, remoteURL, thumbLocalPath, thumbRemoteURL, width, height, err := storage.GlobalStorage.SaveWithThumbnail(baseFileName, reader)
 		if err != nil {
-			wp.failTask(task.TaskModel, err)
+			wp.failTask(task, err)
 			return
 		}
 
@@ -261,14 +318,51 @@ func (wp *WorkerPool) processTask(task *Task) {
 			log.Printf("任务 %s 数据库更新失败（图片文件已保存至磁盘）: %v", task.TaskModel.TaskID, dbResult.Error)
 		} else {
 			log.Printf("任务 %s 处理完成", task.TaskModel.TaskID)
+			diagnostic.Logf(task.Params, "storage_success",
+				"local_path=%q remote_url=%q thumbnail_path=%q thumbnail_url=%q width=%d height=%d",
+				localPath,
+				remoteURL,
+				thumbLocalPath,
+				thumbRemoteURL,
+				width,
+				height,
+			)
+			diagnostic.Logf(task.Params, "db_update_success",
+				"status=%s completed_at=%s",
+				"completed",
+				now.Format(time.RFC3339Nano),
+			)
 		}
 	} else {
-		wp.failTask(task.TaskModel, fmt.Errorf("未生成任何图片"))
+		wp.failTask(task, fmt.Errorf("未生成任何图片"))
 	}
 }
 
-func (wp *WorkerPool) failTask(taskModel *model.Task, err error) {
+func (wp *WorkerPool) failTask(task *Task, err error) {
+	if task == nil || task.TaskModel == nil {
+		log.Printf("任务失败，但任务信息缺失: %v", err)
+		return
+	}
+	taskModel := task.TaskModel
 	log.Printf("任务 %s 失败: %v", taskModel.TaskID, err)
+	params := task.Params
+	if params == nil {
+		params = map[string]interface{}{}
+	}
+	diagnostic.AttachTaskID(params, taskModel.TaskID)
+	summary := diagnostic.SummarizeError(err)
+	diagnostic.Logf(params, "task_failed",
+		"provider=%s model=%s error_type=%s error_code=%s category=%s retryable=%t request_id=%s user_message=%q raw_error=%q",
+		taskModel.ProviderName,
+		taskModel.ModelID,
+		summary.Type,
+		summary.Code,
+		summary.Category,
+		summary.Retryable,
+		summary.RequestID,
+		summary.UserMessage,
+		err.Error(),
+	)
 	if dbResult := model.DB.Model(taskModel).Updates(map[string]interface{}{
 		"status":        "failed",
 		"error_message": err.Error(),

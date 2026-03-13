@@ -1,19 +1,22 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"image-gen-service/internal/diagnostic"
 	"image-gen-service/internal/model"
+	"io"
 	"log"
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
-
-	"google.golang.org/genai"
 )
 
 // defaultGeminiAPIBase 是 Google Gemini API 的默认基础 URL
@@ -21,33 +24,73 @@ const defaultGeminiAPIBase = "https://generativelanguage.googleapis.com"
 
 type GeminiProvider struct {
 	config *model.ProviderConfig
-	// 不再持有 client，每次请求时新建，避免连接空闲失效导致 EOF
+}
+
+type geminiGenerateRequest struct {
+	Contents         []geminiContent       `json:"contents"`
+	GenerationConfig *geminiGenerateConfig `json:"generationConfig,omitempty"`
+	SafetySettings   []geminiSafetySetting `json:"safetySettings,omitempty"`
+}
+
+type geminiGenerateConfig struct {
+	ResponseModalities []string           `json:"responseModalities,omitempty"`
+	CandidateCount     int                `json:"candidateCount,omitempty"`
+	ImageConfig        *geminiImageConfig `json:"imageConfig,omitempty"`
+}
+
+type geminiImageConfig struct {
+	AspectRatio string `json:"aspectRatio,omitempty"`
+	ImageSize   string `json:"imageSize,omitempty"`
+}
+
+type geminiContent struct {
+	Role  string       `json:"role,omitempty"`
+	Parts []geminiPart `json:"parts,omitempty"`
+}
+
+type geminiPart struct {
+	Text       string      `json:"text,omitempty"`
+	InlineData *geminiBlob `json:"inlineData,omitempty"`
+}
+
+type geminiBlob struct {
+	MIMEType string `json:"mimeType,omitempty"`
+	Data     string `json:"data,omitempty"`
+}
+
+type geminiSafetySetting struct {
+	Category  string `json:"category"`
+	Threshold string `json:"threshold"`
+}
+
+type geminiGenerateResponse struct {
+	Candidates []geminiCandidate `json:"candidates"`
+}
+
+type geminiCandidate struct {
+	Content       *geminiContent       `json:"content"`
+	FinishReason  string               `json:"finishReason"`
+	SafetyRatings []geminiSafetyRating `json:"safetyRatings"`
+}
+
+type geminiSafetyRating struct {
+	Category    string `json:"category"`
+	Probability string `json:"probability"`
 }
 
 // NewGeminiProvider 初始化一个新的 Gemini Provider 实例。
-// 它只保存配置，不创建 API client；实际的 client 在每次 Generate() 调用时
-// 按需创建并在请求结束后丢弃，以避免连接空闲失效（EOF）问题。
 func NewGeminiProvider(config *model.ProviderConfig) (*GeminiProvider, error) {
-	// nil 检查必须放在最前面，否则后续访问 config 字段会 panic
 	if config == nil {
 		return nil, fmt.Errorf("config 不能为空")
 	}
-	// 复制配置，避免调用方循环变量复用导致所有实例共享同一指针
 	cfgCopy := *config
 	log.Printf("[Gemini] 正在初始化 Provider: BaseURL=%s, KeyLen=%d\n", cfgCopy.APIBase, len(cfgCopy.APIKey))
 	log.Printf("[Gemini] Provider 初始化成功\n")
 	return &GeminiProvider{config: &cfgCopy}, nil
 }
 
-// newClient 为每次请求创建全新的 genai.Client，避免连接复用导致 EOF
-func (p *GeminiProvider) newClient(ctx context.Context) (*genai.Client, error) {
-	timeout := time.Duration(p.config.TimeoutSeconds) * time.Second
-	if timeout <= 0 {
-		timeout = time.Duration(defaultTimeoutSeconds(p.Name())) * time.Second
-	}
-
-	httpClient := &http.Client{
-		Timeout: timeout,
+func (p *GeminiProvider) newHTTPClient() *http.Client {
+	return &http.Client{
 		Transport: &http.Transport{
 			DisableKeepAlives:   true,
 			ForceAttemptHTTP2:   false,
@@ -59,43 +102,286 @@ func (p *GeminiProvider) newClient(ctx context.Context) (*genai.Client, error) {
 			},
 		},
 	}
-
-	clientConfig := &genai.ClientConfig{
-		APIKey:     p.config.APIKey,
-		Backend:    genai.BackendGeminiAPI,
-		HTTPClient: httpClient,
-	}
-
-	if p.config.APIBase != "" && p.config.APIBase != defaultGeminiAPIBase {
-		apiBase := strings.TrimRight(p.config.APIBase, "/")
-		clientConfig.HTTPOptions = genai.HTTPOptions{
-			BaseURL: apiBase,
-		}
-	}
-
-	client, err := genai.NewClient(ctx, clientConfig)
-	if err != nil {
-		return nil, fmt.Errorf("创建 Gemini 客户端失败: %w", err)
-	}
-
-	log.Printf("[Gemini] 新建 client 用于本次请求\n")
-	return client, nil
 }
 
 func (p *GeminiProvider) Name() string {
 	return "gemini"
 }
 
-// Generate 使用 Gemini API 生成图片。
-// 每次调用都会创建新的 API client，以解决上游服务空闲连接超时问题。
-
-func (p *GeminiProvider) Generate(ctx context.Context, params map[string]interface{}) (*ProviderResult, error) {
-	// 每次请求创建新的 client，避免连接空闲失效导致 EOF
-	client, err := p.newClient(ctx)
-	if err != nil {
-		return nil, err
+func supportedAspectRatiosForGeminiModel(modelID string) []string {
+	normalized := strings.TrimSpace(strings.ToLower(modelID))
+	switch normalized {
+	case "gemini-3.1-flash-image-preview":
+		return []string{
+			"1:1", "1:4", "1:8",
+			"2:3", "3:2", "3:4",
+			"4:1", "4:3", "4:5",
+			"5:4", "8:1",
+			"9:16", "16:9", "21:9",
+		}
+	default:
+		return []string{
+			"1:1", "2:3", "3:2", "3:4", "4:3",
+			"4:5", "5:4", "9:16", "16:9", "21:9",
+		}
 	}
-	// 记录日志时排除大数据字段
+}
+
+func responseModalities(config *geminiGenerateConfig) []string {
+	if config == nil || len(config.ResponseModalities) == 0 {
+		return []string{}
+	}
+	return append([]string(nil), config.ResponseModalities...)
+}
+
+func summarizeGeminiResponse(resp *geminiGenerateResponse) map[string]interface{} {
+	summary := map[string]interface{}{
+		"candidate_count": 0,
+		"finish_reason":   "",
+		"part_count":      0,
+		"text_parts":      0,
+		"image_parts":     0,
+		"text_preview":    "",
+		"safety_hits":     0,
+	}
+	if resp == nil {
+		return summary
+	}
+
+	summary["candidate_count"] = len(resp.Candidates)
+	if len(resp.Candidates) == 0 {
+		return summary
+	}
+
+	candidate := resp.Candidates[0]
+	summary["finish_reason"] = strings.TrimSpace(candidate.FinishReason)
+
+	if candidate.Content != nil {
+		summary["part_count"] = len(candidate.Content.Parts)
+		textParts := make([]string, 0)
+		imageParts := 0
+		for _, part := range candidate.Content.Parts {
+			if strings.TrimSpace(part.Text) != "" {
+				textParts = append(textParts, strings.TrimSpace(part.Text))
+			}
+			if part.InlineData != nil && strings.TrimSpace(part.InlineData.Data) != "" {
+				imageParts++
+			}
+		}
+		summary["text_parts"] = len(textParts)
+		summary["image_parts"] = imageParts
+		summary["text_preview"] = diagnostic.Preview(strings.Join(textParts, " | "), 240)
+	}
+
+	safetyHits := 0
+	for _, rating := range candidate.SafetyRatings {
+		probability := strings.TrimSpace(rating.Probability)
+		if probability != "" && probability != "NEGLIGIBLE" {
+			safetyHits++
+		}
+	}
+	summary["safety_hits"] = safetyHits
+	return summary
+}
+
+func headerLines(header http.Header) []string {
+	lines := make([]string, 0, len(header))
+	keys := make([]string, 0, len(header))
+	for key := range header {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		lines = append(lines, fmt.Sprintf("%s: %s", key, strings.Join(header.Values(key), ", ")))
+	}
+	return lines
+}
+
+func extractRequestIDFromHeaders(header http.Header) string {
+	candidates := []string{
+		"x-api-request-id",
+		"x-oneapi-request-id",
+		"x-request-id",
+		"request-id",
+		"x-gateway-request-id",
+		"x-amzn-requestid",
+		"x-trace-id",
+		"trace-id",
+	}
+	for _, key := range candidates {
+		if value := strings.TrimSpace(header.Get(key)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func (p *GeminiProvider) buildGenerateConfig(params map[string]interface{}) *geminiGenerateConfig {
+	config := &geminiGenerateConfig{
+		ResponseModalities: []string{"TEXT", "IMAGE"},
+		CandidateCount:     1,
+	}
+
+	if count, ok := params["count"].(int); ok && count > 0 {
+		config.CandidateCount = count
+	} else if count, ok := params["count"].(float64); ok && count > 0 {
+		config.CandidateCount = int(count)
+	}
+
+	ar, ok := params["aspect_ratio"].(string)
+	if !ok {
+		ar, _ = params["aspectRatio"].(string)
+	}
+	imageSize, ok := params["resolution_level"].(string)
+	if !ok {
+		imageSize, ok = params["imageSize"].(string)
+	}
+	if !ok {
+		imageSize, _ = params["image_size"].(string)
+	}
+
+	if strings.TrimSpace(ar) != "" || strings.TrimSpace(imageSize) != "" {
+		config.ImageConfig = &geminiImageConfig{
+			AspectRatio: strings.TrimSpace(ar),
+			ImageSize:   strings.TrimSpace(strings.ToUpper(imageSize)),
+		}
+	}
+
+	return config
+}
+
+func defaultSafetySettings() []geminiSafetySetting {
+	return []geminiSafetySetting{
+		{Category: "HARM_CATEGORY_HATE_SPEECH", Threshold: "BLOCK_NONE"},
+		{Category: "HARM_CATEGORY_DANGEROUS_CONTENT", Threshold: "BLOCK_NONE"},
+		{Category: "HARM_CATEGORY_HARASSMENT", Threshold: "BLOCK_NONE"},
+		{Category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", Threshold: "BLOCK_NONE"},
+	}
+}
+
+func (p *GeminiProvider) buildRequestPayload(prompt string, refImgs []interface{}, config *geminiGenerateConfig) (*geminiGenerateRequest, error) {
+	parts := make([]geminiPart, 0, len(refImgs)+1)
+
+	for i, ref := range refImgs {
+		var imgBytes []byte
+		switch v := ref.(type) {
+		case string:
+			base64Data := v
+			if strings.Contains(base64Data, ",") {
+				partsSplit := strings.Split(base64Data, ",")
+				base64Data = partsSplit[len(partsSplit)-1]
+			}
+			decoded, err := base64.StdEncoding.DecodeString(base64Data)
+			if err != nil {
+				return nil, fmt.Errorf("解码第 %d 张参考图失败: %w", i, err)
+			}
+			imgBytes = decoded
+		case []byte:
+			imgBytes = v
+		default:
+			continue
+		}
+		if len(imgBytes) == 0 {
+			continue
+		}
+
+		mimeType := http.DetectContentType(imgBytes)
+		if !strings.HasPrefix(mimeType, "image/") {
+			mimeType = "image/jpeg"
+		}
+
+		parts = append(parts, geminiPart{
+			InlineData: &geminiBlob{
+				MIMEType: mimeType,
+				Data:     base64.StdEncoding.EncodeToString(imgBytes),
+			},
+		})
+	}
+
+	parts = append(parts, geminiPart{Text: p.removeMarkdownImages(prompt)})
+
+	return &geminiGenerateRequest{
+		Contents: []geminiContent{
+			{
+				Role:  "user",
+				Parts: parts,
+			},
+		},
+		GenerationConfig: config,
+		SafetySettings:   defaultSafetySettings(),
+	}, nil
+}
+
+func (p *GeminiProvider) doGenerateContent(ctx context.Context, modelID string, payload *geminiGenerateRequest, params map[string]interface{}) (*geminiGenerateResponse, http.Header, error) {
+	if payload == nil {
+		return nil, nil, fmt.Errorf("payload 不能为空")
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, nil, fmt.Errorf("序列化 Gemini 请求失败: %w", err)
+	}
+
+	baseURL := strings.TrimRight(strings.TrimSpace(p.config.APIBase), "/")
+	if baseURL == "" {
+		baseURL = defaultGeminiAPIBase
+	}
+	requestURL := fmt.Sprintf("%s/v1beta/models/%s:generateContent", baseURL, modelID)
+	diagnostic.Logf(params, "request_payload",
+		"url=%s body=%q",
+		requestURL,
+		diagnostic.Preview(string(payloadBytes), 2000),
+	)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(payloadBytes))
+	if err != nil {
+		return nil, nil, fmt.Errorf("构建 Gemini 请求失败: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Goog-Api-Key", p.config.APIKey)
+	req.Header.Set("Connection", "close")
+
+	client := p.newHTTPClient()
+	startedAt := time.Now()
+	resp, err := client.Do(req)
+	elapsed := time.Since(startedAt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("doRequest: error sending request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.Header.Clone(), fmt.Errorf("读取 Gemini 响应失败: %w", err)
+	}
+
+	requestID := extractRequestIDFromHeaders(resp.Header)
+	diagnostic.Logf(params, "response_headers",
+		"status=%s elapsed=%s request_id=%s headers=%q",
+		resp.Status,
+		elapsed,
+		requestID,
+		diagnostic.Preview(strings.Join(headerLines(resp.Header), " | "), 1000),
+	)
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyPreview := diagnostic.Preview(string(body), 1200)
+		if requestID == "" {
+			requestID = diagnostic.ExtractRequestID(string(body))
+		}
+		return nil, resp.Header.Clone(), fmt.Errorf("Gemini HTTP %d request_id=%s body=%s", resp.StatusCode, requestID, bodyPreview)
+	}
+
+	var parsed geminiGenerateResponse
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, resp.Header.Clone(), fmt.Errorf("解析 Gemini 响应 JSON 失败: %w body=%s", err, diagnostic.Preview(string(body), 1200))
+	}
+	return &parsed, resp.Header.Clone(), nil
+}
+
+// Generate 使用 Gemini API 生成图片。
+func (p *GeminiProvider) Generate(ctx context.Context, params map[string]interface{}) (*ProviderResult, error) {
 	logParams := make(map[string]interface{})
 	for k, v := range params {
 		if k == "reference_images" {
@@ -109,6 +395,7 @@ func (p *GeminiProvider) Generate(ctx context.Context, params map[string]interfa
 		}
 	}
 	log.Printf("[Gemini] Generate 被调用, Params: %+v\n", logParams)
+
 	prompt, _ := params["prompt"].(string)
 	if prompt == "" {
 		return nil, fmt.Errorf("缺少 prompt 参数")
@@ -124,77 +411,138 @@ func (p *GeminiProvider) Generate(ctx context.Context, params map[string]interfa
 		return nil, fmt.Errorf("缺少 model_id 参数")
 	}
 
-	// 准备生成配置 (使用 GenerateContentConfig 适配 Gemini 3)
-	// 对于 Imagen 3 模型，建议包含 "TEXT" 和 "IMAGE" 以获得更完整的响应
-	// 如果只设置 "IMAGE"，某些中转或代理可能会处理不当
-	genConfig := &genai.GenerateContentConfig{
-		ResponseModalities: []string{"TEXT", "IMAGE"},
+	config := p.buildGenerateConfig(params)
+
+	refImgs := make([]interface{}, 0)
+	if raw, ok := params["reference_images"].([]interface{}); ok {
+		refImgs = raw
+	}
+	diagnostic.Logf(params, "request_prepare",
+		"provider=%s model=%s candidate_count=%d response_modalities=%v aspect_ratio=%q image_size=%q ref_image_count=%d prompt_hash=%s prompt_preview=%q",
+		p.Name(),
+		modelID,
+		config.CandidateCount,
+		responseModalities(config),
+		func() string {
+			if config.ImageConfig == nil {
+				return ""
+			}
+			return config.ImageConfig.AspectRatio
+		}(),
+		func() string {
+			if config.ImageConfig == nil {
+				return ""
+			}
+			return config.ImageConfig.ImageSize
+		}(),
+		len(refImgs),
+		diagnostic.PromptHash(prompt),
+		diagnostic.Preview(prompt, 160),
+	)
+
+	payload, err := p.buildRequestPayload(prompt, refImgs, config)
+	if err != nil {
+		return nil, err
 	}
 
-	// 1. 处理比例 (Aspect Ratio)
-	ar, ok := params["aspect_ratio"].(string)
-	if !ok {
-		ar, ok = params["aspectRatio"].(string)
+	resp, headers, err := p.doGenerateContent(ctx, modelID, payload, params)
+	if err != nil {
+		return nil, fmt.Errorf("通过 GenerateContent 调用失败: %w", err)
 	}
-	if ok {
-		if genConfig.ImageConfig == nil {
-			genConfig.ImageConfig = &genai.ImageConfig{}
+
+	if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil {
+		return nil, fmt.Errorf("通过 GenerateContent 调用未返回有效内容 (可能是由于安全过滤或配额限制)")
+	}
+
+	summary := summarizeGeminiResponse(resp)
+	requestID := extractRequestIDFromHeaders(headers)
+	diagnostic.Logf(params, "response_summary",
+		"mode=%s candidate_count=%v finish_reason=%v part_count=%v text_parts=%v image_parts=%v safety_hits=%v request_id=%s text_preview=%q",
+		func() string {
+			if len(refImgs) > 0 {
+				return "image_to_image"
+			}
+			return "text_to_image"
+		}(),
+		summary["candidate_count"],
+		summary["finish_reason"],
+		summary["part_count"],
+		summary["text_parts"],
+		summary["image_parts"],
+		summary["safety_hits"],
+		requestID,
+		summary["text_preview"],
+	)
+
+	candidate := resp.Candidates[0]
+	images := make([][]byte, 0)
+	for _, part := range candidate.Content.Parts {
+		if part.InlineData == nil || strings.TrimSpace(part.InlineData.Data) == "" {
+			continue
 		}
-		// 确保比例格式正确 (例如 16:9)
-		genConfig.ImageConfig.AspectRatio = strings.TrimSpace(ar)
-	}
-
-	// 2. 处理分辨率级别 (1K, 2K, 4K)
-	quality, ok := params["resolution_level"].(string)
-	if !ok {
-		quality, ok = params["imageSize"].(string)
-	}
-	if !ok {
-		quality, ok = params["image_size"].(string)
-	}
-	if ok {
-		if genConfig.ImageConfig == nil {
-			genConfig.ImageConfig = &genai.ImageConfig{}
+		imageBytes, err := base64.StdEncoding.DecodeString(part.InlineData.Data)
+		if err != nil {
+			return nil, fmt.Errorf("解析响应图片数据失败: %w", err)
 		}
-		// 确保分辨率为大写 (1K, 2K, 4K)
-		genConfig.ImageConfig.ImageSize = strings.ToUpper(strings.TrimSpace(quality))
-	}
-
-	// 3. 安全设置 (避免由于安全过滤导致的空响应)
-	genConfig.SafetySettings = []*genai.SafetySetting{
-		{Category: genai.HarmCategoryHateSpeech, Threshold: genai.HarmBlockThresholdBlockNone},
-		{Category: genai.HarmCategoryDangerousContent, Threshold: genai.HarmBlockThresholdBlockNone},
-		{Category: genai.HarmCategoryHarassment, Threshold: genai.HarmBlockThresholdBlockNone},
-		{Category: genai.HarmCategorySexuallyExplicit, Threshold: genai.HarmBlockThresholdBlockNone},
-	}
-
-	// 4. 处理数量 (CandidateCount)
-	count, ok := params["count"].(int)
-	if !ok {
-		// 尝试从 float64 转换 (JSON 解析可能变成 float64)
-		if f, ok := params["count"].(float64); ok {
-			count = int(f)
-		} else {
-			count = 1
+		if len(imageBytes) > 0 {
+			images = append(images, imageBytes)
 		}
 	}
-	if count > 0 {
-		genConfig.CandidateCount = int32(count)
+
+	if len(images) == 0 {
+		diagnostic.Logf(params, "response_no_image",
+			"mode=%s finish_reason=%v part_count=%v request_id=%s text_preview=%q safety_hits=%v",
+			func() string {
+				if len(refImgs) > 0 {
+					return "image_to_image"
+				}
+				return "text_to_image"
+			}(),
+			summary["finish_reason"],
+			summary["part_count"],
+			requestID,
+			summary["text_preview"],
+			summary["safety_hits"],
+		)
+
+		var reason strings.Builder
+		reason.WriteString(fmt.Sprintf("未在响应中找到图片数据 (FinishReason: %s)", candidate.FinishReason))
+		if requestID != "" {
+			reason.WriteString(fmt.Sprintf(" | Request ID: %s", requestID))
+		}
+		for _, part := range candidate.Content.Parts {
+			if strings.TrimSpace(part.Text) != "" {
+				reason.WriteString(fmt.Sprintf(" | 文本响应: %s", part.Text))
+			}
+		}
+		for _, rating := range candidate.SafetyRatings {
+			if probability := strings.TrimSpace(rating.Probability); probability != "" && probability != "NEGLIGIBLE" {
+				reason.WriteString(fmt.Sprintf(" | 安全警告: %s(%s)", rating.Category, probability))
+			}
+		}
+		return nil, errors.New(reason.String())
 	}
 
-	// 判断是否为图生图 (Image-to-Image)
-	// 如果 params 中包含 reference_images (base64 列表)
-	if refImgs, ok := params["reference_images"].([]interface{}); ok && len(refImgs) > 0 {
-		return p.generateWithReferences(ctx, client, modelID, prompt, refImgs, genConfig)
+	metadata := map[string]interface{}{
+		"provider":       "gemini",
+		"model":          modelID,
+		"finish_reason":  candidate.FinishReason,
+		"type":           "text-to-image",
+		"request_id":     requestID,
+		"oneapi_request": strings.TrimSpace(headers.Get("X-Oneapi-Request-Id")),
+	}
+	if len(refImgs) > 0 {
+		metadata["type"] = "image-to-image"
 	}
 
-	// 默认为文生图 (Text-to-Image)
-	return p.generateViaContent(ctx, client, modelID, prompt, genConfig)
+	return &ProviderResult{
+		Images:   images,
+		Metadata: metadata,
+	}, nil
 }
 
 // removeMarkdownImages 从提示词中移除 Markdown 图片语法 ![alt](url)，只保留 alt 文字
 func (p *GeminiProvider) removeMarkdownImages(text string) string {
-	// 匹配 ![alt](url)
 	re := regexp.MustCompile(`!\[(.*?)\]\([^\)]+\)`)
 	return re.ReplaceAllStringFunc(text, func(match string) string {
 		submatch := re.FindStringSubmatch(match)
@@ -205,216 +553,37 @@ func (p *GeminiProvider) removeMarkdownImages(text string) string {
 	})
 }
 
-func (p *GeminiProvider) generateWithReferences(ctx context.Context, client *genai.Client, modelID, prompt string, refImgs []interface{}, config *genai.GenerateContentConfig) (*ProviderResult, error) {
-	// 清理提示词，移除可能存在的 Markdown 图片链接
-	cleanedPrompt := p.removeMarkdownImages(prompt)
-
-	// 准备 Parts
-	parts := []*genai.Part{}
-
-	// 1. 先添加参考图片 (按照 Python 版和官方最佳实践，图片在前)
-	for i, ref := range refImgs {
-		var imgBytes []byte
-		var mimeType string
-		var err error
-
-		switch v := ref.(type) {
-		case string:
-			base64Data := v
-			// 处理带前缀的 base64 (data:image/jpeg;base64,...)
-			if strings.Contains(base64Data, ",") {
-				partsSplit := strings.Split(base64Data, ",")
-				base64Data = partsSplit[1]
-			}
-			imgBytes, err = base64.StdEncoding.DecodeString(base64Data)
-			if err != nil {
-				return nil, fmt.Errorf("解码第 %d 张参考图失败: %w", i, err)
-			}
-		case []byte:
-			imgBytes = v
-		default:
-			continue
-		}
-
-		// 自动检测 MIME Type
-		mimeType = http.DetectContentType(imgBytes)
-		// 确保是图片类型，如果检测失败默认用 image/jpeg
-		if !strings.HasPrefix(mimeType, "image/") {
-			mimeType = "image/jpeg"
-		}
-
-		// 将图片作为 InlineData 添加到 Parts 中
-		parts = append(parts, &genai.Part{
-			InlineData: &genai.Blob{
-				MIMEType: mimeType,
-				Data:     imgBytes,
-			},
-		})
-	}
-
-	// 2. 再添加文本提示词
-	parts = append(parts, &genai.Part{Text: cleanedPrompt})
-
-	// 安全读取 ImageConfig 字段，避免 nil pointer panic
-	var aspectRatio, imageSize string
-	if config.ImageConfig != nil {
-		aspectRatio = config.ImageConfig.AspectRatio
-		imageSize = config.ImageConfig.ImageSize
-	}
-	// 调用 GenerateContent 接口
-	log.Printf("[Gemini] 开始调用 GenerateContent, Model: %s, Parts: %d, AspectRatio: %s, ImageSize: %s\n",
-		modelID, len(parts), aspectRatio, imageSize)
-
-	resp, err := client.Models.GenerateContent(ctx, modelID, []*genai.Content{
-		{
-			Role:  "user",
-			Parts: parts,
-		},
-	}, config)
-	if err != nil {
-		return nil, fmt.Errorf("图生图 GenerateContent 调用失败: %w", err)
-	}
-
-	if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil {
-		return nil, fmt.Errorf("API 未返回有效内容 (可能触发了安全过滤或配额限制)")
-	}
-
-	candidate := resp.Candidates[0]
-
-	// 解析返回的图片数据
-	var images [][]byte
-	for _, part := range candidate.Content.Parts {
-		if part.InlineData != nil && len(part.InlineData.Data) > 0 {
-			images = append(images, part.InlineData.Data)
-		}
-	}
-
-	if len(images) == 0 {
-		// 构造详细的错误信息
-		var reason strings.Builder
-		reason.WriteString(fmt.Sprintf("未在响应中找到图片数据 (FinishReason: %s)", candidate.FinishReason))
-
-		for _, part := range candidate.Content.Parts {
-			if part.Text != "" {
-				reason.WriteString(fmt.Sprintf(" | 文本响应: %s", part.Text))
-			}
-		}
-
-		if len(candidate.SafetyRatings) > 0 {
-			for _, rating := range candidate.SafetyRatings {
-				if rating.Probability != "NEGLIGIBLE" && rating.Probability != "" {
-					reason.WriteString(fmt.Sprintf(" | 安全警告: %s(%s)", rating.Category, rating.Probability))
-				}
-			}
-		}
-		return nil, errors.New(reason.String())
-	}
-
-	return &ProviderResult{
-		Images: images,
-		Metadata: map[string]interface{}{
-			"provider":      "gemini",
-			"model":         modelID,
-			"finish_reason": candidate.FinishReason,
-			"type":          "image-to-image",
-		},
-	}, nil
-}
-
-// generateViaContent 尝试通过 GenerateContent 接口发送请求 (适配某些中转 API)
-func (p *GeminiProvider) generateViaContent(ctx context.Context, client *genai.Client, modelID, prompt string, config *genai.GenerateContentConfig) (*ProviderResult, error) {
-	// 清理提示词
-	cleanedPrompt := p.removeMarkdownImages(prompt)
-
-	// 将 prompt 包装成 contents 结构
-	content := &genai.Content{
-		Role: "user",
-		Parts: []*genai.Part{
-			{Text: cleanedPrompt},
-		},
-	}
-
-	// 安全读取 ImageConfig 字段，避免 nil pointer panic
-	var aspectRatio, imageSize string
-	if config.ImageConfig != nil {
-		aspectRatio = config.ImageConfig.AspectRatio
-		imageSize = config.ImageConfig.ImageSize
-	}
-	log.Printf("[Gemini] 开始调用 GenerateContent (Text-to-Image), Model: %s, AspectRatio: %s, ImageSize: %s\n",
-		modelID, aspectRatio, imageSize)
-
-	resp, err := client.Models.GenerateContent(ctx, modelID, []*genai.Content{content}, config)
-	if err != nil {
-		return nil, fmt.Errorf("通过 GenerateContent 调用失败: %w", err)
-	}
-
-	if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil {
-		return nil, fmt.Errorf("通过 GenerateContent 调用未返回有效内容 (可能是由于安全过滤或配额限制)")
-	}
-
-	candidate := resp.Candidates[0]
-
-	// 解析返回的图片数据
-	var images [][]byte
-	for _, part := range candidate.Content.Parts {
-		if part.InlineData != nil && len(part.InlineData.Data) > 0 {
-			images = append(images, part.InlineData.Data)
-		}
-	}
-
-	if len(images) == 0 {
-		var reason strings.Builder
-		reason.WriteString(fmt.Sprintf("未在响应中找到图片数据 (FinishReason: %s)", candidate.FinishReason))
-
-		for _, part := range candidate.Content.Parts {
-			if part.Text != "" {
-				reason.WriteString(fmt.Sprintf(" | 文本响应: %s", part.Text))
-			}
-		}
-
-		if len(candidate.SafetyRatings) > 0 {
-			for _, rating := range candidate.SafetyRatings {
-				if rating.Probability != "NEGLIGIBLE" && rating.Probability != "" {
-					reason.WriteString(fmt.Sprintf(" | 安全警告: %s(%s)", rating.Category, rating.Probability))
-				}
-			}
-		}
-		return nil, errors.New(reason.String())
-	}
-
-	return &ProviderResult{
-		Images: images,
-		Metadata: map[string]interface{}{
-			"provider":      "gemini",
-			"model":         modelID,
-			"finish_reason": candidate.FinishReason,
-			"type":          "text-to-image",
-		},
-	}, nil
-}
-
 func (p *GeminiProvider) ValidateParams(params map[string]interface{}) error {
 	prompt, _ := params["prompt"].(string)
 	if prompt == "" {
 		return fmt.Errorf("prompt 不能为空")
 	}
 
-	// 1. 校验比例 (Aspect Ratio)
+	modelID := ResolveModelID(ModelResolveOptions{
+		ProviderName: p.Name(),
+		Purpose:      PurposeImage,
+		Params:       params,
+		Config:       p.config,
+	}).ID
+	if modelID == "" {
+		return fmt.Errorf("缺少 model_id 参数")
+	}
+
 	ar, ok := params["aspect_ratio"].(string)
 	if !ok {
 		ar, _ = params["aspectRatio"].(string)
 	}
 	if ar != "" {
-		validARs := map[string]bool{
-			"1:1": true, "2:3": true, "3:2": true, "3:4": true, "4:3": true,
-			"4:5": true, "5:4": true, "9:16": true, "16:9": true, "21:9": true,
+		validARs := map[string]bool{}
+		allowed := supportedAspectRatiosForGeminiModel(modelID)
+		for _, ratio := range allowed {
+			validARs[ratio] = true
 		}
 		if !validARs[ar] {
-			return fmt.Errorf("不支持的比例: %s，可选值: 1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9", ar)
+			return fmt.Errorf("模型 %s 不支持的比例: %s，可选值: %s", modelID, ar, strings.Join(allowed, ", "))
 		}
 	}
 
-	// 2. 校验分辨率级别 (1K, 2K, 4K)
 	rl, ok := params["resolution_level"].(string)
 	if !ok {
 		rl, _ = params["imageSize"].(string)

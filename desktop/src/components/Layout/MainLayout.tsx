@@ -201,7 +201,7 @@ export default function MainLayout() {
           }
 
           if (taskData.status === 'failed') {
-            current.failTask(taskData.errorMessage || t('generate.toast.failed'));
+            current.failTask(taskData);
             return;
           }
 
@@ -322,7 +322,7 @@ export default function MainLayout() {
         }
 
         if (taskData.status === 'failed') {
-          latest.failTask(taskData.errorMessage || t('generate.toast.failed'));
+          latest.failTask(taskData);
           return;
         }
 

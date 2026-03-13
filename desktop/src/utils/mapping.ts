@@ -20,6 +20,7 @@ export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
   };
 
   const sanitizedErrorMessage = sanitizeBackendErrorMessage(task.error_message);
+  const sanitizedRawErrorMessage = sanitizeBackendErrorMessage(task.error_raw_message);
 
   const image: GeneratedImage = {
     id: task.task_id,
@@ -35,6 +36,12 @@ export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
     // 生成弹窗需要展示模型：对齐历史记录的 task.model 显示逻辑
     model: task.model_id || task.provider_name || '',
     errorMessage: sanitizedErrorMessage,
+    errorRawMessage: sanitizedRawErrorMessage,
+    errorCode: task.error_code,
+    errorCategory: task.error_category,
+    errorRequestId: task.error_request_id,
+    errorRetryable: task.error_retryable,
+    errorDetail: task.error_detail,
     status: task.status === 'completed' ? 'success' : (task.status === 'failed' ? 'failed' : 'pending'),
     // 弹窗预览使用原图
     url: getFullUrl(task.local_path || task.image_url || task.thumbnail_path || task.thumbnail_url, task.image_source),
@@ -50,6 +57,12 @@ export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
     completedCount: task.status === 'completed' ? (task.total_count || 1) : 0,
     status: task.status as GenerationTask['status'],
     errorMessage: sanitizedErrorMessage,
+    errorRawMessage: sanitizedRawErrorMessage,
+    errorCode: task.error_code || '',
+    errorCategory: task.error_category || '',
+    errorRequestId: task.error_request_id || '',
+    errorRetryable: task.error_retryable,
+    errorDetail: task.error_detail || '',
     options: task.config_snapshot || '',
     createdAt: task.created_at,
     updatedAt: task.updated_at || '',

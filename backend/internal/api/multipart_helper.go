@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mazrean/formstream"
@@ -25,6 +26,7 @@ type MultipartRequest struct {
 	AspectRatio string
 	ImageSize   string
 	Count       int
+	Verbose     bool
 	RefImages   []MultipartFile
 	RefPaths    []string
 }
@@ -91,6 +93,14 @@ func ParseGenerateRequestFromMultipart(c *gin.Context) (*MultipartRequest, error
 		}
 		return nil
 	})
+	p.Parser.Register("verbose_logging", func(reader io.Reader, header formstream.Header) error {
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return err
+		}
+		req.Verbose = parseLooseBool(string(data))
+		return nil
+	})
 	p.Parser.Register("refPaths", func(reader io.Reader, header formstream.Header) error {
 		data, err := io.ReadAll(reader)
 		if err != nil {
@@ -143,6 +153,7 @@ func parseWithStandardLibrary(c *gin.Context) (*MultipartRequest, error) {
 			req.Count = count
 		}
 	}
+	req.Verbose = parseLooseBool(c.PostForm("verbose_logging"))
 
 	form, err := c.MultipartForm()
 	if err == nil && form.File != nil {
@@ -165,4 +176,12 @@ func parseWithStandardLibrary(c *gin.Context) (*MultipartRequest, error) {
 	}
 
 	return req, nil
+}
+
+func parseLooseBool(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }

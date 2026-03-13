@@ -453,7 +453,7 @@ function syncWithGenerateStore(historyItems: HistoryItem[]) {
       // 不显示 toast，避免打扰
     } else if (historyStatus === 'failed') {
       // 任务失败：结束生成态并提示
-      generateStore.failTask(currentTaskInHistory.errorMessage || i18n.t('generate.toast.failed'));
+      generateStore.failTask(currentTaskInHistory);
       toast.error(i18n.t('generate.toast.failedWith', { message: currentTaskInHistory.errorMessage || i18n.t('common.unknownError') }));
     } else if (historyStatus === 'partial') {
       // 部分完成：同步已生成的结果并结束生成态

@@ -104,7 +104,7 @@ export function useTaskStream(taskId: string | null) {
           closeStream();
         } else if (task.status === 'failed') {
           setUpdateSource(null);
-          storeRef.current.failTask(task.errorMessage || 'Unknown error');
+          storeRef.current.failTask(task);
           closeStream();
         }
       } catch (error) {

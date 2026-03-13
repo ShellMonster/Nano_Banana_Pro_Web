@@ -124,6 +124,12 @@ export function HistoryList() {
       status: 'failed',
       model: task.model || '',
       errorMessage: task.errorMessage || '',
+      errorRawMessage: task.errorRawMessage || '',
+      errorCode: task.errorCode || '',
+      errorCategory: task.errorCategory || '',
+      errorRequestId: task.errorRequestId || '',
+      errorRetryable: task.errorRetryable,
+      errorDetail: task.errorDetail || '',
       taskCreatedAt: task.createdAt || new Date().toISOString(),
       imageSizeLabel: '—',
       aspectRatioLabel: '—'

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"image-gen-service/internal/config"
+	"image-gen-service/internal/diagnostic"
 	"image-gen-service/internal/model"
 	"image-gen-service/internal/platform"
 	"image-gen-service/internal/provider"
@@ -393,6 +394,7 @@ func GenerateHandler(c *gin.Context) {
 	if req.Params == nil {
 		req.Params = map[string]interface{}{}
 	}
+	diagnostic.AttachVerboseFlag(req.Params, diagnostic.VerboseEnabled(req.Params))
 	modelID := provider.ResolveModelID(provider.ModelResolveOptions{
 		ProviderName: req.Provider,
 		Purpose:      provider.PurposeImage,
@@ -458,6 +460,18 @@ func GenerateHandler(c *gin.Context) {
 		TaskModel: taskModel,
 		Params:    req.Params,
 	}
+	diagnostic.AttachTaskID(task.Params, taskModel.TaskID)
+
+	diagnostic.Logf(task.Params, "task_created",
+		"provider=%s model=%s count=%d prompt_len=%d prompt_hash=%s aspect_ratio=%q image_size=%q",
+		req.Provider,
+		modelID,
+		taskModel.TotalCount,
+		len([]rune(prompt)),
+		diagnostic.PromptHash(prompt),
+		strings.TrimSpace(fmt.Sprint(req.Params["aspectRatio"])),
+		strings.TrimSpace(fmt.Sprint(req.Params["imageSize"])),
+	)
 
 	if !worker.Pool.Submit(task) {
 		model.DB.Model(taskModel).Updates(map[string]interface{}{
@@ -539,6 +553,7 @@ func GenerateWithImagesHandler(c *gin.Context) {
 		"count":            req.Count,
 		"reference_images": refImageBytes, // 传递 interface 列表，方便 Provider 类型断言
 	}
+	diagnostic.AttachVerboseFlag(taskParams, req.Verbose)
 
 	log.Printf("[API] 提交任务: Prompt=%s, Images=%d\n", req.Prompt, len(refImageBytes))
 
@@ -582,6 +597,20 @@ func GenerateWithImagesHandler(c *gin.Context) {
 		TaskModel: taskModel,
 		Params:    taskParams,
 	}
+	diagnostic.AttachTaskID(task.Params, taskModel.TaskID)
+
+	diagnostic.Logf(task.Params, "task_created",
+		"provider=%s model=%s count=%d prompt_len=%d prompt_hash=%s aspect_ratio=%q image_size=%q ref_image_count=%d ref_path_count=%d",
+		req.Provider,
+		modelID,
+		req.Count,
+		len([]rune(req.Prompt)),
+		diagnostic.PromptHash(req.Prompt),
+		req.AspectRatio,
+		req.ImageSize,
+		len(req.RefImages),
+		len(req.RefPaths),
+	)
 
 	if !worker.Pool.Submit(task) {
 		model.DB.Model(taskModel).Updates(map[string]interface{}{
@@ -608,6 +637,7 @@ func GetTaskHandler(c *gin.Context) {
 		Error(c, http.StatusInternalServerError, 500, "任务状态收敛失败")
 		return
 	}
+	enrichTaskError(&task)
 
 	Success(c, task)
 }
@@ -649,6 +679,7 @@ func ListImagesHandler(c *gin.Context) {
 		Error(c, http.StatusInternalServerError, 500, "查询失败")
 		return
 	}
+	enrichTaskErrors(tasks)
 
 	Success(c, gin.H{
 		"total": total,

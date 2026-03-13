@@ -54,6 +54,33 @@ export const ImagePreview = React.memo(function ImagePreview({
         () => images.filter((img) => Boolean(img.url || img.thumbnailUrl)),
         [images]
     );
+    const failedDetails = useMemo(() => {
+        if (!isFailedImage || !image) return [];
+        const details: Array<{ label: string; value: string }> = [];
+        if (image.errorCode) details.push({ label: t('preview.failed.errorCode'), value: image.errorCode });
+        if (image.errorCategory) details.push({ label: t('preview.failed.errorCategory'), value: image.errorCategory });
+        if (image.errorRequestId) details.push({ label: t('preview.failed.requestId'), value: image.errorRequestId });
+        if (typeof image.errorRetryable === 'boolean') details.push({ label: t('preview.failed.retryable'), value: image.errorRetryable ? t('common.yes') : t('common.no') });
+        if (image.model) details.push({ label: t('preview.failed.model'), value: image.model });
+        if (image.taskId) details.push({ label: t('preview.failed.taskId'), value: image.taskId });
+        return details;
+    }, [image, isFailedImage, t]);
+
+    const failedCopyText = useMemo(() => {
+        if (!isFailedImage || !image) return '';
+        const lines: string[] = [];
+        if (image.errorMessage) lines.push(`${t('preview.failed.summary')}: ${image.errorMessage}`);
+        if (image.errorCode) lines.push(`${t('preview.failed.errorCode')}: ${image.errorCode}`);
+        if (image.errorCategory) lines.push(`${t('preview.failed.errorCategory')}: ${image.errorCategory}`);
+        if (image.errorRequestId) lines.push(`${t('preview.failed.requestId')}: ${image.errorRequestId}`);
+        if (typeof image.errorRetryable === 'boolean') lines.push(`${t('preview.failed.retryable')}: ${image.errorRetryable ? t('common.yes') : t('common.no')}`);
+        if (image.errorDetail) lines.push(`${t('preview.failed.errorDetail')}: ${image.errorDetail}`);
+        if (image.errorRawMessage) lines.push(`${t('preview.failed.rawError')}: ${image.errorRawMessage}`);
+        if (image.taskId) lines.push(`${t('preview.failed.taskId')}: ${image.taskId}`);
+        if (image.model) lines.push(`${t('preview.failed.model')}: ${image.model}`);
+        if (image.prompt) lines.push(`${t('preview.prompt.label')}: ${image.prompt}`);
+        return lines.join('\n');
+    }, [image, isFailedImage, t]);
 
     const displayPosition = useMemo(() => {
         if (isDragging || isWheelZooming) return position;
@@ -697,30 +724,66 @@ export const ImagePreview = React.memo(function ImagePreview({
                                 <ImageOff className="w-12 h-12 text-slate-400" />
                             </div>
                             <p className="text-lg font-bold text-slate-700 mb-3">{t('preview.failed.title')}</p>
-                            {image.errorMessage && (
-                                <div className="max-w-md mx-8">
-                                    <p className="text-sm text-slate-500 text-center mb-3 leading-relaxed">
+                            <div className="w-full max-w-2xl mx-8 px-4">
+                                {image.errorMessage && (
+                                    <p className="text-sm text-slate-500 text-center mb-4 leading-relaxed">
                                         {image.errorMessage}
                                     </p>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            void (async () => {
-                                                const ok = await copyText(image.errorMessage || '');
-                                                if (ok) {
-                                                    toast.success(t('preview.failed.errorCopied'));
-                                                } else {
-                                                    toast.error(t('toast.copyFailed'));
-                                                }
-                                            })();
-                                        }}
-                                        className="mx-auto flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
-                                    >
-                                        <Copy className="w-3.5 h-3.5" />
-                                        {t('preview.failed.copyError')}
-                                    </button>
-                                </div>
-                            )}
+                                )}
+
+                                {(failedDetails.length > 0 || image.errorDetail || image.errorRawMessage) && (
+                                    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 text-left">
+                                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-3">
+                                            {t('preview.failed.detailsTitle')}
+                                        </p>
+
+                                        {failedDetails.length > 0 && (
+                                            <div className="space-y-2 mb-3">
+                                                {failedDetails.map((item) => (
+                                                    <div key={`${item.label}-${item.value}`} className="grid grid-cols-[92px_1fr] gap-3 text-xs">
+                                                        <span className="text-slate-500 font-medium">{item.label}</span>
+                                                        <span className="text-slate-800 break-all">{item.value}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {image.errorDetail && (
+                                            <div className="mb-3">
+                                                <p className="text-xs text-slate-500 font-medium mb-1">{t('preview.failed.errorDetail')}</p>
+                                                <p className="text-xs text-slate-700 leading-relaxed break-words">{image.errorDetail}</p>
+                                            </div>
+                                        )}
+
+                                        {image.errorRawMessage && (
+                                            <div className="mb-1">
+                                                <p className="text-xs text-slate-500 font-medium mb-1">{t('preview.failed.rawError')}</p>
+                                                <pre className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-3 whitespace-pre-wrap break-words font-mono">
+                                                    {image.errorRawMessage}
+                                                </pre>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        void (async () => {
+                                            const ok = await copyText(failedCopyText || image.errorMessage || '');
+                                            if (ok) {
+                                                toast.success(t('preview.failed.errorCopied'));
+                                            } else {
+                                                toast.error(t('toast.copyFailed'));
+                                            }
+                                        })();
+                                    }}
+                                    className="mx-auto mt-4 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                >
+                                    <Copy className="w-3.5 h-3.5" />
+                                    {t('preview.failed.copyError')}
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         <>

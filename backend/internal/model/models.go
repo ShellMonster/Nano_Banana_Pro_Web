@@ -33,6 +33,12 @@ type Task struct {
 	ModelID             string         `gorm:"index" json:"model_id"`                            // 使用的模型 ID
 	Status              string         `gorm:"index:idx_status_created;not null" json:"status"`  // 状态，与创建时间组成复合索引
 	ErrorMessage        string         `json:"error_message"`                                    // 错误信息
+	ErrorRawMessage     string         `gorm:"-" json:"error_raw_message,omitempty"`             // 原始错误信息（仅接口返回）
+	ErrorCode           string         `gorm:"-" json:"error_code,omitempty"`                    // 结构化错误码（仅接口返回）
+	ErrorCategory       string         `gorm:"-" json:"error_category,omitempty"`                // 错误分类（仅接口返回）
+	ErrorRequestID      string         `gorm:"-" json:"error_request_id,omitempty"`              // 上游请求ID（仅接口返回）
+	ErrorRetryable      bool           `gorm:"-" json:"error_retryable,omitempty"`               // 是否建议重试（仅接口返回）
+	ErrorDetail         string         `gorm:"-" json:"error_detail,omitempty"`                  // 补充说明（仅接口返回）
 	ImageURL            string         `json:"image_url"`                                        // OSS 访问地址
 	LocalPath           string         `json:"local_path"`                                       // 本地存储路径
 	ThumbnailURL        string         `json:"thumbnail_url"`                                    // 缩略图 OSS 访问地址

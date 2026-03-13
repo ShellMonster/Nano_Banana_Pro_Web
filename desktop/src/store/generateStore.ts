@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { GeneratedImage } from '../types';
+import { GeneratedImage, TaskFailurePayload } from '../types';
 import { getImageUrl } from '../services/api';
 
 const IMAGE_SIZE_MAX_PX: Record<string, number> = {
@@ -41,6 +41,10 @@ function getExpectedDimensions(aspectRatio: string, imageSize: string): { width:
 }
 
 type MergeOptions = { removePending?: boolean };
+
+function isFailurePayload(value: string | TaskFailurePayload): value is TaskFailurePayload {
+  return typeof value === 'object' && value !== null;
+}
 
 function normalizeIncomingImage(image: GeneratedImage): GeneratedImage {
   const { width, height, ...rest } = image as any;
@@ -105,7 +109,7 @@ interface GenerateState {
   updateProgress: (completedCount: number, image?: GeneratedImage | null) => void;
   updateProgressBatch: (completedCount: number, images: GeneratedImage[]) => void;
   completeTask: () => void;
-  failTask: (error: string) => void;
+  failTask: (failure: string | TaskFailurePayload) => void;
   dismissError: () => void;
   toggleSelect: (id: string) => void;
   selectAll: () => void;
@@ -245,42 +249,54 @@ export const useGenerateStore = create<GenerateState>()(
           images
         };
       }),
-      failTask: (error) => set((state) => {
-        const finishedTaskId = state.taskId;
+      failTask: (failure) => set((state) => {
+        const payload = isFailurePayload(failure) ? failure : null;
+        const errorMessage = payload?.errorMessage || (typeof failure === 'string' ? failure : '') || '';
+        const finishedTaskId = payload?.taskId || payload?.id || state.taskId;
         let images = finishedTaskId
           ? state.images.filter((img) => !(img.taskId === finishedTaskId && img.status === 'pending'))
           : state.images;
 
         if (finishedTaskId) {
-          const taskImages = state.images.filter((img) => img.taskId === finishedTaskId);
-          const hasFailedCard = images.some((img) => img.taskId === finishedTaskId && img.status === 'failed');
-          if (!hasFailedCard) {
-            const seed = taskImages[0];
-            const failedCard: GeneratedImage = {
-              id: `failed-${finishedTaskId}`,
-              taskId: finishedTaskId,
-              filePath: '',
-              thumbnailPath: '',
-              fileSize: 0,
-              width: seed?.width || 0,
-              height: seed?.height || 0,
-              mimeType: seed?.mimeType || 'image/png',
-              createdAt: seed?.createdAt || new Date().toISOString(),
-              prompt: seed?.prompt || '',
-              status: 'failed',
-              model: seed?.model || '',
-              options: seed?.options,
-              errorMessage: error,
-              url: '',
-              thumbnailUrl: ''
-            };
+          const payloadImages = Array.isArray(payload?.images) ? payload.images : [];
+          const taskImages = [...payloadImages, ...state.images.filter((img) => img.taskId === finishedTaskId)];
+          const failedIndex = images.findIndex((img) => img.taskId === finishedTaskId && img.status === 'failed');
+          const existingFailedCard = failedIndex >= 0 ? images[failedIndex] : null;
+          const seed = payloadImages[0] || taskImages[0] || existingFailedCard || undefined;
+          const failedCard: GeneratedImage = {
+            id: existingFailedCard?.id || `failed-${finishedTaskId}`,
+            taskId: finishedTaskId,
+            filePath: existingFailedCard?.filePath || '',
+            thumbnailPath: existingFailedCard?.thumbnailPath || '',
+            fileSize: existingFailedCard?.fileSize || 0,
+            width: seed?.width || 0,
+            height: seed?.height || 0,
+            mimeType: seed?.mimeType || existingFailedCard?.mimeType || 'image/png',
+            createdAt: payload?.createdAt || seed?.createdAt || existingFailedCard?.createdAt || new Date().toISOString(),
+            prompt: payload?.prompt || seed?.prompt || existingFailedCard?.prompt || '',
+            status: 'failed',
+            model: payload?.model || seed?.model || existingFailedCard?.model || '',
+            options: payload?.options || seed?.options || existingFailedCard?.options,
+            errorMessage: errorMessage || existingFailedCard?.errorMessage || '',
+            errorRawMessage: payload?.errorRawMessage || existingFailedCard?.errorRawMessage,
+            errorCode: payload?.errorCode || existingFailedCard?.errorCode,
+            errorCategory: payload?.errorCategory || existingFailedCard?.errorCategory,
+            errorRequestId: payload?.errorRequestId || existingFailedCard?.errorRequestId,
+            errorRetryable: typeof payload?.errorRetryable === 'boolean' ? payload.errorRetryable : existingFailedCard?.errorRetryable,
+            errorDetail: payload?.errorDetail || existingFailedCard?.errorDetail,
+            url: '',
+            thumbnailUrl: ''
+          };
+          if (failedIndex >= 0) {
+            images[failedIndex] = failedCard;
+          } else {
             images = [failedCard, ...images];
           }
         }
 
         return {
           status: 'failed',
-          error,
+          error: errorMessage,
           connectionMode: 'none',
           taskId: null,
           startTime: null,

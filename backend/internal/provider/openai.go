@@ -1,11 +1,13 @@
 package provider
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"image-gen-service/internal/diagnostic"
 	"image-gen-service/internal/model"
 	"io"
 	"log"
@@ -13,47 +15,50 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 )
 
 type OpenAIProvider struct {
 	config     *model.ProviderConfig
-	client     *openai.Client
 	httpClient *http.Client
 	apiBase    string
 	userAgent  string
 }
 
 func NewOpenAIProvider(config *model.ProviderConfig) (*OpenAIProvider, error) {
+	if config == nil {
+		return nil, fmt.Errorf("config 不能为空")
+	}
+
 	timeout := time.Duration(config.TimeoutSeconds) * time.Second
 	if timeout <= 0 {
 		timeout = 500 * time.Second
 	}
 
 	apiBase := NormalizeOpenAIBaseURL(config.APIBase)
-	httpClient := &http.Client{Timeout: timeout}
 	userAgent := "image-gen-service/1.0"
-	opts := []option.RequestOption{
-		option.WithAPIKey(config.APIKey),
-		option.WithHTTPClient(httpClient),
-	}
-	if apiBase != "" {
-		opts = append(opts, option.WithBaseURL(apiBase))
-	}
-	if userAgent != "" {
-		opts = append(opts, option.WithHeader("User-Agent", userAgent))
-	}
-	client := openai.NewClient(opts...)
 
 	return &OpenAIProvider{
 		config:     config,
-		client:     &client,
-		httpClient: httpClient,
+		httpClient: newOpenAIHTTPClient(timeout),
 		apiBase:    apiBase,
 		userAgent:  userAgent,
 	}, nil
+}
+
+func newOpenAIHTTPClient(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			DisableKeepAlives:   true,
+			ForceAttemptHTTP2:   false,
+			MaxIdleConns:        0,
+			MaxIdleConnsPerHost: 0,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: false,
+				MinVersion:         tls.VersionTLS12,
+			},
+		},
+	}
 }
 
 func (p *OpenAIProvider) Name() string {
@@ -85,62 +90,52 @@ func (p *OpenAIProvider) Generate(ctx context.Context, params map[string]interfa
 		return nil, fmt.Errorf("缺少 model_id 参数")
 	}
 
-	rawMessages, hasMessages := params["messages"]
-	reqBody := map[string]interface{}{
-		"model": modelID,
-	}
-
-	if hasMessages {
-		reqBody["messages"] = rawMessages
-	} else {
-		prompt, _ := params["prompt"].(string)
-		if prompt == "" {
-			return nil, fmt.Errorf("缺少 prompt 参数")
-		}
-
-		prompt = appendPromptHints(prompt, params)
-
-		refParts, err := buildImageParts(params["reference_images"])
-		if err != nil {
-			return nil, err
-		}
-
-		if len(refParts) == 0 {
-			reqBody["messages"] = []openai.ChatCompletionMessageParamUnion{
-				openai.UserMessage(prompt),
-			}
-		} else {
-			content := append(refParts, openai.TextContentPart(prompt))
-			reqBody["messages"] = []openai.ChatCompletionMessageParamUnion{
-				openai.UserMessage(content),
-			}
-		}
-	}
-
-	if count, ok := toInt(params["count"]); ok && count > 1 {
-		reqBody["n"] = count
-	}
-	if _, ok := reqBody["modalities"]; !ok {
-		reqBody["modalities"] = []string{"text", "image"}
-	}
-	applyOpenAIOptions(reqBody, params)
-
-	respBytes, err := p.doChatRequest(ctx, reqBody)
+	reqBody, refCount, promptPreview, err := p.buildChatRequestBody(modelID, params)
 	if err != nil {
 		return nil, err
 	}
 
-	images, err := p.extractImages(ctx, respBytes)
+	diagnostic.Logf(params, "request_prepare",
+		"provider=%s model=%s count=%v modalities=%v ref_image_count=%d prompt_hash=%s prompt_preview=%q",
+		p.Name(),
+		modelID,
+		reqBody["n"],
+		reqBody["modalities"],
+		refCount,
+		diagnostic.PromptHash(promptPreview),
+		diagnostic.Preview(promptPreview, 160),
+	)
+
+	respBytes, headers, err := p.doChatRequest(ctx, reqBody, params)
 	if err != nil {
 		return nil, err
 	}
+
+	images, summary, err := p.extractImages(ctx, respBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	requestID := extractRequestIDFromHeaders(headers)
+	diagnostic.Logf(params, "response_summary",
+		"provider=%s model=%s data_count=%d choice_count=%d image_count=%d text_preview=%q request_id=%s",
+		p.Name(),
+		modelID,
+		summary.DataCount,
+		summary.ChoiceCount,
+		len(images),
+		summary.TextPreview,
+		requestID,
+	)
 
 	return &ProviderResult{
 		Images: images,
 		Metadata: map[string]interface{}{
-			"provider": "openai",
-			"model":    modelID,
-			"type":     "image",
+			"provider":       "openai",
+			"model":          modelID,
+			"type":           "image",
+			"request_id":     requestID,
+			"oneapi_request": strings.TrimSpace(headers.Get("X-Oneapi-Request-Id")),
 		},
 	}, nil
 }
@@ -156,35 +151,153 @@ func (p *OpenAIProvider) ValidateParams(params map[string]interface{}) error {
 	return nil
 }
 
-func (p *OpenAIProvider) doChatRequest(ctx context.Context, body map[string]interface{}) ([]byte, error) {
-	var respBytes []byte
-	err := p.client.Post(ctx, "/chat/completions", body, &respBytes)
-	if err != nil {
-		return nil, fmt.Errorf("请求失败: %s", formatOpenAIClientError(err))
+func (p *OpenAIProvider) buildChatRequestBody(modelID string, params map[string]interface{}) (map[string]interface{}, int, string, error) {
+	rawMessages, hasMessages := params["messages"]
+	reqBody := map[string]interface{}{
+		"model": modelID,
 	}
-	if len(respBytes) == 0 {
-		return nil, fmt.Errorf("接口未返回内容")
+
+	promptPreview := ""
+	refCount := 0
+
+	if hasMessages {
+		reqBody["messages"] = rawMessages
+		promptPreview = "[custom messages]"
+	} else {
+		prompt, _ := params["prompt"].(string)
+		if prompt == "" {
+			return nil, 0, "", fmt.Errorf("缺少 prompt 参数")
+		}
+
+		prompt = appendPromptHints(prompt, params)
+		promptPreview = prompt
+
+		refParts, err := buildImageParts(params["reference_images"])
+		if err != nil {
+			return nil, 0, "", err
+		}
+		refCount = len(refParts)
+
+		if len(refParts) == 0 {
+			reqBody["messages"] = []map[string]interface{}{
+				{
+					"role":    "user",
+					"content": prompt,
+				},
+			}
+		} else {
+			content := make([]map[string]interface{}, 0, len(refParts)+1)
+			content = append(content, refParts...)
+			content = append(content, map[string]interface{}{
+				"type": "text",
+				"text": prompt,
+			})
+			reqBody["messages"] = []map[string]interface{}{
+				{
+					"role":    "user",
+					"content": content,
+				},
+			}
+		}
 	}
-	return respBytes, nil
+
+	if count, ok := toInt(params["count"]); ok && count > 1 {
+		reqBody["n"] = count
+	} else {
+		reqBody["n"] = 1
+	}
+	if _, ok := reqBody["modalities"]; !ok {
+		reqBody["modalities"] = []string{"text", "image"}
+	}
+	applyOpenAIOptions(reqBody, params)
+
+	return reqBody, refCount, promptPreview, nil
 }
 
-func (p *OpenAIProvider) extractImages(ctx context.Context, respBytes []byte) ([][]byte, error) {
-	var raw map[string]interface{}
-	if err := json.Unmarshal(respBytes, &raw); err != nil {
-		return nil, fmt.Errorf("解析响应失败: %w", err)
+func (p *OpenAIProvider) doChatRequest(ctx context.Context, body map[string]interface{}, params map[string]interface{}) ([]byte, http.Header, error) {
+	payloadBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("序列化 OpenAI 请求失败: %w", err)
 	}
 
+	requestURL := strings.TrimRight(strings.TrimSpace(p.apiBase), "/") + "/chat/completions"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(payloadBytes))
+	if err != nil {
+		return nil, nil, fmt.Errorf("构建 OpenAI 请求失败: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(p.config.APIKey))
+	req.Header.Set("Connection", "close")
+	if strings.TrimSpace(p.userAgent) != "" {
+		req.Header.Set("User-Agent", p.userAgent)
+	}
+
+	startedAt := time.Now()
+	resp, err := p.httpClient.Do(req)
+	elapsed := time.Since(startedAt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("doRequest: error sending request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.Header.Clone(), fmt.Errorf("读取 OpenAI 响应失败: %w", err)
+	}
+
+	requestID := extractRequestIDFromHeaders(resp.Header)
+	diagnostic.Logf(params, "response_headers",
+		"status=%s elapsed=%s request_id=%s headers=%q",
+		resp.Status,
+		elapsed,
+		requestID,
+		diagnostic.Preview(strings.Join(headerLines(resp.Header), " | "), 1000),
+	)
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyPreview := diagnostic.Preview(parseOpenAIError(respBody), 1200)
+		if requestID == "" {
+			requestID = diagnostic.ExtractRequestID(string(respBody))
+		}
+		return nil, resp.Header.Clone(), fmt.Errorf("OpenAI HTTP %d request_id=%s body=%s", resp.StatusCode, requestID, bodyPreview)
+	}
+
+	if len(respBody) == 0 {
+		return nil, resp.Header.Clone(), fmt.Errorf("接口未返回内容")
+	}
+
+	return respBody, resp.Header.Clone(), nil
+}
+
+type openAIResponseSummary struct {
+	DataCount   int
+	ChoiceCount int
+	TextPreview string
+}
+
+func (p *OpenAIProvider) extractImages(ctx context.Context, respBytes []byte) ([][]byte, openAIResponseSummary, error) {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(respBytes, &raw); err != nil {
+		return nil, openAIResponseSummary{}, fmt.Errorf("解析响应失败: %w", err)
+	}
+
+	summary := openAIResponseSummary{}
+
 	if data, ok := raw["data"].([]interface{}); ok && len(data) > 0 {
+		summary.DataCount = len(data)
 		images, err := p.extractImagesFromData(ctx, data)
 		if err == nil && len(images) > 0 {
-			return images, nil
+			return images, summary, nil
 		}
 	}
 
 	choices, ok := raw["choices"].([]interface{})
 	if !ok || len(choices) == 0 {
-		return nil, fmt.Errorf("响应中未找到 choices")
+		return nil, summary, fmt.Errorf("响应中未找到 choices")
 	}
+	summary.ChoiceCount = len(choices)
 
 	var images [][]byte
 	var textSnippets []string
@@ -202,16 +315,17 @@ func (p *OpenAIProvider) extractImages(ctx context.Context, respBytes []byte) ([
 		images = append(images, imgs...)
 		textSnippets = append(textSnippets, texts...)
 	}
+	summary.TextPreview = diagnostic.Preview(strings.TrimSpace(strings.Join(textSnippets, " | ")), 240)
 
 	if len(images) == 0 {
 		extra := strings.TrimSpace(strings.Join(textSnippets, " | "))
 		if extra != "" {
-			return nil, fmt.Errorf("未在响应中找到图片数据: %s", extra)
+			return nil, summary, fmt.Errorf("未在响应中找到图片数据: %s", extra)
 		}
-		return nil, fmt.Errorf("未在响应中找到图片数据")
+		return nil, summary, fmt.Errorf("未在响应中找到图片数据")
 	}
 
-	return images, nil
+	return images, summary, nil
 }
 
 func (p *OpenAIProvider) extractImagesFromData(ctx context.Context, data []interface{}) ([][]byte, error) {
@@ -310,7 +424,7 @@ func (p *OpenAIProvider) fetchImage(ctx context.Context, url string) ([]byte, er
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
-			return nil, err // 构造请求失败不重试
+			return nil, err
 		}
 		resp, err := p.httpClient.Do(req)
 		if err != nil {
@@ -338,13 +452,13 @@ func (p *OpenAIProvider) fetchImage(ctx context.Context, url string) ([]byte, er
 	return nil, fmt.Errorf("下载图片失败（重试%d次）: %w", maxRetries, lastErr)
 }
 
-func buildImageParts(raw interface{}) ([]openai.ChatCompletionContentPartUnionParam, error) {
+func buildImageParts(raw interface{}) ([]map[string]interface{}, error) {
 	refImgs, ok := raw.([]interface{})
 	if !ok || len(refImgs) == 0 {
 		return nil, nil
 	}
 
-	var parts []openai.ChatCompletionContentPartUnionParam
+	var parts []map[string]interface{}
 	for idx, ref := range refImgs {
 		var imgBytes []byte
 		switch v := ref.(type) {
@@ -370,9 +484,12 @@ func buildImageParts(raw interface{}) ([]openai.ChatCompletionContentPartUnionPa
 			mimeType = "image/png"
 		}
 		dataURL := fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(imgBytes))
-		parts = append(parts, openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{
-			URL: dataURL,
-		}))
+		parts = append(parts, map[string]interface{}{
+			"type": "image_url",
+			"image_url": map[string]interface{}{
+				"url": dataURL,
+			},
+		})
 	}
 	return parts, nil
 }
@@ -446,20 +563,6 @@ func NormalizeOpenAIBaseURL(apiBase string) string {
 		return base
 	}
 	return base + "/v1"
-}
-
-func formatOpenAIClientError(err error) string {
-	var apiErr *openai.Error
-	if errors.As(err, &apiErr) {
-		msg := strings.TrimSpace(apiErr.Message)
-		if msg == "" {
-			msg = strings.TrimSpace(apiErr.RawJSON())
-		}
-		if msg != "" {
-			return msg
-		}
-	}
-	return err.Error()
 }
 
 func parseOpenAIError(resp []byte) string {

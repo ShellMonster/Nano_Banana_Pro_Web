@@ -38,6 +38,7 @@ func StreamTaskHandler(c *gin.Context) {
 	c.Header("X-Accel-Buffering", "no")
 
 	lastSignature := taskSignature(&task)
+	enrichTaskError(&task)
 	if !writeTaskEvent(c.Writer, flusher, &task) {
 		return
 	}
@@ -59,6 +60,7 @@ func StreamTaskHandler(c *gin.Context) {
 
 			signature := taskSignature(&latest)
 			if signature != lastSignature {
+				enrichTaskError(&latest)
 				if !writeTaskEvent(c.Writer, flusher, &latest) {
 					return
 				}

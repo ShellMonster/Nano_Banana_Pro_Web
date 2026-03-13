@@ -24,6 +24,12 @@ export interface GeneratedImage {
   model?: string;
   options?: string | ImageOptions;
   errorMessage?: string;
+  errorRawMessage?: string;
+  errorCode?: string;
+  errorCategory?: string;
+  errorRequestId?: string;
+  errorRetryable?: boolean;
+  errorDetail?: string;
 }
 
 // 图片选项配置
@@ -42,9 +48,19 @@ export interface GenerationTask {
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'partial';
   options: string;
   errorMessage: string;
+  errorRawMessage?: string;
+  errorCode?: string;
+  errorCategory?: string;
+  errorRequestId?: string;
+  errorRetryable?: boolean;
+  errorDetail?: string;
   createdAt: string;
   updatedAt: string;
   images: GeneratedImage[];
+}
+
+export interface TaskFailurePayload extends Partial<GenerationTask> {
+  taskId?: string;
 }
 
 // 批量生成请求参数
@@ -166,6 +182,12 @@ export interface BackendTask {
   status: string;
   total_count?: number;
   error_message?: string;
+  error_raw_message?: string;
+  error_code?: string;
+  error_category?: string;
+  error_request_id?: string;
+  error_retryable?: boolean;
+  error_detail?: string;
   config_snapshot?: string;
 }
 

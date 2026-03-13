@@ -21,6 +21,8 @@
   "common": {
     "copy": "Copy",
     "copied": "Copied",
+    "yes": "Yes",
+    "no": "No",
     "disabled": "Disabled",
     "enabled": "Enabled",
     "close": "Close",
@@ -84,6 +86,16 @@
     },
     "failed": {
       "title": "Generation failed",
+      "summary": "Summary",
+      "detailsTitle": "Details",
+      "errorCode": "Error code",
+      "errorCategory": "Category",
+      "requestId": "Request ID",
+      "retryable": "Retry suggested",
+      "errorDetail": "Detail",
+      "rawError": "Raw error",
+      "taskId": "Task ID",
+      "model": "Model",
       "errorCopied": "Error details copied",
       "copyError": "Copy error details"
     },

@@ -21,6 +21,8 @@
   "common": {
     "copy": "复制",
     "copied": "已复制",
+    "yes": "是",
+    "no": "否",
     "disabled": "已关闭",
     "enabled": "已开启",
     "close": "关闭",
@@ -84,6 +86,16 @@
     },
     "failed": {
       "title": "生成失败",
+      "summary": "失败提示",
+      "detailsTitle": "详细信息",
+      "errorCode": "错误码",
+      "errorCategory": "错误分类",
+      "requestId": "请求ID",
+      "retryable": "建议重试",
+      "errorDetail": "补充说明",
+      "rawError": "原始错误",
+      "taskId": "任务ID",
+      "model": "模型",
       "errorCopied": "错误详情已复制",
       "copyError": "复制错误详情"
     },

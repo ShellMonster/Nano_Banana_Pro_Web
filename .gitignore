@@ -20,6 +20,7 @@ backend/data/*.db-journal
 backend/storage/local/
 backend/configs/config.yaml
 backend/.env
+backend/scripts/yunwuhttp/
 
 # Data directory
 data/

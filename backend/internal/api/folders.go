@@ -278,6 +278,11 @@ type FolderImageTaskResponse struct {
 	Status          string       `json:"status"`
 	TotalCount      int          `json:"total_count,omitempty"`
 	ErrorMessage    string       `json:"error_message,omitempty"`
+	ErrorCode       string       `json:"error_code,omitempty"`
+	ErrorCategory   string       `json:"error_category,omitempty"`
+	ErrorRequestID  string       `json:"error_request_id,omitempty"`
+	ErrorRetryable  bool         `json:"error_retryable,omitempty"`
+	ErrorDetail     string       `json:"error_detail,omitempty"`
 	ConfigSnap      string       `json:"config_snapshot,omitempty"`
 }
 
@@ -354,6 +359,7 @@ func GetFolderImagesHandler(c *gin.Context) {
 
 	responses := make([]FolderImageTaskResponse, len(tasks))
 	for i, task := range tasks {
+		enrichTaskError(&task)
 		responses[i] = FolderImageTaskResponse{
 			TaskID:          task.TaskID,
 			Prompt:          task.Prompt,
@@ -371,6 +377,11 @@ func GetFolderImagesHandler(c *gin.Context) {
 			Status:          task.Status,
 			TotalCount:      task.TotalCount,
 			ErrorMessage:    task.ErrorMessage,
+			ErrorCode:       task.ErrorCode,
+			ErrorCategory:   task.ErrorCategory,
+			ErrorRequestID:  task.ErrorRequestID,
+			ErrorRetryable:  task.ErrorRetryable,
+			ErrorDetail:     task.ErrorDetail,
 			ConfigSnap:      task.ConfigSnapshot,
 		}
 	}

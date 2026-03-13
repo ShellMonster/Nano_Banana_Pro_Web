@@ -8,6 +8,7 @@ import { toast } from '../store/toastStore';
 import { usePromptHistoryStore } from '../store/promptHistoryStore';
 import { useHistoryStore } from '../store/historyStore';
 import i18n from '../i18n';
+import { getDiagnosticVerbose } from '../utils/diagnosticLogger';
 
 // 流式连接建立超时时间（毫秒）- 超过此时间未建立连接则启动轮询
 // 本地后端通常不会推实时进度，过长会导致用户"卡住"的观感
@@ -146,7 +147,7 @@ export function useGenerate() {
             stopActiveSync();
             return;
           } else if (taskData.status === 'failed') {
-            storeRef.current.failTask(taskData.errorMessage || 'Unknown error');
+            storeRef.current.failTask(taskData);
             stopActiveSync();
             return;
           } else if (taskData.status === 'partial') {
@@ -239,7 +240,7 @@ export function useGenerate() {
           if (taskData.status === 'completed') {
             storeRef.current.completeTask();
           } else {
-            storeRef.current.failTask(taskData.errorMessage || i18n.t('generate.toast.failed'));
+            storeRef.current.failTask(taskData);
           }
           return;
         }
@@ -345,6 +346,7 @@ export function useGenerate() {
     try {
       // 竞态条件修复：启动新任务前清理旧的更新源标记
       clearUpdateSource();
+      const verboseLogging = getDiagnosticVerbose();
 
       const requestedCount = Math.max(1, Number(config.count) || 1);
 
@@ -357,6 +359,7 @@ export function useGenerate() {
           formData.append('aspectRatio', config.aspectRatio);
           formData.append('imageSize', config.imageSize);
           formData.append('count', '1');
+          formData.append('verbose_logging', String(verboseLogging));
 
           config.refFiles.forEach((file) => {
             const extFile = file as any;
@@ -378,6 +381,7 @@ export function useGenerate() {
             count: 1,
             aspectRatio: config.aspectRatio,
             imageSize: config.imageSize,
+            verbose_logging: verboseLogging,
           }
         } as any);
       };
@@ -522,6 +526,7 @@ export function useGenerate() {
         formData.append('aspectRatio', config.aspectRatio);
         formData.append('imageSize', config.imageSize);
         formData.append('count', requestedCount.toString());
+        formData.append('verbose_logging', String(verboseLogging));
         
         // 添加所有参考图片
         config.refFiles.forEach((file) => {
@@ -546,6 +551,7 @@ export function useGenerate() {
             count: requestedCount,
             aspectRatio: config.aspectRatio,
             imageSize: config.imageSize,
+            verbose_logging: verboseLogging,
           }
         } as any);
       }
