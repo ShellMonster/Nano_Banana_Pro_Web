@@ -16,7 +16,7 @@ type ProviderConfig struct {
 	Models         string         `json:"models"`                                    // 模型列表 JSON
 	Enabled        bool           `gorm:"default:true" json:"enabled"`               // 是否启用
 	TimeoutSeconds int            `gorm:"default:150" json:"timeout_seconds"`        // 超时时间
-	MaxRetries     int            `gorm:"default:3" json:"max_retries"`              // 最大重试次数
+	MaxRetries     int            `gorm:"default:1" json:"max_retries"`              // 最大重试次数
 	ExtraConfig    string         `json:"extra_config"`                              // 额外配置 JSON
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`

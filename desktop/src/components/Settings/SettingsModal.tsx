@@ -152,18 +152,21 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     imageApiBaseUrl, setImageApiBaseUrl,
     imageModel, setImageModel,
     imageTimeoutSeconds, setImageTimeoutSeconds,
+    imageMaxRetries, setImageMaxRetries,
     enableRefImageCompression, setEnableRefImageCompression,
     visionProvider, setVisionProvider,
     visionApiBaseUrl, setVisionApiBaseUrl,
     visionApiKey, setVisionApiKey,
     visionModel, setVisionModel,
     visionTimeoutSeconds, setVisionTimeoutSeconds,
+    visionMaxRetries, setVisionMaxRetries,
     setVisionSyncedConfig,
     chatProvider, setChatProvider,
     chatApiBaseUrl, setChatApiBaseUrl,
     chatApiKey, setChatApiKey,
     chatModel, setChatModel,
     chatTimeoutSeconds, setChatTimeoutSeconds,
+    chatMaxRetries, setChatMaxRetries,
     setChatSyncedConfig,
     language,
     languageResolved,
@@ -232,6 +235,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     if (!Number.isFinite(parsed)) return 0;
     return Math.round(parsed);
   };
+  const normalizeRetryCount = (value?: number | null, fallback = 1) => {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return fallback;
+    return Math.round(value);
+  };
+  const parseRetryInput = (value: string) => {
+    if (!value.trim()) return 0;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) return 0;
+    return Math.round(parsed);
+  };
   const MIN_TIMEOUT = 50; // 最小超时时间
 
   // 当弹窗打开时，从后端获取最新的配置
@@ -296,8 +309,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           setImageModel(modelFromConfig);
         }
         setImageTimeoutSeconds(normalizeTimeout(imageConfig.timeout_seconds, 500));
+        setImageMaxRetries(normalizeRetryCount(imageConfig.max_retries, 1));
       } else {
         setImageTimeoutSeconds(500);
+        setImageMaxRetries(1);
       }
 
       // 识图配置：先尝试从后端加载，如果没有则继承生图配置
@@ -310,6 +325,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           setVisionModel(modelFromConfig);
         }
         setVisionTimeoutSeconds(normalizeTimeout(visionConfig.timeout_seconds));
+        setVisionMaxRetries(normalizeRetryCount(visionConfig.max_retries, 1));
         setVisionSyncedConfig({
           apiBaseUrl: visionConfig.api_base || '',
           apiKey: visionConfig.api_key || '',
@@ -329,6 +345,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           }
         }
         setVisionTimeoutSeconds(150);
+        setVisionMaxRetries(1);
         setVisionSyncedConfig(null);
       }
 
@@ -341,6 +358,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           setChatModel(modelFromConfig);
         }
         setChatTimeoutSeconds(normalizeTimeout(chatConfig.timeout_seconds));
+        setChatMaxRetries(normalizeRetryCount(chatConfig.max_retries, 1));
         setChatSyncedConfig({
           apiBaseUrl: chatConfig.api_base || '',
           apiKey: chatConfig.api_key || '',
@@ -352,6 +370,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setChatApiBaseUrl(defaults.baseUrl);
         setChatModel(defaults.model);
         setChatTimeoutSeconds(150);
+        setChatMaxRetries(1);
         setChatSyncedConfig(null);
       }
     } catch (error) {
@@ -367,6 +386,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const imageKey = imageApiKey.trim();
     const imageModelValue = imageModel.trim();
     const imageTimeoutValue = normalizeTimeout(imageTimeoutSeconds, 500);
+    const imageMaxRetriesValue = normalizeRetryCount(imageMaxRetries, 1);
     if (!imageBase || !imageKey || !imageModelValue) {
       toast.error(t('settings.toast.imageConfigIncomplete'));
       return;
@@ -383,6 +403,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const visionKey = visionApiKey.trim() || imageKey;
     const visionModelValue = visionModel.trim() || 'gemini-3-flash-preview';
     const visionTimeoutValue = normalizeTimeout(visionTimeoutSeconds, 150);
+    const visionMaxRetriesValue = normalizeRetryCount(visionMaxRetries, 1);
 
     // 校验识图超时时间
     if (visionTimeoutSeconds > 0 && visionTimeoutSeconds < MIN_TIMEOUT) {
@@ -394,6 +415,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const chatKey = chatApiKey.trim();
     const chatModelValue = chatModel.trim();
     const chatTimeoutValue = normalizeTimeout(chatTimeoutSeconds);
+    const chatMaxRetriesValue = normalizeRetryCount(chatMaxRetries, 1);
     const wantsChat = Boolean(chatKey);
 
     // 校验对话超时时间
@@ -430,7 +452,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         api_key: imageKey,
         enabled: true,
         model_id: imageModelValue,
-        timeout_seconds: imageTimeoutValue
+        timeout_seconds: imageTimeoutValue,
+        max_retries: imageMaxRetriesValue
       });
 
       // 保存识图配置
@@ -441,7 +464,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         api_key: visionKey,
         enabled: false,
         model_id: visionModelValue,
-        timeout_seconds: visionTimeoutValue
+        timeout_seconds: visionTimeoutValue,
+        max_retries: visionMaxRetriesValue
       });
       setVisionSyncedConfig({ apiBaseUrl: visionBase, apiKey: visionKey, model: visionModelValue, timeoutSeconds: visionTimeoutValue });
 
@@ -453,7 +477,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           api_key: chatKey,
           enabled: false,
           model_id: chatModelValue,
-          timeout_seconds: chatTimeoutValue
+          timeout_seconds: chatTimeoutValue,
+          max_retries: chatMaxRetriesValue
         });
         setChatSyncedConfig({ apiBaseUrl: chatBase, apiKey: chatKey, model: chatModelValue, timeoutSeconds: chatTimeoutValue });
       } else {
@@ -496,8 +521,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setImageModel(modelFromConfig);
       }
       setImageTimeoutSeconds(normalizeTimeout(config.timeout_seconds, 500));
+      setImageMaxRetries(normalizeRetryCount(config.max_retries, 1));
     } else {
       setImageTimeoutSeconds(500);
+      setImageMaxRetries(1);
     }
   };
 
@@ -514,6 +541,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setVisionModel(modelFromConfig);
       }
       setVisionTimeoutSeconds(normalizeTimeout(config.timeout_seconds));
+      setVisionMaxRetries(normalizeRetryCount(config.max_retries, 1));
       setVisionSyncedConfig({
         apiBaseUrl: config.api_base || '',
         apiKey: config.api_key || '',
@@ -526,6 +554,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setVisionApiKey('');
       setVisionModel(defaults.model);
       setVisionTimeoutSeconds(150);
+      setVisionMaxRetries(1);
       setVisionSyncedConfig(null);
     }
   };
@@ -565,6 +594,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setChatModel(modelFromConfig);
       }
       setChatTimeoutSeconds(normalizeTimeout(config.timeout_seconds));
+      setChatMaxRetries(normalizeRetryCount(config.max_retries, 1));
       setChatSyncedConfig({
         apiBaseUrl: config.api_base || '',
         apiKey: config.api_key || '',
@@ -577,6 +607,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setChatApiKey('');
       setChatModel(defaults.model);
       setChatTimeoutSeconds(150);
+      setChatMaxRetries(1);
       setChatSyncedConfig(null);
     }
   };
@@ -1039,6 +1070,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
             </div>
+            <div className="space-y-3">
+              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <RefreshCw className="w-4 h-4 text-blue-600" />
+                {t('settings.retry.image')}
+              </label>
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={imageMaxRetries || imageMaxRetries === 0 ? imageMaxRetries : ''}
+                onChange={(e) => setImageMaxRetries(parseRetryInput(e.target.value))}
+                placeholder="1"
+                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              />
+              <p className="text-xs text-slate-500 px-1">{t('settings.retry.hint')}</p>
+            </div>
                 </>
               )}
 
@@ -1164,6 +1211,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
             </div>
+            <div className="space-y-3">
+              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <RefreshCw className="w-4 h-4 text-blue-600" />
+                {t('settings.retry.vision')}
+              </label>
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={visionMaxRetries || visionMaxRetries === 0 ? visionMaxRetries : ''}
+                onChange={(e) => setVisionMaxRetries(parseRetryInput(e.target.value))}
+                placeholder="1"
+                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              />
+              <p className="text-xs text-slate-500 px-1">{t('settings.retry.hint')}</p>
+            </div>
                 </>
               )}
 
@@ -1274,6 +1337,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 placeholder="150"
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
+            </div>
+            <div className="space-y-3">
+              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <RefreshCw className="w-4 h-4 text-blue-600" />
+                {t('settings.retry.chat')}
+              </label>
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={chatMaxRetries || chatMaxRetries === 0 ? chatMaxRetries : ''}
+                onChange={(e) => setChatMaxRetries(parseRetryInput(e.target.value))}
+                placeholder="1"
+                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+              />
+              <p className="text-xs text-slate-500 px-1">{t('settings.retry.hint')}</p>
             </div>
                 </>
               )}

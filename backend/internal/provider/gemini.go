@@ -333,19 +333,24 @@ func (p *GeminiProvider) doGenerateContent(ctx context.Context, modelID string, 
 		diagnostic.Preview(string(payloadBytes), 2000),
 	)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(payloadBytes))
-	if err != nil {
-		return nil, nil, fmt.Errorf("构建 Gemini 请求失败: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-Goog-Api-Key", p.config.APIKey)
-	req.Header.Set("Connection", "close")
+	maxRetries := providerMaxRetries(p.config)
+	var elapsed time.Duration
+	resp, _, err := doRequestWithRetry(ctx, params, p.Name(), maxRetries, func(attempt int) (*http.Response, error) {
+		req, buildErr := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(payloadBytes))
+		if buildErr != nil {
+			return nil, fmt.Errorf("构建 Gemini 请求失败: %w", buildErr)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("X-Goog-Api-Key", p.config.APIKey)
+		req.Header.Set("Connection", "close")
 
-	client := p.newHTTPClient()
-	startedAt := time.Now()
-	resp, err := client.Do(req)
-	elapsed := time.Since(startedAt)
+		client := p.newHTTPClient()
+		startedAt := time.Now()
+		resp, doErr := client.Do(req)
+		elapsed = time.Since(startedAt)
+		return resp, doErr
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("doRequest: error sending request: %w", err)
 	}

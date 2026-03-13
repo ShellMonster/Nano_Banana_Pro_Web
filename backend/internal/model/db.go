@@ -58,6 +58,11 @@ func InitDB(dbPath string) {
 		Update("timeout_seconds", 150).Error; err != nil {
 		log.Printf("更新对话默认超时失败: %v", err)
 	}
+	if err := DB.Model(&ProviderConfig{}).
+		Where("max_retries < 0").
+		Update("max_retries", 1).Error; err != nil {
+		log.Printf("更新默认重试次数失败: %v", err)
+	}
 
 	reconcileStaleActiveTasks()
 	startZombieTaskReconciler()

@@ -127,6 +127,15 @@ func defaultTimeoutSecondsForProvider(providerName string) int {
 	}
 }
 
+func providerDefaultMaxRetries(providerName string) int {
+	switch providerName {
+	case "gemini", "openai":
+		return 1
+	default:
+		return 1
+	}
+}
+
 func normalizePathForCheck(path string) string {
 	cleaned := filepath.Clean(path)
 	cleaned = strings.TrimRight(cleaned, string(filepath.Separator))
@@ -207,6 +216,7 @@ type ProviderConfigRequest struct {
 	Enabled      bool   `json:"enabled"`
 	ModelID      string `json:"model_id"`
 	TimeoutSecs  *int   `json:"timeout_seconds"`
+	MaxRetries   *int   `json:"max_retries"`
 }
 
 // UpdateProviderConfigHandler 更新 Provider 配置
@@ -238,6 +248,12 @@ func UpdateProviderConfigHandler(c *gin.Context) {
 		if req.TimeoutSecs != nil && *req.TimeoutSecs > 0 {
 			timeoutSeconds = *req.TimeoutSecs
 		}
+		maxRetries := providerDefaultMaxRetries(req.ProviderName)
+		if req.MaxRetries != nil {
+			if *req.MaxRetries >= 0 {
+				maxRetries = *req.MaxRetries
+			}
+		}
 
 		configData = model.ProviderConfig{
 			ProviderName:   req.ProviderName,
@@ -247,6 +263,7 @@ func UpdateProviderConfigHandler(c *gin.Context) {
 			Models:         modelsJSON,
 			Enabled:        req.Enabled,
 			TimeoutSeconds: timeoutSeconds,
+			MaxRetries:     maxRetries,
 		}
 		if err := model.DB.Create(&configData).Error; err != nil {
 			log.Printf("[API] 创建配置失败: %v\n", err)
@@ -272,6 +289,13 @@ func UpdateProviderConfigHandler(c *gin.Context) {
 				updates["timeout_seconds"] = *req.TimeoutSecs
 			} else {
 				updates["timeout_seconds"] = defaultTimeoutSecondsForProvider(req.ProviderName)
+			}
+		}
+		if req.MaxRetries != nil {
+			if *req.MaxRetries >= 0 {
+				updates["max_retries"] = *req.MaxRetries
+			} else {
+				updates["max_retries"] = providerDefaultMaxRetries(req.ProviderName)
 			}
 		}
 		if err := model.DB.Model(&configData).Updates(updates).Error; err != nil {
@@ -776,7 +800,7 @@ func callGeminiOptimize(ctx context.Context, cfg *model.ProviderConfig, modelNam
 
 	httpClient := &http.Client{
 		Timeout: timeout,
-		Transport: &http.Transport{
+		Transport: provider.NewRetryableTransport(&http.Transport{
 			DisableKeepAlives:   true,
 			ForceAttemptHTTP2:   false,
 			MaxIdleConns:        0,
@@ -784,7 +808,7 @@ func callGeminiOptimize(ctx context.Context, cfg *model.ProviderConfig, modelNam
 			TLSClientConfig: &tls.Config{
 				MinVersion: tls.VersionTLS12,
 			},
-		},
+		}, "gemini-chat", cfg.MaxRetries),
 	}
 
 	clientConfig := &genai.ClientConfig{
@@ -835,7 +859,18 @@ func callOpenAIOptimize(ctx context.Context, cfg *model.ProviderConfig, modelNam
 	if timeout <= 0 {
 		timeout = 150 * time.Second
 	}
-	httpClient := &http.Client{Timeout: timeout}
+	httpClient := &http.Client{
+		Timeout: timeout,
+		Transport: provider.NewRetryableTransport(&http.Transport{
+			DisableKeepAlives:   true,
+			ForceAttemptHTTP2:   false,
+			MaxIdleConns:        0,
+			MaxIdleConnsPerHost: 0,
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
+		}, "openai-chat", cfg.MaxRetries),
+	}
 	apiBase := provider.NormalizeOpenAIBaseURL(cfg.APIBase)
 	opts := []option.RequestOption{
 		option.WithAPIKey(cfg.APIKey),
@@ -1105,7 +1140,7 @@ func callGeminiImageToPrompt(ctx context.Context, cfg *model.ProviderConfig, mod
 
 	httpClient := &http.Client{
 		Timeout: timeout,
-		Transport: &http.Transport{
+		Transport: provider.NewRetryableTransport(&http.Transport{
 			DisableKeepAlives:   true,
 			ForceAttemptHTTP2:   false,
 			MaxIdleConns:        0,
@@ -1113,7 +1148,7 @@ func callGeminiImageToPrompt(ctx context.Context, cfg *model.ProviderConfig, mod
 			TLSClientConfig: &tls.Config{
 				MinVersion: tls.VersionTLS12,
 			},
-		},
+		}, "gemini-chat", cfg.MaxRetries),
 	}
 
 	clientConfig := &genai.ClientConfig{
@@ -1294,7 +1329,18 @@ func callOpenAIImageToPrompt(ctx context.Context, cfg *model.ProviderConfig, mod
 	}
 	log.Printf("[ImageToPrompt] 超时设置: %v", timeout)
 
-	httpClient := &http.Client{Timeout: timeout}
+	httpClient := &http.Client{
+		Timeout: timeout,
+		Transport: provider.NewRetryableTransport(&http.Transport{
+			DisableKeepAlives:   true,
+			ForceAttemptHTTP2:   false,
+			MaxIdleConns:        0,
+			MaxIdleConnsPerHost: 0,
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
+		}, "openai-chat", cfg.MaxRetries),
+	}
 	apiBase := provider.NormalizeOpenAIBaseURL(cfg.APIBase)
 	opts := []option.RequestOption{
 		option.WithAPIKey(cfg.APIKey),

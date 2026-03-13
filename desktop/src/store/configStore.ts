@@ -45,6 +45,7 @@ interface ConfigState {
   imageApiKey: string;
   imageModel: string;
   imageTimeoutSeconds: number;
+  imageMaxRetries: number;
   enableRefImageCompression: boolean;
 
   // 识图配置（逆向提示词用）
@@ -53,6 +54,7 @@ interface ConfigState {
   visionApiKey: string;
   visionModel: string;
   visionTimeoutSeconds: number;
+  visionMaxRetries: number;
   visionSyncedConfig: {
     apiBaseUrl: string;
     apiKey: string;
@@ -66,6 +68,7 @@ interface ConfigState {
   chatApiKey: string;
   chatModel: string;
   chatTimeoutSeconds: number;
+  chatMaxRetries: number;
   chatSyncedConfig: {
     apiBaseUrl: string;
     apiKey: string;
@@ -91,18 +94,21 @@ interface ConfigState {
   setImageApiKey: (key: string) => void;
   setImageModel: (model: string) => void;
   setImageTimeoutSeconds: (seconds: number) => void;
+  setImageMaxRetries: (count: number) => void;
   setEnableRefImageCompression: (enabled: boolean) => void;
   setVisionProvider: (provider: string) => void;
   setVisionApiBaseUrl: (url: string) => void;
   setVisionApiKey: (key: string) => void;
   setVisionModel: (model: string) => void;
   setVisionTimeoutSeconds: (seconds: number) => void;
+  setVisionMaxRetries: (count: number) => void;
   setVisionSyncedConfig: (config: { apiBaseUrl: string; apiKey: string; model: string; timeoutSeconds: number } | null) => void;
   setChatProvider: (provider: string) => void;
   setChatApiBaseUrl: (url: string) => void;
   setChatApiKey: (key: string) => void;
   setChatModel: (model: string) => void;
   setChatTimeoutSeconds: (seconds: number) => void;
+  setChatMaxRetries: (count: number) => void;
   setChatSyncedConfig: (config: { apiBaseUrl: string; apiKey: string; model: string; timeoutSeconds: number } | null) => void;
   setLanguage: (language: string) => void;
   setLanguageResolved: (languageResolved: string | null) => void;
@@ -128,18 +134,21 @@ export const useConfigStore = create<ConfigState>()(
       imageApiKey: '',
       imageModel: DEFAULT_IMAGE_MODEL,
       imageTimeoutSeconds: 500,
+      imageMaxRetries: 1,
       enableRefImageCompression: true,
       visionProvider: 'gemini-chat',
       visionApiBaseUrl: '',
       visionApiKey: '',
       visionModel: 'gemini-3-flash-preview',
       visionTimeoutSeconds: 150,
+      visionMaxRetries: 1,
       visionSyncedConfig: null,
       chatProvider: 'openai-chat',
       chatApiBaseUrl: 'https://api.openai.com/v1',
       chatApiKey: '',
       chatModel: 'gemini-3-flash-preview',
       chatTimeoutSeconds: 150,
+      chatMaxRetries: 1,
       chatSyncedConfig: null,
       language: 'system',
       languageResolved: null,
@@ -156,18 +165,21 @@ export const useConfigStore = create<ConfigState>()(
       setImageApiKey: (imageApiKey) => set({ imageApiKey }),
       setImageModel: (imageModel) => set({ imageModel }),
       setImageTimeoutSeconds: (imageTimeoutSeconds) => set({ imageTimeoutSeconds }),
+      setImageMaxRetries: (imageMaxRetries) => set({ imageMaxRetries }),
       setEnableRefImageCompression: (enableRefImageCompression) => set({ enableRefImageCompression }),
       setVisionProvider: (visionProvider) => set({ visionProvider }),
       setVisionApiBaseUrl: (visionApiBaseUrl) => set({ visionApiBaseUrl }),
       setVisionApiKey: (visionApiKey) => set({ visionApiKey }),
       setVisionModel: (visionModel) => set({ visionModel }),
       setVisionTimeoutSeconds: (visionTimeoutSeconds) => set({ visionTimeoutSeconds }),
+      setVisionMaxRetries: (visionMaxRetries) => set({ visionMaxRetries }),
       setVisionSyncedConfig: (visionSyncedConfig) => set({ visionSyncedConfig }),
       setChatProvider: (chatProvider) => set({ chatProvider }),
       setChatApiBaseUrl: (chatApiBaseUrl) => set({ chatApiBaseUrl }),
       setChatApiKey: (chatApiKey) => set({ chatApiKey }),
       setChatModel: (chatModel) => set({ chatModel }),
       setChatTimeoutSeconds: (chatTimeoutSeconds) => set({ chatTimeoutSeconds }),
+      setChatMaxRetries: (chatMaxRetries) => set({ chatMaxRetries }),
       setChatSyncedConfig: (chatSyncedConfig) => set({ chatSyncedConfig }),
       setLanguage: (language) => set({ language }),
       setLanguageResolved: (languageResolved) => set({ languageResolved }),
@@ -194,17 +206,20 @@ export const useConfigStore = create<ConfigState>()(
         imageApiBaseUrl: 'https://generativelanguage.googleapis.com',
         imageModel: DEFAULT_IMAGE_MODEL,
         imageTimeoutSeconds: 500,
-      enableRefImageCompression: true,
+        imageMaxRetries: 1,
+        enableRefImageCompression: true,
         visionProvider: 'gemini-chat',
         visionApiBaseUrl: '',
         visionApiKey: '',
         visionModel: 'gemini-3-flash-preview',
         visionTimeoutSeconds: 150,
+        visionMaxRetries: 1,
         visionSyncedConfig: null,
         chatProvider: 'openai-chat',
         chatApiBaseUrl: 'https://api.openai.com/v1',
         chatModel: 'gemini-3-flash-preview',
         chatTimeoutSeconds: 150,
+        chatMaxRetries: 1,
         chatSyncedConfig: null,
         prompt: '',
         count: 1,
@@ -217,7 +232,7 @@ export const useConfigStore = create<ConfigState>()(
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 12,
+      version: 13,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;
@@ -304,6 +319,14 @@ export const useConfigStore = create<ConfigState>()(
           next = {
             ...next,
             showOnboarding: true
+          };
+        }
+        if (version < 13) {
+          next = {
+            ...next,
+            imageMaxRetries: next.imageMaxRetries ?? 1,
+            visionMaxRetries: next.visionMaxRetries ?? 1,
+            chatMaxRetries: next.chatMaxRetries ?? 1
           };
         }
 

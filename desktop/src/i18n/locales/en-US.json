@@ -202,6 +202,12 @@
       "chat": "Text timeout (s)",
       "vision": "Vision timeout (s)"
     },
+    "retry": {
+      "image": "Image Retry Count",
+      "chat": "Text Retry Count",
+      "vision": "Vision Retry Count",
+      "hint": "Only applies when the upstream closes the connection right after send; set 0 to disable auto retry"
+    },
     "refImageCompression": {
       "label": "Reference Image Compression",
       "hint": "When enabled, reference images will be automatically compressed to save bandwidth and storage",

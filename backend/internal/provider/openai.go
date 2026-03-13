@@ -221,22 +221,27 @@ func (p *OpenAIProvider) doChatRequest(ctx context.Context, body map[string]inte
 	}
 
 	requestURL := strings.TrimRight(strings.TrimSpace(p.apiBase), "/") + "/chat/completions"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(payloadBytes))
-	if err != nil {
-		return nil, nil, fmt.Errorf("构建 OpenAI 请求失败: %w", err)
-	}
+	maxRetries := providerMaxRetries(p.config)
+	var elapsed time.Duration
+	resp, _, err := doRequestWithRetry(ctx, params, p.Name(), maxRetries, func(attempt int) (*http.Response, error) {
+		req, buildErr := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(payloadBytes))
+		if buildErr != nil {
+			return nil, fmt.Errorf("构建 OpenAI 请求失败: %w", buildErr)
+		}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(p.config.APIKey))
-	req.Header.Set("Connection", "close")
-	if strings.TrimSpace(p.userAgent) != "" {
-		req.Header.Set("User-Agent", p.userAgent)
-	}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(p.config.APIKey))
+		req.Header.Set("Connection", "close")
+		if strings.TrimSpace(p.userAgent) != "" {
+			req.Header.Set("User-Agent", p.userAgent)
+		}
 
-	startedAt := time.Now()
-	resp, err := p.httpClient.Do(req)
-	elapsed := time.Since(startedAt)
+		startedAt := time.Now()
+		resp, doErr := p.httpClient.Do(req)
+		elapsed = time.Since(startedAt)
+		return resp, doErr
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("doRequest: error sending request: %w", err)
 	}

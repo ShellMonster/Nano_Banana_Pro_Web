@@ -37,6 +37,15 @@ func defaultTimeoutSeconds(providerName string) int {
 	}
 }
 
+func defaultMaxRetries(providerName string) int {
+	switch providerName {
+	case "gemini", "openai":
+		return 1
+	default:
+		return 1
+	}
+}
+
 // Register 注册一个 Provider
 func Register(p Provider) {
 	registryMu.Lock()
@@ -67,6 +76,7 @@ func InitProviders() error {
 				DisplayName:    name,
 				Enabled:        true,
 				TimeoutSeconds: defaultTimeoutSeconds(name),
+				MaxRetries:     defaultMaxRetries(name),
 			})
 		}
 	}
@@ -88,6 +98,7 @@ func InitProviders() error {
 				APIBase:        cfg.APIBase,
 				Enabled:        true,
 				TimeoutSeconds: defaultTimeoutSeconds(name),
+				MaxRetries:     defaultMaxRetries(name),
 			}
 			model.DB.Create(&dbCfg)
 		}
@@ -107,6 +118,12 @@ func InitProviders() error {
 			cfg.TimeoutSeconds = defaultTimeoutSeconds(cfg.ProviderName)
 			if err := model.DB.Model(&cfg).Update("timeout_seconds", cfg.TimeoutSeconds).Error; err != nil {
 				log.Printf("修复 Provider %s 超时配置失败: %v", cfg.ProviderName, err)
+			}
+		}
+		if cfg.MaxRetries < 0 {
+			cfg.MaxRetries = defaultMaxRetries(cfg.ProviderName)
+			if err := model.DB.Model(&cfg).Update("max_retries", cfg.MaxRetries).Error; err != nil {
+				log.Printf("修复 Provider %s 重试配置失败: %v", cfg.ProviderName, err)
 			}
 		}
 
