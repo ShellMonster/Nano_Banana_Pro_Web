@@ -335,6 +335,7 @@ export function HistoryList() {
                 image={selectedImage}
                 images={allImageItems}
                 onImageChange={setSelectedImage}
+                sourceContext="history"
                 onClose={() => setSelectedImage(null)}
             />
         )}

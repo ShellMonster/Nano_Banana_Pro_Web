@@ -196,6 +196,12 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
     setSelectedImage(null);
   }, []);
 
+  const handlePreviewDeleteSuccess = useCallback((deletedImage: FlattenedImage) => {
+    setFolderImages((prev) => prev.filter((item) => item.id !== deletedImage.id));
+    setFolderImagesTotal((prev) => Math.max(0, prev - 1));
+    void loadFolders();
+  }, [loadFolders]);
+
   useImperativeHandle(ref, () => ({
     refresh: () => {
       void loadFolders();
@@ -462,6 +468,8 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
           image={selectedImage}
           images={folderImages}
           onImageChange={setSelectedImage}
+          onDeleteSuccess={handlePreviewDeleteSuccess}
+          sourceContext="history"
           onClose={() => { setSelectedImage(null); }}
         />
       )}

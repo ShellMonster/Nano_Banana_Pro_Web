@@ -11,12 +11,16 @@ import (
 	"strings"
 	"time"
 
+	"image-gen-service/internal/config"
 	"image-gen-service/internal/model"
 
 	"github.com/gin-gonic/gin"
 )
 
-const maxExportRemoteSize = 50 * 1024 * 1024
+const (
+	defaultExportRemoteFetchTimeoutSeconds = 120
+	defaultExportRemoteMaxFileMB           = 512
+)
 
 type exportImagesRequest struct {
 	ImageIDs    []string `json:"imageIds"`
@@ -176,7 +180,16 @@ func ExportImagesHandler(c *gin.Context) {
 }
 
 func writeRemoteFile(writer io.Writer, source string) error {
-	resp, err := http.Get(source)
+	timeoutSeconds := config.GlobalConfig.Exports.RemoteFetchTimeoutSeconds
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = defaultExportRemoteFetchTimeoutSeconds
+	}
+
+	client := &http.Client{
+		Timeout: time.Duration(timeoutSeconds) * time.Second,
+	}
+
+	resp, err := client.Get(source)
 	if err != nil {
 		return err
 	}
@@ -186,13 +199,19 @@ func writeRemoteFile(writer io.Writer, source string) error {
 		return fmt.Errorf("http status %d", resp.StatusCode)
 	}
 
-	reader := io.LimitReader(resp.Body, maxExportRemoteSize+1)
+	maxFileMB := config.GlobalConfig.Exports.RemoteMaxFileMB
+	if maxFileMB <= 0 {
+		maxFileMB = defaultExportRemoteMaxFileMB
+	}
+
+	maxBytes := int64(maxFileMB) * 1024 * 1024
+	reader := io.LimitReader(resp.Body, maxBytes+1)
 	written, err := io.Copy(writer, reader)
 	if err != nil {
 		return err
 	}
-	if written > maxExportRemoteSize {
-		return fmt.Errorf("remote file exceeds %d bytes", maxExportRemoteSize)
+	if written > maxBytes {
+		return fmt.Errorf("remote file exceeds %d bytes", maxBytes)
 	}
 	return nil
 }

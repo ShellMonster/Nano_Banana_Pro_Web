@@ -27,15 +27,17 @@ type GeminiProvider struct {
 }
 
 type geminiGenerateRequest struct {
-	Contents         []geminiContent       `json:"contents"`
-	GenerationConfig *geminiGenerateConfig `json:"generationConfig,omitempty"`
-	SafetySettings   []geminiSafetySetting `json:"safetySettings,omitempty"`
+	Contents          []geminiContent       `json:"contents"`
+	SystemInstruction *geminiContent        `json:"systemInstruction,omitempty"`
+	GenerationConfig  *geminiGenerateConfig `json:"generationConfig,omitempty"`
+	SafetySettings    []geminiSafetySetting `json:"safetySettings,omitempty"`
 }
 
 type geminiGenerateConfig struct {
 	ResponseModalities []string           `json:"responseModalities,omitempty"`
 	CandidateCount     int                `json:"candidateCount,omitempty"`
 	ImageConfig        *geminiImageConfig `json:"imageConfig,omitempty"`
+	ResponseMIMEType   string             `json:"responseMimeType,omitempty"`
 }
 
 type geminiImageConfig struct {

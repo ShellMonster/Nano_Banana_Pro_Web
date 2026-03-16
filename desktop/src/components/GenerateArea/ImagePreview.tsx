@@ -13,17 +13,18 @@ interface ImagePreviewProps {
     image: (GeneratedImage & { model?: string }) | null;
     images?: GeneratedImage[]; // 传入图片列表用于切换
     onImageChange?: (image: GeneratedImage) => void; // 切换时的回调
+    onDeleteSuccess?: (image: GeneratedImage) => void;
+    sourceContext?: 'generate' | 'history';
     onClose: () => void;
 }
-
-// 下载文件大小限制（100MB）
-const MAX_DOWNLOAD_FILE_SIZE = 100 * 1024 * 1024;
 
 // 使用 React.memo 优化，只有在关键 props 变化时才重新渲染
 export const ImagePreview = React.memo(function ImagePreview({
     image,
     images = [],
     onImageChange,
+    onDeleteSuccess,
+    sourceContext = 'generate',
     onClose
 }: ImagePreviewProps) {
     const { t } = useTranslation();
@@ -222,7 +223,10 @@ export const ImagePreview = React.memo(function ImagePreview({
                         : previewableImages[0];
 
                 // 使用 store 中的统一删除入口（先本地移除，再刷新）
-                await useHistoryStore.getState().deleteImage(image, { source: 'preview' });
+                await useHistoryStore.getState().deleteImage(image, {
+                    source: sourceContext === 'history' ? 'history' : 'preview'
+                });
+                onDeleteSuccess?.(image);
 
                 if (nextImage) {
                     onImageChange?.(nextImage);
@@ -252,7 +256,7 @@ export const ImagePreview = React.memo(function ImagePreview({
             // 3秒后自动取消
             deleteConfirmTimerRef.current = setTimeout(() => setShowDeleteConfirm(false), 3000);
         }
-    }, [image, showDeleteConfirm, onClose, currentIndex, previewableImages, onImageChange, handleReset]);
+    }, [image, showDeleteConfirm, onClose, currentIndex, previewableImages, onImageChange, onDeleteSuccess, handleReset, sourceContext]);
 
     // 取消删除确认
     const handleCancelDelete = useCallback(() => {
@@ -625,52 +629,41 @@ export const ImagePreview = React.memo(function ImagePreview({
                 await ensureBackendReady();
 
                 const { save } = await import('@tauri-apps/plugin-dialog');
-                const { writeFile } = await import('@tauri-apps/plugin-fs');
+                const { invoke } = await import('@tauri-apps/api/core');
 
-                const response = await fetch(getImageDownloadUrl(image.id), { cache: 'no-store' });
-                if (!response.ok) {
-                    throw new Error(`download request failed: ${response.status}`);
-                }
+                const inferExtension = () => {
+                    const candidates = [
+                        image.filePath,
+                        image.thumbnailPath,
+                        image.url,
+                        image.thumbnailUrl,
+                    ].filter(Boolean) as string[];
 
-                const contentLength = Number(response.headers.get('content-length') || '0');
-                if (contentLength > MAX_DOWNLOAD_FILE_SIZE) {
-                    toast.error(t('toast.fileTooLarge'));
-                    return;
-                }
-
-                const blob = await response.blob();
-                if (blob.size > MAX_DOWNLOAD_FILE_SIZE) {
-                    toast.error(t('toast.fileTooLarge'));
-                    return;
-                }
-
-                const contentDisposition = response.headers.get('content-disposition') || '';
-                const filenameFromHeader = (() => {
-                    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
-                    if (utf8Match?.[1]) {
-                        try {
-                            return decodeURIComponent(utf8Match[1]);
-                        } catch {
-                            return utf8Match[1];
+                    for (const candidate of candidates) {
+                        const match = candidate.match(/\.([a-zA-Z0-9]+)(?:[?#].*)?$/);
+                        if (match?.[1]) {
+                            return match[1].toLowerCase();
                         }
                     }
-                    const plainMatch = contentDisposition.match(/filename="?([^\";]+)"?/i);
-                    return plainMatch?.[1] || '';
-                })();
 
-                const fallbackExt = (image.mimeType || blob.type || 'image/png').split('/')[1] || 'png';
-                const defaultName = (filenameFromHeader || `image-${image.id}.${fallbackExt}`).replace(/[\\/:*?"<>|]/g, '_');
-                const ext = defaultName.includes('.') ? defaultName.split('.').pop() || fallbackExt : fallbackExt;
+                    return (image.mimeType || 'image/png').split('/')[1] || 'png';
+                };
+
+                const inferredExt = inferExtension();
+                const defaultName = `image-${image.id}.${inferredExt}`.replace(/[\\/:*?"<>|]/g, '_');
+                const fileExt = defaultName.includes('.') ? defaultName.split('.').pop() || inferredExt : inferredExt;
 
                 const destPath = await save({
                     defaultPath: defaultName,
-                    filters: [{ name: 'Image', extensions: [ext] }]
+                    filters: [{ name: 'Image', extensions: [fileExt] }]
                 });
 
                 if (!destPath) return;
 
-                const bytes = new Uint8Array(await blob.arrayBuffer());
-                await writeFile(destPath, bytes);
+                await invoke('download_file_to_path', {
+                    url: getImageDownloadUrl(image.id),
+                    destPath,
+                });
                 toast.success(t('toast.downloadSuccess'));
                 return;
             }

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"github.com/disintegration/imaging"
@@ -20,9 +21,6 @@ import (
 
 // 常量定义
 const (
-	// 最大图片文件大小限制 (100MB)
-	maxImageSize = 100 * 1024 * 1024
-
 	// 图片格式魔数常量
 	// PNG: 89 50 4E 47 0D 0A 1A 0A
 	magicPNG = "\x89PNG\r\n\x1a\n"
@@ -37,7 +35,6 @@ const (
 
 // 错误定义
 var (
-	ErrImageTooLarge = errors.New("图片文件大小超过限制 (100MB)")
 	ErrUnknownFormat = errors.New("无法识别的图片格式")
 	ErrInvalidImage  = errors.New("无效的图片数据")
 )
@@ -123,21 +120,114 @@ func formatToExt(format string) string {
 	}
 }
 
-func (l *LocalStorage) SaveWithThumbnail(name string, reader io.Reader) (string, string, string, string, int, int, error) {
-	// 1. 读取原始数据到内存（使用 LimitReader 限制大小，防止内存溢出）
-	limitedReader := io.LimitReader(reader, maxImageSize+1)
-	data, err := io.ReadAll(limitedReader)
+func ensureDir(path string) error {
+	return os.MkdirAll(path, 0755)
+}
+
+func streamToTempFile(dir string, reader io.Reader) (string, error) {
+	if err := ensureDir(dir); err != nil {
+		return "", fmt.Errorf("创建目录失败: %w", err)
+	}
+
+	file, err := os.CreateTemp(dir, ".incoming-*")
 	if err != nil {
-		return "", "", "", "", 0, 0, fmt.Errorf("读取图片数据失败: %w", err)
+		return "", fmt.Errorf("创建临时文件失败: %w", err)
 	}
 
-	// 2. 检查文件大小是否超限
-	if len(data) > maxImageSize {
-		return "", "", "", "", 0, 0, ErrImageTooLarge
+	tmpPath := file.Name()
+	if _, err := io.Copy(file, reader); err != nil {
+		file.Close()
+		_ = os.Remove(tmpPath)
+		return "", fmt.Errorf("写入临时文件失败: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return "", fmt.Errorf("关闭临时文件失败: %w", err)
 	}
 
-	// 3. 检测图片格式（失败时兒底为 PNG）
-	format, err := detectImageFormat(data)
+	return tmpPath, nil
+}
+
+func detectImageFormatFromFile(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	header := make([]byte, 12)
+	n, readErr := file.Read(header)
+	if readErr != nil && readErr != io.EOF {
+		return "", readErr
+	}
+
+	return detectImageFormat(header[:n])
+}
+
+func renameReplace(src, dst string) error {
+	if _, err := os.Stat(dst); err != nil {
+		if os.IsNotExist(err) {
+			return os.Rename(src, dst)
+		}
+		return err
+	}
+
+	backupPath := filepath.Join(
+		filepath.Dir(dst),
+		fmt.Sprintf(".replace-backup-%d-%s", time.Now().UnixNano(), filepath.Base(dst)),
+	)
+
+	if err := os.Rename(dst, backupPath); err != nil {
+		return err
+	}
+
+	if err := os.Rename(src, dst); err != nil {
+		if restoreErr := os.Rename(backupPath, dst); restoreErr != nil {
+			return fmt.Errorf("rename failed: %w; restore failed: %v", err, restoreErr)
+		}
+		return err
+	}
+
+	if err := os.Remove(backupPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("[Storage] 警告: 清理备份文件失败: %v", err)
+	}
+	return nil
+}
+
+func decodeImageFile(path string) (image.Image, int, int, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	defer file.Close()
+
+	img, _, err := image.Decode(file)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	width := img.Bounds().Dx()
+	height := img.Bounds().Dy()
+	return img, width, height, nil
+}
+
+func buildOutputFileName(name, ext string) string {
+	safeName := filepath.Base(name)
+	baseName := strings.TrimSuffix(safeName, filepath.Ext(safeName))
+	return baseName + ext
+}
+
+func (l *LocalStorage) SaveWithThumbnail(name string, reader io.Reader) (string, string, string, string, int, int, error) {
+	tmpPath, err := streamToTempFile(l.BaseDir, reader)
+	if err != nil {
+		return "", "", "", "", 0, 0, err
+	}
+	defer func() {
+		_ = os.Remove(tmpPath)
+	}()
+
+	// 1. 检测图片格式（失败时兒底为 PNG）
+	format, err := detectImageFormatFromFile(tmpPath)
 	if err != nil {
 		// 格式无法识别，兒底按 PNG 保存，原始字节内容不损失
 		log.Printf("[Storage] 警告: 图片格式识别失败(%v)，兒底保存为 PNG", err)
@@ -146,38 +236,32 @@ func (l *LocalStorage) SaveWithThumbnail(name string, reader io.Reader) (string,
 	ext := formatToExt(format)
 	log.Printf("[Storage] 检测到图片格式: %s, 后缀: %s", format, ext)
 
-	// 4. 生成正确的文件名（去掉原后缀，使用检测到的后缀）
-	// 使用 filepath.Base 防止路径遍历攻击
-	safeName := filepath.Base(name)
-	baseName := strings.TrimSuffix(safeName, filepath.Ext(safeName))
-	fileName := baseName + ext
+	// 2. 生成正确的文件名（去掉原后缀，使用检测到的后缀）
+	fileName := buildOutputFileName(name, ext)
 	localPath := filepath.Join(l.BaseDir, fileName)
 
-	// 5. 确保目录存在
+	// 3. 确保目录存在
 	dir := filepath.Dir(localPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := ensureDir(dir); err != nil {
 		return "", "", "", "", 0, 0, fmt.Errorf("创建目录失败: %w", err)
 	}
 
-	// 6. 直接保存原始字节（无损，保持原始质量）
-	if err := os.WriteFile(localPath, data, 0644); err != nil {
+	// 4. 将临时文件落为正式原图，避免整图读入内存。
+	if err := renameReplace(tmpPath, localPath); err != nil {
 		return "", "", "", "", 0, 0, fmt.Errorf("保存原图失败: %w", err)
 	}
+	tmpPath = ""
 	log.Printf("[Storage] 原图已保存: %s", localPath)
 
-	// 7. 解码图片用于生成缩略图和获取尺寸
-	srcImg, _, err := image.Decode(bytes.NewReader(data))
+	// 5. 解码图片用于生成缩略图和获取尺寸
+	srcImg, width, height, err := decodeImageFile(localPath)
 	if err != nil {
 		// 解码失败但原图已保存，只记录警告，返回原图路径
 		log.Printf("[Storage] 警告: 解码图片失败，无法生成缩略图: %v", err)
 		return localPath, "", "", "", 0, 0, nil
 	}
 
-	// 8. 获取图片尺寸
-	width := srcImg.Bounds().Dx()
-	height := srcImg.Bounds().Dy()
-
-	// 9. 生成 256x256 的等比例缩略图（使用相同格式）
+	// 6. 生成 256x256 的等比例缩略图（使用相同格式）
 	thumbName := "thumb_" + fileName
 	thumbPath := filepath.Join(l.BaseDir, thumbName)
 	dstImg := imaging.Thumbnail(srcImg, 256, 256, imaging.Lanczos)
@@ -224,20 +308,16 @@ func (s *OSSStorage) Save(name string, reader io.Reader) (string, string, error)
 }
 
 func (s *OSSStorage) SaveWithThumbnail(name string, reader io.Reader) (string, string, string, string, int, int, error) {
-	// 1. 使用 LimitReader 限制大小，防止内存溢出
-	limitedReader := io.LimitReader(reader, maxImageSize+1)
-	data, err := io.ReadAll(limitedReader)
+	tmpPath, err := streamToTempFile(os.TempDir(), reader)
 	if err != nil {
-		return "", "", "", "", 0, 0, fmt.Errorf("读取图片数据失败: %w", err)
+		return "", "", "", "", 0, 0, err
 	}
+	defer func() {
+		_ = os.Remove(tmpPath)
+	}()
 
-	// 2. 检查文件大小是否超限
-	if len(data) > maxImageSize {
-		return "", "", "", "", 0, 0, ErrImageTooLarge
-	}
-
-	// 3. 检测格式（失败时兒底为 PNG）
-	format, err := detectImageFormat(data)
+	// 1. 检测格式（失败时兒底为 PNG）
+	format, err := detectImageFormatFromFile(tmpPath)
 	if err != nil {
 		// 格式无法识别，兒底按 PNG 保存，原始字节内容不损失
 		log.Printf("[Storage] 警告: 图片格式识别失败(%v)，兒底保存为 PNG", err)
@@ -245,29 +325,30 @@ func (s *OSSStorage) SaveWithThumbnail(name string, reader io.Reader) (string, s
 	}
 	ext := formatToExt(format)
 
-	// 4. 使用 filepath.Base 防止路径遍历攻击
-	safeName := filepath.Base(name)
-	baseName := strings.TrimSuffix(safeName, filepath.Ext(safeName))
-	fileName := baseName + ext
+	// 2. 使用 filepath.Base 防止路径遍历攻击
+	fileName := buildOutputFileName(name, ext)
 
-	// 5. 上传原图
-	_, remoteURL, err := s.Save(fileName, bytes.NewReader(data))
+	// 3. 上传原图
+	originalFile, err := os.Open(tmpPath)
+	if err != nil {
+		return "", "", "", "", 0, 0, fmt.Errorf("打开临时文件失败: %w", err)
+	}
+	defer originalFile.Close()
+
+	_, remoteURL, err := s.Save(fileName, originalFile)
 	if err != nil {
 		return "", "", "", "", 0, 0, err
 	}
 
-	// 6. 生成缩略图并获取尺寸
-	img, _, err := image.Decode(bytes.NewReader(data))
+	// 4. 生成缩略图并获取尺寸
+	img, width, height, err := decodeImageFile(tmpPath)
 	if err != nil {
 		return "", remoteURL, "", "", 0, 0, nil
 	}
 
-	width := img.Bounds().Dx()
-	height := img.Bounds().Dy()
-
 	dstImg := imaging.Thumbnail(img, 256, 256, imaging.Lanczos)
 
-	// 7. 根据原图格式选择缩略图编码方式（保持格式一致）
+	// 5. 根据原图格式选择缩略图编码方式（保持格式一致）
 	buf := new(bytes.Buffer)
 	var encodeErr error
 	switch format {
@@ -285,7 +366,7 @@ func (s *OSSStorage) SaveWithThumbnail(name string, reader io.Reader) (string, s
 		return "", remoteURL, "", "", width, height, nil
 	}
 
-	// 8. 上传缩略图（缩略图后缀与原图一致）
+	// 6. 上传缩略图（缩略图后缀与原图一致）
 	thumbName := "thumb_" + fileName
 	_, thumbRemoteURL, err := s.Save(thumbName, buf)
 	if err != nil {

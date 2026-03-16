@@ -65,6 +65,12 @@ func SummarizeErrorMessage(message string) ErrorSummary {
 		set("task_timeout", "local", "生成等待超时，结果未能在设定时间内返回。请稍后重试。", true)
 	case strings.Contains(raw, "context canceled"):
 		set("request_canceled", "local", "请求已取消，生成未完成。", true)
+	case strings.Contains(raw, "provider api key 未配置"):
+		set("prompt_optimize_auth_missing", "local_config", "默认提示词优化缺少对话模型 API Key，请先在设置中补全并保存。", false)
+	case strings.Contains(raw, "未找到可用的模型"):
+		set("prompt_optimize_model_missing", "local_config", "默认提示词优化缺少可用的对话模型，请先在设置中补全并保存。", false)
+	case strings.Contains(raw, "未找到指定的 provider"):
+		set("prompt_optimize_provider_missing", "local_config", "默认提示词优化对应的对话模型配置不存在，请先在设置中补全并保存。", false)
 	case strings.Contains(raw, "未在响应中找到图片数据"):
 		summary.Detail = extractTextResponse(rawMessage)
 		if summary.Detail != "" || strings.Contains(raw, "安全警告") || strings.Contains(raw, "无法") || strings.Contains(raw, "抱歉") {

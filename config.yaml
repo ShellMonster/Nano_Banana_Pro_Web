@@ -32,3 +32,7 @@ prompts:
 templates:
   remote_url: "https://raw.githubusercontent.com/ShellMonster/Nano_Banana_Pro_Web/refs/heads/main/backend/internal/templates/assets/templates.json"
   fetch_timeout_seconds: 4
+
+exports:
+  remote_fetch_timeout_seconds: 120
+  remote_max_file_mb: 512

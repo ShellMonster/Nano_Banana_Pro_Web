@@ -9,6 +9,7 @@ import { usePromptHistoryStore } from '../store/promptHistoryStore';
 import { useHistoryStore } from '../store/historyStore';
 import i18n from '../i18n';
 import { getDiagnosticVerbose } from '../utils/diagnosticLogger';
+import { getPromptOptimizeConfigIssue } from '../utils/promptOptimizeConfig';
 
 // 流式连接建立超时时间（毫秒）- 超过此时间未建立连接则启动轮询
 // 本地后端通常不会推实时进度，过长会导致用户"卡住"的观感
@@ -327,6 +328,28 @@ export function useGenerate() {
     }
     if (!config.prompt.trim()) {
       toast.error(i18n.t('prompt.toast.empty'));
+      return;
+    }
+    const promptOptimizeConfigIssue = getPromptOptimizeConfigIssue({
+      mode: config.defaultPromptOptimizeMode,
+      chatProvider: config.chatProvider,
+      chatApiBaseUrl: config.chatApiBaseUrl,
+      chatApiKey: config.chatApiKey,
+      chatModel: config.chatModel,
+      chatTimeoutSeconds: config.chatTimeoutSeconds,
+      chatSyncedConfig: config.chatSyncedConfig,
+      requireSynced: true
+    });
+    if (promptOptimizeConfigIssue === 'missing') {
+      toast.error(i18n.t('prompt.toast.chatConfig'));
+      return;
+    }
+    if (promptOptimizeConfigIssue === 'unsynced') {
+      toast.error(i18n.t('prompt.toast.chatConfigChanged'));
+      return;
+    }
+    if (promptOptimizeConfigIssue === 'unsupported') {
+      toast.error(i18n.t('settings.toast.openaiGeminiUnsupported'));
       return;
     }
 

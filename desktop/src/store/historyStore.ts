@@ -233,8 +233,9 @@ export const useHistoryStore = create<HistoryState>()(
             await deleteHistory(id);
             set((state) => ({
                 items: state.items.filter(item => item.id !== id),
-                total: state.total - 1
+                total: Math.max(0, state.total - 1)
             }));
+            get().loadHistory(false, { silent: true });
             toast.success(i18n.t('history.toast.deleted'));
         } catch (error) {
             console.error('Failed to delete history item:', error);

@@ -2,10 +2,7 @@ package api
 
 import (
 	"context"
-	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -28,9 +25,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
-	"google.golang.org/genai"
 )
 
 // Response 统一 API 响应结构
@@ -387,14 +381,14 @@ func GenerateHandler(c *gin.Context) {
 		req.Params = map[string]interface{}{}
 	}
 	diagnostic.AttachVerboseFlag(req.Params, diagnostic.VerboseEnabled(req.Params))
-	promptOptimizeMode := promptopt.NormalizeMode(strings.TrimSpace(fmt.Sprint(req.Params["prompt_optimize_mode"])))
+	promptOptimizeMode := promptopt.ExtractMode(req.Params)
 	if promptOptimizeMode != promptopt.ModeOff {
 		promptopt.ApplyPromptHints(
 			req.Params,
-			strings.TrimSpace(fmt.Sprint(req.Params["prompt"])),
+			promptopt.ExtractPrompt(req.Params),
 			promptOptimizeMode,
-			strings.TrimSpace(fmt.Sprint(req.Params["prompt_optimize_provider"])),
-			strings.TrimSpace(fmt.Sprint(req.Params["prompt_optimize_model"])),
+			promptopt.ExtractProvider(req.Params),
+			promptopt.ExtractModel(req.Params),
 		)
 	}
 	modelID := provider.ResolveModelID(provider.ModelResolveOptions{
@@ -678,7 +672,8 @@ func ListImagesHandler(c *gin.Context) {
 	query := model.DB.Model(&model.Task{})
 
 	if keyword != "" {
-		query = query.Where("prompt LIKE ?", "%"+keyword+"%")
+		like := "%" + keyword + "%"
+		query = query.Where("prompt LIKE ? OR prompt_original LIKE ? OR prompt_optimized LIKE ?", like, like, like)
 	}
 
 	var total int64
@@ -779,120 +774,11 @@ func getOptimizeSystemPrompt(forceJSON bool) string {
 }
 
 func callGeminiOptimize(ctx context.Context, cfg *model.ProviderConfig, modelName, prompt string, forceJSON bool) (string, error) {
-	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
-	if timeout <= 0 {
-		timeout = 150 * time.Second
-	}
-
-	httpClient := &http.Client{
-		Timeout: timeout,
-		Transport: provider.NewRetryableTransport(&http.Transport{
-			DisableKeepAlives:   true,
-			ForceAttemptHTTP2:   false,
-			MaxIdleConns:        0,
-			MaxIdleConnsPerHost: 0,
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-			},
-		}, "gemini-chat", cfg.MaxRetries),
-	}
-
-	clientConfig := &genai.ClientConfig{
-		APIKey:     cfg.APIKey,
-		Backend:    genai.BackendGeminiAPI,
-		HTTPClient: httpClient,
-	}
-
-	if apiBase := strings.TrimRight(strings.TrimSpace(cfg.APIBase), "/"); apiBase != "" && apiBase != "https://generativelanguage.googleapis.com" {
-		clientConfig.HTTPOptions = genai.HTTPOptions{BaseURL: apiBase}
-	}
-
-	client, err := genai.NewClient(ctx, clientConfig)
-	if err != nil {
-		return "", fmt.Errorf("创建 Gemini 客户端失败: %w", err)
-	}
-
-	systemPrompt := getOptimizeSystemPrompt(forceJSON)
-	config := &genai.GenerateContentConfig{
-		SystemInstruction: &genai.Content{
-			Parts: []*genai.Part{{Text: systemPrompt}},
-		},
-	}
-	if forceJSON {
-		config.ResponseMIMEType = "application/json"
-	}
-	contents := []*genai.Content{
-		{
-			Role:  "user",
-			Parts: []*genai.Part{{Text: prompt}},
-		},
-	}
-
-	resp, err := client.Models.GenerateContent(ctx, modelName, contents, config)
-	if err != nil {
-		return "", fmt.Errorf("请求失败: %w", err)
-	}
-
-	optimized := strings.TrimSpace(resp.Text())
-	if optimized == "" {
-		return "", fmt.Errorf("未返回优化结果")
-	}
-	return optimized, nil
+	return provider.GeminiOptimizeText(ctx, cfg, modelName, getOptimizeSystemPrompt(forceJSON), prompt, forceJSON)
 }
 
 func callOpenAIOptimize(ctx context.Context, cfg *model.ProviderConfig, modelName, prompt string, forceJSON bool) (string, error) {
-	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
-	if timeout <= 0 {
-		timeout = 150 * time.Second
-	}
-	httpClient := &http.Client{
-		Timeout: timeout,
-		Transport: provider.NewRetryableTransport(&http.Transport{
-			DisableKeepAlives:   true,
-			ForceAttemptHTTP2:   false,
-			MaxIdleConns:        0,
-			MaxIdleConnsPerHost: 0,
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-			},
-		}, "openai-chat", cfg.MaxRetries),
-	}
-	apiBase := provider.NormalizeOpenAIBaseURL(cfg.APIBase)
-	opts := []option.RequestOption{
-		option.WithAPIKey(cfg.APIKey),
-		option.WithHTTPClient(httpClient),
-	}
-	if apiBase != "" {
-		opts = append(opts, option.WithBaseURL(apiBase))
-	}
-	client := openai.NewClient(opts...)
-
-	systemPrompt := getOptimizeSystemPrompt(forceJSON)
-	payload := map[string]interface{}{
-		"model": modelName,
-		"messages": []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(systemPrompt),
-			openai.UserMessage(prompt),
-		},
-	}
-	if forceJSON {
-		payload["response_format"] = map[string]interface{}{"type": "json_object"}
-	}
-
-	var respBytes []byte
-	if err := client.Post(ctx, "/chat/completions", payload, &respBytes); err != nil {
-		return "", fmt.Errorf("请求失败: %s", formatOpenAIClientError(err))
-	}
-
-	optimized, err := extractChatMessage(respBytes)
-	if err != nil {
-		return "", err
-	}
-	optimized = strings.TrimSpace(optimized)
-	if optimized == "" {
-		return "", fmt.Errorf("未返回优化结果")
-	}
-	return optimized, nil
+	return provider.OpenAIOptimizeText(ctx, cfg, modelName, getOptimizeSystemPrompt(forceJSON), prompt, forceJSON)
 }
 
 func buildModelsJSON(_ string, modelID, _ string) string {
@@ -912,66 +798,6 @@ func buildModelsJSON(_ string, modelID, _ string) string {
 		return ""
 	}
 	return string(data)
-}
-
-func formatOpenAIClientError(err error) string {
-	var apiErr *openai.Error
-	if errors.As(err, &apiErr) {
-		msg := strings.TrimSpace(apiErr.Message)
-		if msg == "" {
-			msg = strings.TrimSpace(apiErr.RawJSON())
-		}
-		if msg != "" {
-			return msg
-		}
-	}
-	return err.Error()
-}
-
-func extractChatMessage(resp []byte) (string, error) {
-	var payload map[string]interface{}
-	if err := json.Unmarshal(resp, &payload); err != nil {
-		return "", fmt.Errorf("解析响应失败: %w", err)
-	}
-	choices, ok := payload["choices"].([]interface{})
-	if !ok || len(choices) == 0 {
-		return "", fmt.Errorf("响应中未找到 choices")
-	}
-	choice, ok := choices[0].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("响应格式错误")
-	}
-	msg, ok := choice["message"].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("响应中未找到 message")
-	}
-	return extractTextFromContent(msg["content"]), nil
-}
-
-func extractTextFromContent(content interface{}) string {
-	switch value := content.(type) {
-	case string:
-		return value
-	case []interface{}:
-		var parts []string
-		for _, item := range value {
-			part, ok := item.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			if t, _ := part["type"].(string); t == "text" {
-				if text, _ := part["text"].(string); text != "" {
-					parts = append(parts, text)
-				}
-			}
-		}
-		return strings.Join(parts, "\n")
-	case map[string]interface{}:
-		if text, _ := value["text"].(string); text != "" {
-			return text
-		}
-	}
-	return ""
 }
 
 // ImageToPromptRequest 图片逆向提示词请求
@@ -1117,77 +943,8 @@ func ImageToPromptHandler(c *gin.Context) {
 // callGeminiImageToPrompt 使用 Gemini 分析图片生成提示词
 func callGeminiImageToPrompt(ctx context.Context, cfg *model.ProviderConfig, modelName string, imageData []byte, systemPrompt string) (string, error) {
 	log.Printf("[ImageToPrompt] 开始调用 Gemini API, 模型: %s, API Base: %s", modelName, cfg.APIBase)
-
-	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
-	if timeout <= 0 {
-		timeout = 150 * time.Second
-	}
-	log.Printf("[ImageToPrompt] 超时设置: %v", timeout)
-
-	httpClient := &http.Client{
-		Timeout: timeout,
-		Transport: provider.NewRetryableTransport(&http.Transport{
-			DisableKeepAlives:   true,
-			ForceAttemptHTTP2:   false,
-			MaxIdleConns:        0,
-			MaxIdleConnsPerHost: 0,
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-			},
-		}, "gemini-chat", cfg.MaxRetries),
-	}
-
-	clientConfig := &genai.ClientConfig{
-		APIKey:     cfg.APIKey,
-		Backend:    genai.BackendGeminiAPI,
-		HTTPClient: httpClient,
-	}
-
-	if apiBase := strings.TrimRight(strings.TrimSpace(cfg.APIBase), "/"); apiBase != "" && apiBase != "https://generativelanguage.googleapis.com" {
-		clientConfig.HTTPOptions = genai.HTTPOptions{BaseURL: apiBase}
-		log.Printf("[ImageToPrompt] 使用自定义 API Base: %s", apiBase)
-	}
-
-	log.Printf("[ImageToPrompt] 正在创建 Gemini 客户端...")
-	client, err := genai.NewClient(ctx, clientConfig)
-	if err != nil {
-		log.Printf("[ImageToPrompt] 创建 Gemini 客户端失败: %v", err)
-		return "", fmt.Errorf("创建 Gemini 客户端失败: %w", err)
-	}
-	log.Printf("[ImageToPrompt] Gemini 客户端创建成功")
-
-	// 自动检测 MIME Type
-	mimeType := http.DetectContentType(imageData)
-	if !strings.HasPrefix(mimeType, "image/") {
-		mimeType = "image/jpeg"
-	}
-	log.Printf("[ImageToPrompt] 图片 MIME Type: %s, 数据大小: %d bytes", mimeType, len(imageData))
-
-	// 构建请求：图片 + 系统提示词
-	contents := []*genai.Content{
-		{
-			Role: "user",
-			Parts: []*genai.Part{
-				{
-					InlineData: &genai.Blob{
-						MIMEType: mimeType,
-						Data:     imageData,
-					},
-				},
-				{Text: "请分析这张图片并生成提示词描述。"},
-			},
-		},
-	}
-
-	genConfig := &genai.GenerateContentConfig{
-		SystemInstruction: &genai.Content{
-			Parts: []*genai.Part{{Text: systemPrompt}},
-		},
-	}
-
-	log.Printf("[ImageToPrompt] 正在调用 Gemini API GenerateContent...")
 	startTime := time.Now()
-	resp, err := client.Models.GenerateContent(ctx, modelName, contents, genConfig)
+	result, err := provider.GeminiImageToPrompt(ctx, cfg, modelName, imageData, systemPrompt)
 	elapsed := time.Since(startTime)
 	log.Printf("[ImageToPrompt] Gemini API 调用完成, 耗时: %v", elapsed)
 
@@ -1196,7 +953,7 @@ func callGeminiImageToPrompt(ctx context.Context, cfg *model.ProviderConfig, mod
 		return "", fmt.Errorf("请求失败: %w", err)
 	}
 
-	result := strings.TrimSpace(resp.Text())
+	result = strings.TrimSpace(result)
 	log.Printf("[ImageToPrompt] Gemini API 返回结果长度: %d", len(result))
 	if result == "" {
 		log.Printf("[ImageToPrompt] Gemini API 返回空结果")
@@ -1308,75 +1065,14 @@ func getImageToPromptLanguageInstruction(language string) string {
 // callOpenAIImageToPrompt 使用 OpenAI Vision 分析图片生成提示词
 func callOpenAIImageToPrompt(ctx context.Context, cfg *model.ProviderConfig, modelName string, imageData []byte, systemPrompt string) (string, error) {
 	log.Printf("[ImageToPrompt] 开始调用 OpenAI Vision API, 模型: %s, API Base: %s", modelName, cfg.APIBase)
-
-	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
-	if timeout <= 0 {
-		timeout = 150 * time.Second
-	}
-	log.Printf("[ImageToPrompt] 超时设置: %v", timeout)
-
-	httpClient := &http.Client{
-		Timeout: timeout,
-		Transport: provider.NewRetryableTransport(&http.Transport{
-			DisableKeepAlives:   true,
-			ForceAttemptHTTP2:   false,
-			MaxIdleConns:        0,
-			MaxIdleConnsPerHost: 0,
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-			},
-		}, "openai-chat", cfg.MaxRetries),
-	}
-	apiBase := provider.NormalizeOpenAIBaseURL(cfg.APIBase)
-	opts := []option.RequestOption{
-		option.WithAPIKey(cfg.APIKey),
-		option.WithHTTPClient(httpClient),
-	}
-	if apiBase != "" {
-		opts = append(opts, option.WithBaseURL(apiBase))
-		log.Printf("[ImageToPrompt] 使用自定义 API Base: %s", apiBase)
-	}
-	client := openai.NewClient(opts...)
-
-	// 构建 base64 图片数据
-	mimeType := http.DetectContentType(imageData)
-	if !strings.HasPrefix(mimeType, "image/") {
-		mimeType = "image/jpeg"
-	}
-	log.Printf("[ImageToPrompt] 图片 MIME Type: %s, 数据大小: %d bytes", mimeType, len(imageData))
-
-	base64Image := base64.StdEncoding.EncodeToString(imageData)
-	dataURL := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Image)
-
-	// 构建请求
-	payload := map[string]interface{}{
-		"model": modelName,
-		"messages": []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(systemPrompt),
-			openai.UserMessage([]openai.ChatCompletionContentPartUnionParam{
-				openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{
-					URL: dataURL,
-				}),
-				openai.TextContentPart("请分析这张图片并生成提示词描述。"),
-			}),
-		},
-	}
-
-	log.Printf("[ImageToPrompt] 正在调用 OpenAI API /chat/completions...")
 	startTime := time.Now()
-	var respBytes []byte
-	if err := client.Post(ctx, "/chat/completions", payload, &respBytes); err != nil {
-		elapsed := time.Since(startTime)
-		log.Printf("[ImageToPrompt] OpenAI API 请求失败, 耗时: %v, 错误: %v", elapsed, err)
-		return "", fmt.Errorf("请求失败: %s", formatOpenAIClientError(err))
-	}
+	result, err := provider.OpenAIImageToPrompt(ctx, cfg, modelName, imageData, systemPrompt)
 	elapsed := time.Since(startTime)
-	log.Printf("[ImageToPrompt] OpenAI API 调用完成, 耗时: %v, 响应长度: %d", elapsed, len(respBytes))
+	log.Printf("[ImageToPrompt] OpenAI API 调用完成, 耗时: %v", elapsed)
 
-	result, err := extractChatMessage(respBytes)
 	if err != nil {
-		log.Printf("[ImageToPrompt] 解析响应失败: %v, 原始响应: %s", err, truncateString(string(respBytes), 500))
-		return "", err
+		log.Printf("[ImageToPrompt] OpenAI API 请求失败, 耗时: %v, 错误: %v", elapsed, err)
+		return "", fmt.Errorf("请求失败: %w", err)
 	}
 
 	result = strings.TrimSpace(result)

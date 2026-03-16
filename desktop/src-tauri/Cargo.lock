@@ -744,10 +744,11 @@ dependencies = [
 
 [[package]]
 name = "desktop"
-version = "2.6.1"
+version = "2.6.2"
 dependencies = [
  "arboard",
  "image",
+ "reqwest",
  "serde",
  "serde_json",
  "tauri",

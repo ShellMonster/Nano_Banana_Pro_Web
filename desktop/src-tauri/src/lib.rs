@@ -3,7 +3,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{Emitter, Manager, State};
 #[cfg(target_os = "macos")]
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
@@ -516,6 +516,152 @@ fn persist_ref_image(
     Ok(format!("ref_images/{}", dest))
 }
 
+fn replace_file_safely(src: &Path, dst: &Path) -> Result<(), String> {
+    if !dst.exists() {
+        fs::rename(src, dst).map_err(|e| format!("finalize download failed: {}", e))?;
+        return Ok(());
+    }
+
+    let file_name = dst
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("download");
+    let backup_path = dst.with_file_name(format!("{}.backup-{}", file_name, now_ms()));
+
+    fs::rename(dst, &backup_path).map_err(|e| format!("backup existing file failed: {}", e))?;
+
+    if let Err(err) = fs::rename(src, dst) {
+        if let Err(restore_err) = fs::rename(&backup_path, dst) {
+            return Err(format!(
+                "finalize download failed: {}; restore failed: {}",
+                err, restore_err
+            ));
+        }
+        return Err(format!("finalize download failed: {}", err));
+    }
+
+    if let Err(err) = fs::remove_file(&backup_path) {
+        if err.kind() != std::io::ErrorKind::NotFound {
+            eprintln!(
+                "cleanup backup file failed after successful replace: {} ({})",
+                err,
+                backup_path.display()
+            );
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn download_file_to_path(
+    state: State<'_, LogState>,
+    url: String,
+    dest_path: String,
+) -> Result<(), String> {
+    let trimmed_url = url.trim();
+    if trimmed_url.is_empty() {
+        return Err("url is empty".to_string());
+    }
+
+    let trimmed_dest = dest_path.trim();
+    if trimmed_dest.is_empty() {
+        return Err("dest_path is empty".to_string());
+    }
+
+    let final_path = PathBuf::from(trimmed_dest);
+    if let Some(parent) = final_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create destination dir failed: {}", e))?;
+    }
+
+    let file_name = final_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("download");
+    let temp_path = final_path.with_file_name(format!("{}.part", file_name));
+    let temp_path_for_cleanup = temp_path.clone();
+
+    struct TempFileGuard {
+        path: PathBuf,
+        keep: bool,
+    }
+
+    impl Drop for TempFileGuard {
+        fn drop(&mut self) {
+            if self.keep {
+                return;
+            }
+            let _ = fs::remove_file(&self.path);
+        }
+    }
+
+    let mut temp_guard = TempFileGuard {
+        path: temp_path_for_cleanup,
+        keep: false,
+    };
+
+    state.log_app(
+        "INFO",
+        &format!(
+            "Download image to path started url={} dest={}",
+            trimmed_url,
+            final_path.display()
+        ),
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(900))
+        .build()
+        .map_err(|e| format!("build download client failed: {}", e))?;
+
+    let mut response = client
+        .get(trimmed_url)
+        .send()
+        .await
+        .map_err(|e| format!("download request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("download request failed: {}", response.status()));
+    }
+
+    let mut file =
+        std::fs::File::create(&temp_path).map_err(|e| format!("create temp file failed: {}", e))?;
+    let mut total_bytes: u64 = 0;
+
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| format!("read download chunk failed: {}", e))?
+    {
+        file.write_all(&chunk)
+            .map_err(|e| format!("write temp file failed: {}", e))?;
+        total_bytes += chunk.len() as u64;
+    }
+
+    file.flush()
+        .map_err(|e| format!("flush temp file failed: {}", e))?;
+    drop(file);
+
+    if let Err(err) = replace_file_safely(&temp_path, &final_path) {
+        let _ = fs::remove_file(&temp_path);
+        return Err(err);
+    }
+    temp_guard.keep = true;
+
+    state.log_app(
+        "INFO",
+        &format!(
+            "Download image to path finished bytes={} dest={}",
+            total_bytes,
+            final_path.display()
+        ),
+    );
+
+    Ok(())
+}
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -648,6 +794,7 @@ pub fn run() {
             copy_text_to_clipboard,
             read_image_from_clipboard,
             persist_ref_image,
+            download_file_to_path,
             set_generation_active
         ])
         .build(tauri::generate_context!())

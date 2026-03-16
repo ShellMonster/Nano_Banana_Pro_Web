@@ -1,10 +1,8 @@
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Trash2, AlertCircle, XCircle, Loader2 } from 'lucide-react';
 import { GenerationTask } from '../../types';
 import { formatDateTime } from '../../utils/date';
-import { toast } from '../../store/toastStore';
-import { deleteHistory } from '../../services/historyApi';
 import { useHistoryStore } from '../../store/historyStore';
 
 interface FailedTaskCardProps {
@@ -15,13 +13,7 @@ interface FailedTaskCardProps {
 // 使用 React.memo 防止不必要的重渲染
 export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick }: FailedTaskCardProps) {
     const { t } = useTranslation();
-    const loadHistory = useHistoryStore(s => s.loadHistory);
-    const loadHistoryRef = useRef(loadHistory);
-
-    // 保持 loadHistoryRef 最新
-    useEffect(() => {
-        loadHistoryRef.current = loadHistory;
-    }, [loadHistory]);
+    const deleteItem = useHistoryStore(s => s.deleteItem);
 
     const [isDeleting, setIsDeleting] = React.useState(false);
     const [showConfirm, setShowConfirm] = React.useState(false);
@@ -52,14 +44,9 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
         if (showConfirm) {
             setIsDeleting(true);
             try {
-                await deleteHistory(task.id);
-                toast.success(t('history.toast.deleted'));
-                // 刷新历史记录列表
-                loadHistoryRef.current(true, { silent: true });
+                await deleteItem(task.id);
             } catch (error) {
                 console.error('Delete record failed:', error);
-                const errorMessage = error instanceof Error ? error.message : t('history.toast.deleteFailed');
-                toast.error(errorMessage);
             } finally {
                 setIsDeleting(false);
                 setShowConfirm(false);
@@ -71,7 +58,7 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
             }
             confirmTimerRef.current = setTimeout(() => setShowConfirm(false), 3000);
         }
-    }, [showConfirm, task.id]);
+    }, [deleteItem, showConfirm, task.id]);
 
     // 使用 useMemo 缓存状态信息
     const statusInfo = React.useMemo(() => {

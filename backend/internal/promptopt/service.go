@@ -2,21 +2,18 @@ package promptopt
 
 import (
 	"context"
-	"crypto/tls"
-	"encoding/json"
-	"errors"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
-	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"image-gen-service/internal/config"
 	"image-gen-service/internal/model"
 	"image-gen-service/internal/provider"
 
-	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
-	"google.golang.org/genai"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -38,6 +35,18 @@ type Result struct {
 	Prompt   string
 	Mode     string
 }
+
+type cacheEntry struct {
+	result    Result
+	expiresAt time.Time
+}
+
+var (
+	optimizeCacheTTL = 10 * time.Minute
+	optimizeGroup    singleflight.Group
+	optimizeCacheMu  sync.RWMutex
+	optimizeCache    = map[string]cacheEntry{}
+)
 
 func NormalizeMode(mode string) string {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
@@ -107,24 +116,47 @@ func OptimizePrompt(ctx context.Context, req Request) (*Result, error) {
 		return nil, fmt.Errorf("未找到可用的模型")
 	}
 
-	forceJSON := mode == ModeJSON
-	var optimized string
-	var err error
-	if providerName == "gemini-chat" {
-		optimized, err = callGeminiOptimize(ctx, &cfg, modelName, rawPrompt, forceJSON)
-	} else {
-		optimized, err = callOpenAIOptimize(ctx, &cfg, modelName, rawPrompt, forceJSON)
+	systemPrompt := getOptimizeSystemPrompt(mode == ModeJSON)
+	cacheKey := buildCacheKey(providerName, modelName, mode, rawPrompt, &cfg, systemPrompt)
+	if cached, ok := getCachedResult(cacheKey); ok {
+		return &cached, nil
 	}
+
+	value, err, _ := optimizeGroup.Do(cacheKey, func() (interface{}, error) {
+		if cached, ok := getCachedResult(cacheKey); ok {
+			return cached, nil
+		}
+
+		forceJSON := mode == ModeJSON
+		var optimized string
+		var optimizeErr error
+		if providerName == "gemini-chat" {
+			optimized, optimizeErr = callGeminiOptimize(ctx, &cfg, modelName, rawPrompt, forceJSON)
+		} else {
+			optimized, optimizeErr = callOpenAIOptimize(ctx, &cfg, modelName, rawPrompt, forceJSON)
+		}
+		if optimizeErr != nil {
+			return nil, optimizeErr
+		}
+
+		result := Result{
+			Provider: providerName,
+			Model:    modelName,
+			Prompt:   optimized,
+			Mode:     mode,
+		}
+		cacheResult(cacheKey, result)
+		return result, nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &Result{
-		Provider: providerName,
-		Model:    modelName,
-		Prompt:   optimized,
-		Mode:     mode,
-	}, nil
+	result, ok := value.(Result)
+	if !ok {
+		return nil, fmt.Errorf("优化结果类型异常")
+	}
+	return &result, nil
 }
 
 func getOptimizeSystemPrompt(forceJSON bool) string {
@@ -143,180 +175,11 @@ func getOptimizeSystemPrompt(forceJSON bool) string {
 }
 
 func callGeminiOptimize(ctx context.Context, cfg *model.ProviderConfig, modelName, prompt string, forceJSON bool) (string, error) {
-	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
-	if timeout <= 0 {
-		timeout = 150 * time.Second
-	}
-
-	httpClient := &http.Client{
-		Timeout: timeout,
-		Transport: provider.NewRetryableTransport(&http.Transport{
-			DisableKeepAlives:   true,
-			ForceAttemptHTTP2:   false,
-			MaxIdleConns:        0,
-			MaxIdleConnsPerHost: 0,
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-			},
-		}, "gemini-chat", cfg.MaxRetries),
-	}
-
-	clientConfig := &genai.ClientConfig{
-		APIKey:     cfg.APIKey,
-		Backend:    genai.BackendGeminiAPI,
-		HTTPClient: httpClient,
-	}
-
-	if apiBase := strings.TrimRight(strings.TrimSpace(cfg.APIBase), "/"); apiBase != "" && apiBase != "https://generativelanguage.googleapis.com" {
-		clientConfig.HTTPOptions = genai.HTTPOptions{BaseURL: apiBase}
-	}
-
-	client, err := genai.NewClient(ctx, clientConfig)
-	if err != nil {
-		return "", fmt.Errorf("创建 Gemini 客户端失败: %w", err)
-	}
-
-	systemPrompt := getOptimizeSystemPrompt(forceJSON)
-	config := &genai.GenerateContentConfig{
-		SystemInstruction: &genai.Content{
-			Parts: []*genai.Part{{Text: systemPrompt}},
-		},
-	}
-	if forceJSON {
-		config.ResponseMIMEType = "application/json"
-	}
-	contents := []*genai.Content{
-		{
-			Role:  "user",
-			Parts: []*genai.Part{{Text: prompt}},
-		},
-	}
-
-	resp, err := client.Models.GenerateContent(ctx, modelName, contents, config)
-	if err != nil {
-		return "", fmt.Errorf("请求失败: %w", err)
-	}
-
-	optimized := strings.TrimSpace(resp.Text())
-	if optimized == "" {
-		return "", fmt.Errorf("未返回优化结果")
-	}
-	return optimized, nil
+	return provider.GeminiOptimizeText(ctx, cfg, modelName, getOptimizeSystemPrompt(forceJSON), prompt, forceJSON)
 }
 
 func callOpenAIOptimize(ctx context.Context, cfg *model.ProviderConfig, modelName, prompt string, forceJSON bool) (string, error) {
-	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
-	if timeout <= 0 {
-		timeout = 150 * time.Second
-	}
-	httpClient := &http.Client{
-		Timeout: timeout,
-		Transport: provider.NewRetryableTransport(&http.Transport{
-			DisableKeepAlives:   true,
-			ForceAttemptHTTP2:   false,
-			MaxIdleConns:        0,
-			MaxIdleConnsPerHost: 0,
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-			},
-		}, "openai-chat", cfg.MaxRetries),
-	}
-	apiBase := provider.NormalizeOpenAIBaseURL(cfg.APIBase)
-	opts := []option.RequestOption{
-		option.WithAPIKey(cfg.APIKey),
-		option.WithHTTPClient(httpClient),
-	}
-	if apiBase != "" {
-		opts = append(opts, option.WithBaseURL(apiBase))
-	}
-	client := openai.NewClient(opts...)
-
-	systemPrompt := getOptimizeSystemPrompt(forceJSON)
-	payload := map[string]interface{}{
-		"model": modelName,
-		"messages": []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(systemPrompt),
-			openai.UserMessage(prompt),
-		},
-	}
-	if forceJSON {
-		payload["response_format"] = map[string]interface{}{"type": "json_object"}
-	}
-
-	var respBytes []byte
-	if err := client.Post(ctx, "/chat/completions", payload, &respBytes); err != nil {
-		return "", fmt.Errorf("请求失败: %s", formatOpenAIClientError(err))
-	}
-
-	optimized, err := extractChatMessage(respBytes)
-	if err != nil {
-		return "", err
-	}
-	optimized = strings.TrimSpace(optimized)
-	if optimized == "" {
-		return "", fmt.Errorf("未返回优化结果")
-	}
-	return optimized, nil
-}
-
-func formatOpenAIClientError(err error) string {
-	var apiErr *openai.Error
-	if errors.As(err, &apiErr) {
-		msg := strings.TrimSpace(apiErr.Message)
-		if msg == "" {
-			msg = strings.TrimSpace(apiErr.RawJSON())
-		}
-		if msg != "" {
-			return msg
-		}
-	}
-	return err.Error()
-}
-
-func extractChatMessage(resp []byte) (string, error) {
-	var payload map[string]interface{}
-	if err := json.Unmarshal(resp, &payload); err != nil {
-		return "", fmt.Errorf("解析响应失败: %w", err)
-	}
-	choices, ok := payload["choices"].([]interface{})
-	if !ok || len(choices) == 0 {
-		return "", fmt.Errorf("响应中未找到 choices")
-	}
-	choice, ok := choices[0].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("响应格式错误")
-	}
-	msg, ok := choice["message"].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("响应中未找到 message")
-	}
-	return extractTextFromContent(msg["content"]), nil
-}
-
-func extractTextFromContent(content interface{}) string {
-	switch value := content.(type) {
-	case string:
-		return value
-	case []interface{}:
-		var parts []string
-		for _, item := range value {
-			part, ok := item.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			if t, _ := part["type"].(string); t == "text" {
-				if text, _ := part["text"].(string); text != "" {
-					parts = append(parts, text)
-				}
-			}
-		}
-		return strings.Join(parts, "\n")
-	case map[string]interface{}:
-		if text, _ := value["text"].(string); text != "" {
-			return text
-		}
-	}
-	return ""
+	return provider.OpenAIOptimizeText(ctx, cfg, modelName, getOptimizeSystemPrompt(forceJSON), prompt, forceJSON)
 }
 
 func BuildPromptHints(rawPrompt, mode, providerName, modelName string) map[string]interface{} {
@@ -397,4 +260,73 @@ func WithUpdatedPrompt(params map[string]interface{}, prompt string) map[string]
 	}
 	params["prompt"] = prompt
 	return params
+}
+
+func buildCacheKey(providerName, modelName, mode, prompt string, cfg *model.ProviderConfig, systemPrompt string) string {
+	apiBase := ""
+	apiKeyHash := ""
+	timeoutSeconds := "0"
+	maxRetries := "0"
+	if cfg != nil {
+		apiBase = normalizedAPIBaseForCache(providerName, cfg.APIBase)
+		apiKeyHash = shortHash(strings.TrimSpace(cfg.APIKey))
+		timeoutSeconds = fmt.Sprintf("%d", cfg.TimeoutSeconds)
+		maxRetries = fmt.Sprintf("%d", cfg.MaxRetries)
+	}
+	return strings.Join([]string{
+		NormalizeProviderName(providerName),
+		strings.TrimSpace(modelName),
+		NormalizeMode(mode),
+		apiBase,
+		apiKeyHash,
+		timeoutSeconds,
+		maxRetries,
+		shortHash(strings.TrimSpace(systemPrompt)),
+		strings.TrimSpace(prompt),
+	}, "\n")
+}
+
+func normalizedAPIBaseForCache(providerName, apiBase string) string {
+	name := NormalizeProviderName(providerName)
+	base := strings.TrimSpace(apiBase)
+	if base == "" {
+		return ""
+	}
+	if name == "openai-chat" {
+		return provider.NormalizeOpenAIBaseURL(base)
+	}
+	return strings.TrimRight(base, "/")
+}
+
+func shortHash(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:8])
+}
+
+func getCachedResult(cacheKey string) (Result, bool) {
+	optimizeCacheMu.RLock()
+	entry, ok := optimizeCache[cacheKey]
+	optimizeCacheMu.RUnlock()
+	if !ok {
+		return Result{}, false
+	}
+	if time.Now().After(entry.expiresAt) {
+		optimizeCacheMu.Lock()
+		delete(optimizeCache, cacheKey)
+		optimizeCacheMu.Unlock()
+		return Result{}, false
+	}
+	return entry.result, true
+}
+
+func cacheResult(cacheKey string, result Result) {
+	optimizeCacheMu.Lock()
+	defer optimizeCacheMu.Unlock()
+	optimizeCache[cacheKey] = cacheEntry{
+		result:    result,
+		expiresAt: time.Now().Add(optimizeCacheTTL),
+	}
 }

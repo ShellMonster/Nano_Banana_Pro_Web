@@ -40,6 +40,10 @@ type Config struct {
 		RemoteURL           string `mapstructure:"remote_url"`
 		FetchTimeoutSeconds int    `mapstructure:"fetch_timeout_seconds"`
 	} `mapstructure:"templates"`
+	Exports struct {
+		RemoteFetchTimeoutSeconds int `mapstructure:"remote_fetch_timeout_seconds"`
+		RemoteMaxFileMB           int `mapstructure:"remote_max_file_mb"`
+	} `mapstructure:"exports"`
 }
 
 var GlobalConfig Config
@@ -233,6 +237,8 @@ func InitConfig() {
 	viper.SetDefault("prompts.image_to_prompt_system", DefaultImageToPromptSystem)
 	viper.SetDefault("templates.remote_url", "https://raw.githubusercontent.com/ShellMonster/Nano_Banana_Pro_Web/refs/heads/main/backend/internal/templates/assets/templates.json")
 	viper.SetDefault("templates.fetch_timeout_seconds", 4)
+	viper.SetDefault("exports.remote_fetch_timeout_seconds", 120)
+	viper.SetDefault("exports.remote_max_file_mb", 512)
 
 	// 支持环境变量
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

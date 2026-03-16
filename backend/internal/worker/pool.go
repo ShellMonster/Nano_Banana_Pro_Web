@@ -199,17 +199,19 @@ func (wp *WorkerPool) processTask(task *Task) {
 		len([]rune(task.TaskModel.Prompt)),
 	)
 
-	if err := wp.optimizePromptForTask(ctx, task); err != nil {
-		log.Printf("任务 %s 自动优化提示词失败，回退原始 prompt: %v", task.TaskModel.TaskID, err)
-		diagnostic.Logf(task.Params, "prompt_optimize_failed",
-			"mode=%s provider=%s model=%s err=%q fallback=%t",
-			task.TaskModel.PromptOptimizeMode,
-			promptopt.ExtractProvider(task.Params),
-			promptopt.ExtractModel(task.Params),
-			err.Error(),
-			true,
-		)
-	}
+		if err := wp.optimizePromptForTask(ctx, task); err != nil {
+			log.Printf("任务 %s 自动优化提示词失败，终止生图: %v", task.TaskModel.TaskID, err)
+			diagnostic.Logf(task.Params, "prompt_optimize_failed",
+				"mode=%s provider=%s model=%s err=%q fallback=%t",
+				task.TaskModel.PromptOptimizeMode,
+				promptopt.ExtractProvider(task.Params),
+				promptopt.ExtractModel(task.Params),
+				err.Error(),
+				false,
+			)
+			wp.failTask(task, fmt.Errorf("提示词优化失败: %w", err))
+			return
+		}
 
 	done := make(chan generateResult, 1)
 	go func() {

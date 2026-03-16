@@ -15,6 +15,7 @@ import i18n, { DEFAULT_LANGUAGE } from '../../i18n';
 import { getSystemLocale } from '../../i18n/systemLocale';
 import appIcon from '../../assets/app-icon.png';
 import { IMAGE_MODEL_OPTIONS, VISION_MODEL_OPTIONS, CUSTOM_MODEL_VALUE } from '../../store/configStore';
+import { getPromptOptimizeConfigIssue } from '../../utils/promptOptimizeConfig';
 
 const CHAT_PROVIDER_OPTIONS = [
   { value: 'gemini-chat', label: 'Gemini(/v1beta)', defaultBase: 'https://generativelanguage.googleapis.com' },
@@ -420,7 +421,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const chatModelValue = chatModel.trim();
     const chatTimeoutValue = normalizeTimeout(chatTimeoutSeconds);
     const chatMaxRetriesValue = normalizeRetryCount(chatMaxRetries, 1);
-    const wantsChat = Boolean(chatKey);
+    const promptOptimizeConfigIssue = getPromptOptimizeConfigIssue({
+      mode: draftPromptOptimizeMode,
+      chatProvider,
+      chatApiBaseUrl: chatBase,
+      chatApiKey: chatKey,
+      chatModel: chatModelValue,
+      chatTimeoutSeconds
+    });
+    const promptOptimizeRequiresChat = draftPromptOptimizeMode !== 'off';
+    const wantsChat = Boolean(chatKey) || promptOptimizeRequiresChat;
 
     // 校验对话超时时间
     if (wantsChat && chatTimeoutSeconds > 0 && chatTimeoutSeconds < MIN_TIMEOUT) {
@@ -430,19 +440,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const imageSaveWarn = isGeminiProvider(imageProvider) && hasGeminiBasePathWarning(imageBase);
     const visionSaveWarn = isGeminiProvider(visionProvider) && hasGeminiBasePathWarning(visionBase);
     const chatSaveWarn = wantsChat && isGeminiProvider(chatProvider) && hasGeminiBasePathWarning(chatBase);
-    if (wantsChat && (!chatBase || !chatModelValue)) {
+    if (promptOptimizeConfigIssue === 'missing' || (wantsChat && (!chatBase || !chatModelValue))) {
       toast.error(t('settings.toast.chatConfigIncomplete'));
       return;
     }
     if (imageSaveWarn || visionSaveWarn || chatSaveWarn) {
       toast.warning(t('settings.toast.geminiBasePathWarning'));
     }
-    if (
+    if (promptOptimizeConfigIssue === 'unsupported' || (
       wantsChat &&
       chatProvider === DEFAULT_CHAT_PROVIDER &&
       chatModelValue.toLowerCase().startsWith('gemini') &&
       chatBase.includes('api.openai.com')
-    ) {
+    )) {
       toast.error(t('settings.toast.openaiGeminiUnsupported'));
       return;
     }
@@ -1069,6 +1079,24 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <ToggleSwitch
                     checked={draftPromptOptimizeMode !== 'off'}
                     onChange={(checked) => {
+                      if (checked) {
+                        const issue = getPromptOptimizeConfigIssue({
+                          mode: 'text',
+                          chatProvider,
+                          chatApiBaseUrl,
+                          chatApiKey,
+                          chatModel,
+                          chatTimeoutSeconds
+                        });
+                        if (issue === 'missing') {
+                          toast.error(t('settings.toast.chatConfigIncomplete'));
+                          return;
+                        }
+                        if (issue === 'unsupported') {
+                          toast.error(t('settings.toast.openaiGeminiUnsupported'));
+                          return;
+                        }
+                      }
                       setDraftPromptOptimizeMode((current) => {
                         if (!checked) return 'off';
                         return current === 'off' ? 'text' : current;

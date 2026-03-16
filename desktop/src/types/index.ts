@@ -33,6 +33,7 @@ export interface GeneratedImage {
   errorRequestId?: string;
   errorRetryable?: boolean;
   errorDetail?: string;
+  previewSource?: 'generate' | 'history';
 }
 
 // 图片选项配置
