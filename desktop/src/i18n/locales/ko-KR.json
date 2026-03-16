@@ -74,7 +74,11 @@
     "prompt": {
       "label": "프롬프트",
       "copied": "복사됨",
-      "empty": "프롬프트 없음"
+      "empty": "프롬프트 없음",
+      "optimizedLabel": "Optimized prompt",
+      "originalLabel": "Original prompt",
+      "expand": "Expand",
+      "collapse": "Collapse"
     },
     "meta": {
       "model": "모델",
@@ -200,6 +204,12 @@
       "label": "참조 이미지 압축",
       "hint": "활성화하면 참조 이미지가 자동으로 압축되어 대역폭과 저장 공간을 절약합니다",
       "speedHint": "참조 이미지를 사용할 때 생성 속도 향상을 위한 옵션이며, 이론적으로 생성 품질에는 영향이 없습니다."
+    },
+    "promptOptimizeDefault": {
+      "label": "Default Prompt Optimization",
+      "hint": "When enabled, image generation first optimizes the prompt inside the backend task, then continues generating without overwriting the current editor input.",
+      "textMode": "Text optimization",
+      "jsonMode": "JSON optimization"
     },
     "update": {
       "title": "업데이트",

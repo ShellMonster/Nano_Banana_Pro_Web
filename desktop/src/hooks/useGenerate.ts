@@ -349,6 +349,8 @@ export function useGenerate() {
       const verboseLogging = getDiagnosticVerbose();
 
       const requestedCount = Math.max(1, Number(config.count) || 1);
+      const promptOptimizeMode = config.defaultPromptOptimizeMode || 'off';
+      const shouldAutoOptimizePrompt = promptOptimizeMode !== 'off';
 
       const submitSingleGenerate = async () => {
         if (config.refFiles.length > 0) {
@@ -360,6 +362,11 @@ export function useGenerate() {
           formData.append('imageSize', config.imageSize);
           formData.append('count', '1');
           formData.append('verbose_logging', String(verboseLogging));
+          if (shouldAutoOptimizePrompt) {
+            formData.append('prompt_optimize_mode', promptOptimizeMode);
+            formData.append('prompt_optimize_provider', config.chatProvider);
+            formData.append('prompt_optimize_model', config.chatModel);
+          }
 
           config.refFiles.forEach((file) => {
             const extFile = file as any;
@@ -382,6 +389,11 @@ export function useGenerate() {
             aspectRatio: config.aspectRatio,
             imageSize: config.imageSize,
             verbose_logging: verboseLogging,
+            ...(shouldAutoOptimizePrompt ? {
+              prompt_optimize_mode: promptOptimizeMode,
+              prompt_optimize_provider: config.chatProvider,
+              prompt_optimize_model: config.chatModel,
+            } : {}),
           }
         } as any);
       };
@@ -527,6 +539,11 @@ export function useGenerate() {
         formData.append('imageSize', config.imageSize);
         formData.append('count', requestedCount.toString());
         formData.append('verbose_logging', String(verboseLogging));
+        if (shouldAutoOptimizePrompt) {
+          formData.append('prompt_optimize_mode', promptOptimizeMode);
+          formData.append('prompt_optimize_provider', config.chatProvider);
+          formData.append('prompt_optimize_model', config.chatModel);
+        }
         
         // 添加所有参考图片
         config.refFiles.forEach((file) => {
@@ -552,6 +569,11 @@ export function useGenerate() {
             aspectRatio: config.aspectRatio,
             imageSize: config.imageSize,
             verbose_logging: verboseLogging,
+            ...(shouldAutoOptimizePrompt ? {
+              prompt_optimize_mode: promptOptimizeMode,
+              prompt_optimize_provider: config.chatProvider,
+              prompt_optimize_model: config.chatModel,
+            } : {}),
           }
         } as any);
       }

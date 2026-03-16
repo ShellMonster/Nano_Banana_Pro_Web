@@ -75,6 +75,7 @@ interface ConfigState {
     model: string;
     timeoutSeconds: number;
   } | null;
+  defaultPromptOptimizeMode: 'off' | 'text' | 'json';
 
   language: string;
   languageResolved: string | null;
@@ -110,6 +111,7 @@ interface ConfigState {
   setChatTimeoutSeconds: (seconds: number) => void;
   setChatMaxRetries: (count: number) => void;
   setChatSyncedConfig: (config: { apiBaseUrl: string; apiKey: string; model: string; timeoutSeconds: number } | null) => void;
+  setDefaultPromptOptimizeMode: (mode: 'off' | 'text' | 'json') => void;
   setLanguage: (language: string) => void;
   setLanguageResolved: (languageResolved: string | null) => void;
   setShowOnboarding: (show: boolean) => void;
@@ -150,6 +152,7 @@ export const useConfigStore = create<ConfigState>()(
       chatTimeoutSeconds: 150,
       chatMaxRetries: 1,
       chatSyncedConfig: null,
+      defaultPromptOptimizeMode: 'off',
       language: 'system',
       languageResolved: null,
       showOnboarding: true,  // 首次启动默认显示引导
@@ -181,6 +184,7 @@ export const useConfigStore = create<ConfigState>()(
       setChatTimeoutSeconds: (chatTimeoutSeconds) => set({ chatTimeoutSeconds }),
       setChatMaxRetries: (chatMaxRetries) => set({ chatMaxRetries }),
       setChatSyncedConfig: (chatSyncedConfig) => set({ chatSyncedConfig }),
+      setDefaultPromptOptimizeMode: (defaultPromptOptimizeMode) => set({ defaultPromptOptimizeMode }),
       setLanguage: (language) => set({ language }),
       setLanguageResolved: (languageResolved) => set({ languageResolved }),
       setShowOnboarding: (showOnboarding) => set({ showOnboarding }),
@@ -221,6 +225,7 @@ export const useConfigStore = create<ConfigState>()(
         chatTimeoutSeconds: 150,
         chatMaxRetries: 1,
         chatSyncedConfig: null,
+        defaultPromptOptimizeMode: 'off',
         prompt: '',
         count: 1,
         imageSize: '2K',
@@ -232,7 +237,7 @@ export const useConfigStore = create<ConfigState>()(
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 13,
+      version: 14,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;

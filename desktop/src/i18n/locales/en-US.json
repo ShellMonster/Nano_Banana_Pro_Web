@@ -76,7 +76,11 @@
     "prompt": {
       "label": "Prompt",
       "copied": "Copied",
-      "empty": "No prompt"
+      "empty": "No prompt",
+      "optimizedLabel": "Optimized prompt",
+      "originalLabel": "Original prompt",
+      "expand": "Expand",
+      "collapse": "Collapse"
     },
     "meta": {
       "model": "Model",
@@ -212,6 +216,12 @@
       "label": "Reference Image Compression",
       "hint": "When enabled, reference images will be automatically compressed to save bandwidth and storage",
       "speedHint": "Only improves generation speed when using reference images; it should not affect image quality."
+    },
+    "promptOptimizeDefault": {
+      "label": "Default Prompt Optimization",
+      "hint": "When enabled, image generation first optimizes the prompt inside the backend task, then continues generating without overwriting the current editor input.",
+      "textMode": "Text optimization",
+      "jsonMode": "JSON optimization"
     },
     "update": {
       "title": "Updates",

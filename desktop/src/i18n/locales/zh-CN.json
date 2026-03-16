@@ -76,7 +76,11 @@
     "prompt": {
       "label": "提示词 (Prompt)",
       "copied": "已复制",
-      "empty": "暂无提示词"
+      "empty": "暂无提示词",
+      "optimizedLabel": "优化后的提示词",
+      "originalLabel": "用户输入的提示词",
+      "expand": "展开",
+      "collapse": "收起"
     },
     "meta": {
       "model": "模型",
@@ -212,6 +216,12 @@
       "label": "参考图压缩",
       "hint": "开启后，上传的参考图会自动压缩以节省带宽和存储空间",
       "speedHint": "仅用于提升有参考图时的生成速度，理论上不影响生成效果"
+    },
+    "promptOptimizeDefault": {
+      "label": "默认提示词优化",
+      "hint": "开启后，点击生图会在后台任务内先优化提示词，再继续生成图片，不会覆盖当前输入框内容",
+      "textMode": "文本优化",
+      "jsonMode": "JSON优化"
     },
     "update": {
       "title": "软件更新",

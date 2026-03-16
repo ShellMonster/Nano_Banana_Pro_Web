@@ -21,6 +21,7 @@ import (
 	"image-gen-service/internal/diagnostic"
 	"image-gen-service/internal/model"
 	"image-gen-service/internal/platform"
+	"image-gen-service/internal/promptopt"
 	"image-gen-service/internal/provider"
 	"image-gen-service/internal/storage"
 	"image-gen-service/internal/worker"
@@ -98,6 +99,9 @@ func buildConfigSnapshot(providerName, modelID string, params map[string]interfa
 		snapshot["count"] = v
 	} else if v, ok := params["count"].(float64); ok && v > 0 {
 		snapshot["count"] = int(v)
+	}
+	if v, ok := params["prompt_optimize_mode"].(string); ok && strings.TrimSpace(v) != "" && strings.TrimSpace(v) != promptopt.ModeOff {
+		snapshot["promptOptimizeMode"] = strings.TrimSpace(v)
 	}
 
 	b, err := json.Marshal(snapshot)
@@ -345,59 +349,23 @@ func OptimizePromptHandler(c *gin.Context) {
 		return
 	}
 
-	providerName := strings.TrimSpace(strings.ToLower(req.Provider))
-	if providerName == "" {
-		providerName = "openai-chat"
-	}
-	if providerName == "openai" {
-		providerName = "openai-chat"
-	}
-	if providerName == "gemini" {
-		providerName = "gemini-chat"
-	}
-	req.Provider = providerName
-	if strings.TrimSpace(req.Prompt) == "" {
-		Error(c, http.StatusBadRequest, 400, "prompt 不能为空")
-		return
-	}
-
-	var cfg model.ProviderConfig
-	if err := model.DB.Where("provider_name = ?", req.Provider).First(&cfg).Error; err != nil {
-		Error(c, http.StatusBadRequest, 400, "未找到指定的 Provider: "+req.Provider)
-		return
-	}
-	if strings.TrimSpace(cfg.APIKey) == "" {
-		Error(c, http.StatusBadRequest, 400, "Provider API Key 未配置")
-		return
-	}
-
-	modelName := provider.ResolveModelID(provider.ModelResolveOptions{
-		ProviderName: req.Provider,
-		Purpose:      provider.PurposeChat,
-		RequestModel: req.Model,
-		Config:       &cfg,
-	}).ID
-	if modelName == "" {
-		Error(c, http.StatusBadRequest, 400, "未找到可用的模型")
-		return
-	}
-
-	responseFormat := strings.ToLower(strings.TrimSpace(req.ResponseFormat))
-	forceJSON := responseFormat == "json" || responseFormat == "json_object" || responseFormat == "application/json"
-
-	var optimized string
-	var err error
-	if req.Provider == "gemini-chat" {
-		optimized, err = callGeminiOptimize(c.Request.Context(), &cfg, modelName, req.Prompt, forceJSON)
-	} else {
-		optimized, err = callOpenAIOptimize(c.Request.Context(), &cfg, modelName, req.Prompt, forceJSON)
-	}
+	result, err := promptopt.OptimizePrompt(c.Request.Context(), promptopt.Request{
+		Provider: req.Provider,
+		Model:    req.Model,
+		Prompt:   req.Prompt,
+		Mode: func() string {
+			if strings.TrimSpace(req.ResponseFormat) == "" {
+				return promptopt.ModeText
+			}
+			return req.ResponseFormat
+		}(),
+	})
 	if err != nil {
 		Error(c, http.StatusBadRequest, 400, err.Error())
 		return
 	}
 
-	Success(c, gin.H{"prompt": optimized})
+	Success(c, gin.H{"prompt": result.Prompt})
 }
 
 // GenerateHandler 处理图片生成请求
@@ -419,6 +387,16 @@ func GenerateHandler(c *gin.Context) {
 		req.Params = map[string]interface{}{}
 	}
 	diagnostic.AttachVerboseFlag(req.Params, diagnostic.VerboseEnabled(req.Params))
+	promptOptimizeMode := promptopt.NormalizeMode(strings.TrimSpace(fmt.Sprint(req.Params["prompt_optimize_mode"])))
+	if promptOptimizeMode != promptopt.ModeOff {
+		promptopt.ApplyPromptHints(
+			req.Params,
+			strings.TrimSpace(fmt.Sprint(req.Params["prompt"])),
+			promptOptimizeMode,
+			strings.TrimSpace(fmt.Sprint(req.Params["prompt_optimize_provider"])),
+			strings.TrimSpace(fmt.Sprint(req.Params["prompt_optimize_model"])),
+		)
+	}
 	modelID := provider.ResolveModelID(provider.ModelResolveOptions{
 		ProviderName: req.Provider,
 		Purpose:      provider.PurposeImage,
@@ -444,13 +422,15 @@ func GenerateHandler(c *gin.Context) {
 	}
 
 	taskModel := &model.Task{
-		TaskID:         taskID,
-		Prompt:         prompt,
-		ProviderName:   req.Provider,
-		ModelID:        modelID,
-		TotalCount:     1, // 目前单次请求只生成一张，后续可扩展
-		Status:         "pending",
-		ConfigSnapshot: buildConfigSnapshot(req.Provider, modelID, req.Params),
+		TaskID:             taskID,
+		Prompt:             prompt,
+		PromptOriginal:     prompt,
+		PromptOptimizeMode: promptOptimizeMode,
+		ProviderName:       req.Provider,
+		ModelID:            modelID,
+		TotalCount:         1, // 目前单次请求只生成一张，后续可扩展
+		Status:             "pending",
+		ConfigSnapshot:     buildConfigSnapshot(req.Provider, modelID, req.Params),
 	}
 
 	if count, ok := req.Params["count"].(float64); ok {
@@ -578,6 +558,10 @@ func GenerateWithImagesHandler(c *gin.Context) {
 		"reference_images": refImageBytes, // 传递 interface 列表，方便 Provider 类型断言
 	}
 	diagnostic.AttachVerboseFlag(taskParams, req.Verbose)
+	promptOptimizeMode := promptopt.NormalizeMode(req.PromptOptimizeMode)
+	if promptOptimizeMode != promptopt.ModeOff {
+		promptopt.ApplyPromptHints(taskParams, req.Prompt, promptOptimizeMode, req.PromptOptimizeProvider, req.PromptOptimizeModel)
+	}
 
 	log.Printf("[API] 提交任务: Prompt=%s, Images=%d\n", req.Prompt, len(refImageBytes))
 
@@ -589,13 +573,15 @@ func GenerateWithImagesHandler(c *gin.Context) {
 
 	taskID := uuid.New().String()
 	taskModel := &model.Task{
-		TaskID:         taskID,
-		Prompt:         req.Prompt,
-		ProviderName:   req.Provider,
-		ModelID:        modelID,
-		TotalCount:     req.Count,
-		Status:         "pending",
-		ConfigSnapshot: buildConfigSnapshot(req.Provider, modelID, taskParams),
+		TaskID:             taskID,
+		Prompt:             req.Prompt,
+		PromptOriginal:     req.Prompt,
+		PromptOptimizeMode: promptOptimizeMode,
+		ProviderName:       req.Provider,
+		ModelID:            modelID,
+		TotalCount:         req.Count,
+		Status:             "pending",
+		ConfigSnapshot:     buildConfigSnapshot(req.Provider, modelID, taskParams),
 	}
 
 	if err := model.DB.Create(taskModel).Error; err != nil {
