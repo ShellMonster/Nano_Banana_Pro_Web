@@ -20,15 +20,18 @@ type MultipartFile struct {
 
 // MultipartRequest 表示图生图请求解析后的数据
 type MultipartRequest struct {
-	Provider    string
-	ModelID     string
-	Prompt      string
-	AspectRatio string
-	ImageSize   string
-	Count       int
-	Verbose     bool
-	RefImages   []MultipartFile
-	RefPaths    []string
+	Provider               string
+	ModelID                string
+	Prompt                 string
+	AspectRatio            string
+	ImageSize              string
+	Count                  int
+	Verbose                bool
+	PromptOptimizeMode     string
+	PromptOptimizeProvider string
+	PromptOptimizeModel    string
+	RefImages              []MultipartFile
+	RefPaths               []string
 }
 
 // ParseGenerateRequestFromMultipart 使用 formstream 解析图生图请求
@@ -101,6 +104,30 @@ func ParseGenerateRequestFromMultipart(c *gin.Context) (*MultipartRequest, error
 		req.Verbose = parseLooseBool(string(data))
 		return nil
 	})
+	p.Parser.Register("prompt_optimize_mode", func(reader io.Reader, header formstream.Header) error {
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return err
+		}
+		req.PromptOptimizeMode = string(data)
+		return nil
+	})
+	p.Parser.Register("prompt_optimize_provider", func(reader io.Reader, header formstream.Header) error {
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return err
+		}
+		req.PromptOptimizeProvider = string(data)
+		return nil
+	})
+	p.Parser.Register("prompt_optimize_model", func(reader io.Reader, header formstream.Header) error {
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return err
+		}
+		req.PromptOptimizeModel = string(data)
+		return nil
+	})
 	p.Parser.Register("refPaths", func(reader io.Reader, header formstream.Header) error {
 		data, err := io.ReadAll(reader)
 		if err != nil {
@@ -154,6 +181,9 @@ func parseWithStandardLibrary(c *gin.Context) (*MultipartRequest, error) {
 		}
 	}
 	req.Verbose = parseLooseBool(c.PostForm("verbose_logging"))
+	req.PromptOptimizeMode = c.PostForm("prompt_optimize_mode")
+	req.PromptOptimizeProvider = c.PostForm("prompt_optimize_provider")
+	req.PromptOptimizeModel = c.PostForm("prompt_optimize_model")
 
 	form, err := c.MultipartForm()
 	if err == nil && form.File != nil {

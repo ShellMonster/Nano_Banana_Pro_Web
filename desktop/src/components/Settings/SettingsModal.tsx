@@ -168,6 +168,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     chatTimeoutSeconds, setChatTimeoutSeconds,
     chatMaxRetries, setChatMaxRetries,
     setChatSyncedConfig,
+    defaultPromptOptimizeMode,
+    setDefaultPromptOptimizeMode,
     language,
     languageResolved,
     setLanguage,
@@ -183,6 +185,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [fetching, setFetching] = useState(false);
   const [draftEnableRefImageCompression, setDraftEnableRefImageCompression] = useState(enableRefImageCompression);
+  const [draftPromptOptimizeMode, setDraftPromptOptimizeMode] = useState(defaultPromptOptimizeMode);
   const imageYunwuWarn = hasYunwuUrlWarning(imageApiBaseUrl, imageProvider === 'gemini' ? 'gemini' : 'openai');
   const imageBaseWarn = (isGeminiProvider(imageProvider) && hasGeminiBasePathWarning(imageApiBaseUrl)) || imageYunwuWarn.hasWarning;
 
@@ -262,8 +265,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   useEffect(() => {
     if (isOpen) {
       setDraftEnableRefImageCompression(enableRefImageCompression);
+      setDraftPromptOptimizeMode(defaultPromptOptimizeMode);
     }
-  }, [isOpen, enableRefImageCompression]);
+  }, [isOpen, enableRefImageCompression, defaultPromptOptimizeMode]);
 
   useEffect(() => {
     let canceled = false;
@@ -486,6 +490,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       }
 
       setEnableRefImageCompression(draftEnableRefImageCompression);
+      setDefaultPromptOptimizeMode(draftPromptOptimizeMode);
       toast.success(t('settings.toast.saveSuccess'));
       onClose();
     } catch (error: unknown) {
@@ -1051,6 +1056,44 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     {t('settings.refImageCompression.speedHint')}
                   </span>
                 </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <MessageSquare className="w-4 h-4 text-blue-600" />
+                {t('settings.promptOptimizeDefault.label')}
+              </label>
+              <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="flex items-center gap-3">
+                  <ToggleSwitch
+                    checked={draftPromptOptimizeMode !== 'off'}
+                    onChange={(checked) => {
+                      setDraftPromptOptimizeMode((current) => {
+                        if (!checked) return 'off';
+                        return current === 'off' ? 'text' : current;
+                      });
+                    }}
+                  />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm text-slate-700">
+                      {draftPromptOptimizeMode === 'off' ? t('common.disabled') : t('common.enabled')}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {t('settings.promptOptimizeDefault.hint')}
+                    </span>
+                  </div>
+                </div>
+                {draftPromptOptimizeMode !== 'off' && (
+                  <Select
+                    value={draftPromptOptimizeMode}
+                    onChange={(e) => setDraftPromptOptimizeMode((e.target.value as 'text' | 'json'))}
+                    className="h-10 bg-white text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
+                  >
+                    <option value="text">{t('settings.promptOptimizeDefault.textMode')}</option>
+                    <option value="json">{t('settings.promptOptimizeDefault.jsonMode')}</option>
+                  </Select>
+                )}
               </div>
             </div>
 

@@ -20,6 +20,9 @@ export interface GeneratedImage {
   url?: string;
   thumbnailUrl?: string;
   prompt?: string;
+  promptOriginal?: string;
+  promptOptimized?: string;
+  promptOptimizeMode?: string;
   status?: 'pending' | 'success' | 'failed';
   model?: string;
   options?: string | ImageOptions;
@@ -42,6 +45,9 @@ export interface ImageOptions {
 export interface GenerationTask {
   id: string;
   prompt: string;
+  promptOriginal?: string;
+  promptOptimized?: string;
+  promptOptimizeMode?: string;
   model: string;
   totalCount: number;
   completedCount: number;
@@ -167,6 +173,9 @@ export interface BackendImageSource {
 export interface BackendTask {
   task_id: string;
   prompt: string;
+  prompt_original?: string;
+  prompt_optimized?: string;
+  prompt_optimize_mode?: string;
   model_id?: string;
   provider_name?: string;
   local_path?: string;

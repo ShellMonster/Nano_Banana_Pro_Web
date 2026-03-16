@@ -21,6 +21,9 @@ export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
 
   const sanitizedErrorMessage = sanitizeBackendErrorMessage(task.error_message);
   const sanitizedRawErrorMessage = sanitizeBackendErrorMessage(task.error_raw_message);
+  const promptOriginal = task.prompt_original || '';
+  const promptOptimized = task.prompt_optimized || '';
+  const promptOptimizeMode = task.prompt_optimize_mode || 'off';
 
   const image: GeneratedImage = {
     id: task.task_id,
@@ -33,6 +36,9 @@ export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
     mimeType: 'image/jpeg',
     createdAt: task.created_at,
     prompt: task.prompt,
+    promptOriginal,
+    promptOptimized,
+    promptOptimizeMode,
     // 生成弹窗需要展示模型：对齐历史记录的 task.model 显示逻辑
     model: task.model_id || task.provider_name || '',
     errorMessage: sanitizedErrorMessage,
@@ -52,6 +58,9 @@ export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
   return {
     id: task.task_id,
     prompt: task.prompt,
+    promptOriginal,
+    promptOptimized,
+    promptOptimizeMode,
     model: task.model_id || task.provider_name || '',
     totalCount: task.total_count || 1,
     completedCount: task.status === 'completed' ? (task.total_count || 1) : 0,

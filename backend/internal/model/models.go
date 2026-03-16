@@ -28,6 +28,9 @@ type Task struct {
 	ID                  uint           `gorm:"primaryKey" json:"id"`
 	TaskID              string         `gorm:"uniqueIndex;not null" json:"task_id"`              // 外部调用的唯一 ID
 	Prompt              string         `gorm:"index:idx_prompt_search;index" json:"prompt"`      // 提示词，添加复合索引支持搜索
+	PromptOriginal      string         `json:"prompt_original"`                                  // 用户原始输入的提示词
+	PromptOptimized     string         `json:"prompt_optimized"`                                 // 自动优化后的提示词
+	PromptOptimizeMode  string         `json:"prompt_optimize_mode"`                             // 自动优化模式：off/text/json
 	FolderID            string         `gorm:"index" json:"folder_id"`                           // 所属文件夹 ID（可选）
 	ProviderName        string         `gorm:"index" json:"provider_name"`                       // 使用的 Provider
 	ModelID             string         `gorm:"index" json:"model_id"`                            // 使用的模型 ID

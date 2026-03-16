@@ -14,6 +14,7 @@ import (
 
 	"image-gen-service/internal/diagnostic"
 	"image-gen-service/internal/model"
+	"image-gen-service/internal/promptopt"
 	"image-gen-service/internal/provider"
 	"image-gen-service/internal/storage"
 )
@@ -197,6 +198,19 @@ func (wp *WorkerPool) processTask(task *Task) {
 		diagnostic.PromptHash(task.TaskModel.Prompt),
 		len([]rune(task.TaskModel.Prompt)),
 	)
+
+	if err := wp.optimizePromptForTask(ctx, task); err != nil {
+		log.Printf("任务 %s 自动优化提示词失败，回退原始 prompt: %v", task.TaskModel.TaskID, err)
+		diagnostic.Logf(task.Params, "prompt_optimize_failed",
+			"mode=%s provider=%s model=%s err=%q fallback=%t",
+			task.TaskModel.PromptOptimizeMode,
+			promptopt.ExtractProvider(task.Params),
+			promptopt.ExtractModel(task.Params),
+			err.Error(),
+			true,
+		)
+	}
+
 	done := make(chan generateResult, 1)
 	go func() {
 		defer func() {
@@ -336,6 +350,95 @@ func (wp *WorkerPool) processTask(task *Task) {
 	} else {
 		wp.failTask(task, fmt.Errorf("未生成任何图片"))
 	}
+}
+
+func (wp *WorkerPool) optimizePromptForTask(ctx context.Context, task *Task) error {
+	if task == nil || task.TaskModel == nil {
+		return nil
+	}
+	mode := promptopt.NormalizeMode(task.TaskModel.PromptOptimizeMode)
+	if !promptopt.Enabled(mode) {
+		return nil
+	}
+
+	rawPrompt := strings.TrimSpace(task.TaskModel.PromptOriginal)
+	if rawPrompt == "" {
+		rawPrompt = promptopt.ExtractOriginalPrompt(task.Params)
+	}
+	if rawPrompt == "" {
+		rawPrompt = strings.TrimSpace(task.TaskModel.Prompt)
+	}
+	if rawPrompt == "" {
+		rawPrompt = promptopt.ExtractPrompt(task.Params)
+	}
+	if rawPrompt == "" {
+		return fmt.Errorf("原始提示词为空")
+	}
+
+	optProvider := promptopt.ExtractProvider(task.Params)
+	optModel := promptopt.ExtractModel(task.Params)
+	startedAt := time.Now()
+	diagnostic.Logf(task.Params, "prompt_optimize_start",
+		"mode=%s provider=%s model=%s prompt_hash=%s prompt_len=%d",
+		mode,
+		optProvider,
+		optModel,
+		diagnostic.PromptHash(rawPrompt),
+		len([]rune(rawPrompt)),
+	)
+
+	result, err := promptopt.OptimizePrompt(ctx, promptopt.Request{
+		Provider: optProvider,
+		Model:    optModel,
+		Prompt:   rawPrompt,
+		Mode:     mode,
+	})
+	if err != nil {
+		return err
+	}
+
+	optimized := strings.TrimSpace(result.Prompt)
+	if optimized == "" || optimized == rawPrompt {
+		task.TaskModel.PromptOriginal = rawPrompt
+		task.TaskModel.Prompt = rawPrompt
+		task.TaskModel.PromptOptimized = ""
+		return nil
+	}
+
+	updates := map[string]interface{}{
+		"prompt_original":      rawPrompt,
+		"prompt_optimized":     optimized,
+		"prompt":               optimized,
+		"prompt_optimize_mode": mode,
+	}
+	if err := model.DB.Model(task.TaskModel).Updates(updates).Error; err != nil {
+		return fmt.Errorf("保存优化后的提示词失败: %w", err)
+	}
+
+	task.TaskModel.PromptOriginal = rawPrompt
+	task.TaskModel.PromptOptimized = optimized
+	task.TaskModel.Prompt = optimized
+	if task.Params == nil {
+		task.Params = map[string]interface{}{}
+	}
+	task.Params["prompt_original"] = rawPrompt
+	task.Params["prompt_optimized"] = optimized
+	task.Params["prompt"] = optimized
+	task.Params["prompt_optimize_mode"] = mode
+	task.Params["prompt_optimize_provider"] = result.Provider
+	task.Params["prompt_optimize_model"] = result.Model
+
+	diagnostic.Logf(task.Params, "prompt_optimize_success",
+		"mode=%s provider=%s model=%s elapsed=%s original_hash=%s optimized_hash=%s optimized_len=%d",
+		mode,
+		result.Provider,
+		result.Model,
+		time.Since(startedAt),
+		diagnostic.PromptHash(rawPrompt),
+		diagnostic.PromptHash(optimized),
+		len([]rune(optimized)),
+	)
+	return nil
 }
 
 func (wp *WorkerPool) failTask(task *Task, err error) {

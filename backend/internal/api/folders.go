@@ -261,29 +261,32 @@ func GetFoldersHandler(c *gin.Context) {
 }
 
 type FolderImageTaskResponse struct {
-	TaskID          string       `json:"task_id"`
-	Prompt          string       `json:"prompt"`
-	ModelID         string       `json:"model_id,omitempty"`
-	ProviderName    string       `json:"provider_name,omitempty"`
-	LocalPath       string       `json:"local_path,omitempty"`
-	ThumbnailPath   string       `json:"thumbnail_path,omitempty"`
-	ImageURL        string       `json:"image_url,omitempty"`
-	ThumbnailURL    string       `json:"thumbnail_url,omitempty"`
-	ImageSource     *ImageSource `json:"image_source,omitempty"`
-	ThumbnailSource *ImageSource `json:"thumbnail_source,omitempty"`
-	Width           int          `json:"width,omitempty"`
-	Height          int          `json:"height,omitempty"`
-	CreatedAt       string       `json:"created_at"`
-	UpdatedAt       string       `json:"updated_at,omitempty"`
-	Status          string       `json:"status"`
-	TotalCount      int          `json:"total_count,omitempty"`
-	ErrorMessage    string       `json:"error_message,omitempty"`
-	ErrorCode       string       `json:"error_code,omitempty"`
-	ErrorCategory   string       `json:"error_category,omitempty"`
-	ErrorRequestID  string       `json:"error_request_id,omitempty"`
-	ErrorRetryable  bool         `json:"error_retryable,omitempty"`
-	ErrorDetail     string       `json:"error_detail,omitempty"`
-	ConfigSnap      string       `json:"config_snapshot,omitempty"`
+	TaskID             string       `json:"task_id"`
+	Prompt             string       `json:"prompt"`
+	PromptOriginal     string       `json:"prompt_original,omitempty"`
+	PromptOptimized    string       `json:"prompt_optimized,omitempty"`
+	PromptOptimizeMode string       `json:"prompt_optimize_mode,omitempty"`
+	ModelID            string       `json:"model_id,omitempty"`
+	ProviderName       string       `json:"provider_name,omitempty"`
+	LocalPath          string       `json:"local_path,omitempty"`
+	ThumbnailPath      string       `json:"thumbnail_path,omitempty"`
+	ImageURL           string       `json:"image_url,omitempty"`
+	ThumbnailURL       string       `json:"thumbnail_url,omitempty"`
+	ImageSource        *ImageSource `json:"image_source,omitempty"`
+	ThumbnailSource    *ImageSource `json:"thumbnail_source,omitempty"`
+	Width              int          `json:"width,omitempty"`
+	Height             int          `json:"height,omitempty"`
+	CreatedAt          string       `json:"created_at"`
+	UpdatedAt          string       `json:"updated_at,omitempty"`
+	Status             string       `json:"status"`
+	TotalCount         int          `json:"total_count,omitempty"`
+	ErrorMessage       string       `json:"error_message,omitempty"`
+	ErrorCode          string       `json:"error_code,omitempty"`
+	ErrorCategory      string       `json:"error_category,omitempty"`
+	ErrorRequestID     string       `json:"error_request_id,omitempty"`
+	ErrorRetryable     bool         `json:"error_retryable,omitempty"`
+	ErrorDetail        string       `json:"error_detail,omitempty"`
+	ConfigSnap         string       `json:"config_snapshot,omitempty"`
 }
 
 // GetFolderImagesHandler 获取指定文件夹下的图片列表（分页）
@@ -361,28 +364,31 @@ func GetFolderImagesHandler(c *gin.Context) {
 	for i, task := range tasks {
 		enrichTaskError(&task)
 		responses[i] = FolderImageTaskResponse{
-			TaskID:          task.TaskID,
-			Prompt:          task.Prompt,
-			ModelID:         task.ModelID,
-			ProviderName:    task.ProviderName,
-			LocalPath:       toPublicImagePath(task.LocalPath),
-			ThumbnailPath:   toPublicImagePath(task.ThumbnailPath),
-			ImageURL:        strings.TrimSpace(task.ImageURL),
-			ThumbnailURL:    strings.TrimSpace(task.ThumbnailURL),
-			ImageSource:     pickFirstImageSource(task.LocalPath, task.ImageURL, task.ThumbnailPath, task.ThumbnailURL),
-			ThumbnailSource: pickFirstImageSource(task.ThumbnailPath, task.LocalPath, task.ThumbnailURL, task.ImageURL),
-			Width:           task.Width,
-			Height:          task.Height,
-			CreatedAt:       task.CreatedAt.Format(time.RFC3339),
-			Status:          task.Status,
-			TotalCount:      task.TotalCount,
-			ErrorMessage:    task.ErrorMessage,
-			ErrorCode:       task.ErrorCode,
-			ErrorCategory:   task.ErrorCategory,
-			ErrorRequestID:  task.ErrorRequestID,
-			ErrorRetryable:  task.ErrorRetryable,
-			ErrorDetail:     task.ErrorDetail,
-			ConfigSnap:      task.ConfigSnapshot,
+			TaskID:             task.TaskID,
+			Prompt:             task.Prompt,
+			PromptOriginal:     task.PromptOriginal,
+			PromptOptimized:    task.PromptOptimized,
+			PromptOptimizeMode: task.PromptOptimizeMode,
+			ModelID:            task.ModelID,
+			ProviderName:       task.ProviderName,
+			LocalPath:          toPublicImagePath(task.LocalPath),
+			ThumbnailPath:      toPublicImagePath(task.ThumbnailPath),
+			ImageURL:           strings.TrimSpace(task.ImageURL),
+			ThumbnailURL:       strings.TrimSpace(task.ThumbnailURL),
+			ImageSource:        pickFirstImageSource(task.LocalPath, task.ImageURL, task.ThumbnailPath, task.ThumbnailURL),
+			ThumbnailSource:    pickFirstImageSource(task.ThumbnailPath, task.LocalPath, task.ThumbnailURL, task.ImageURL),
+			Width:              task.Width,
+			Height:             task.Height,
+			CreatedAt:          task.CreatedAt.Format(time.RFC3339),
+			Status:             task.Status,
+			TotalCount:         task.TotalCount,
+			ErrorMessage:       task.ErrorMessage,
+			ErrorCode:          task.ErrorCode,
+			ErrorCategory:      task.ErrorCategory,
+			ErrorRequestID:     task.ErrorRequestID,
+			ErrorRetryable:     task.ErrorRetryable,
+			ErrorDetail:        task.ErrorDetail,
+			ConfigSnap:         task.ConfigSnapshot,
 		}
 	}
 

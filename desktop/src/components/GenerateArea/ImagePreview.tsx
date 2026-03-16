@@ -36,12 +36,14 @@ export const ImagePreview = React.memo(function ImagePreview({
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [copySuccess, setCopySuccess] = useState(false);
+    const [copiedPromptKey, setCopiedPromptKey] = useState<'single' | 'original' | 'optimized' | null>(null);
     const [isCopyingImage, setIsCopyingImage] = useState(false);
     const [fullImageLoaded, setFullImageLoaded] = useState(false);
     const [fullImageError, setFullImageError] = useState(false);
     const [isWheelZooming, setIsWheelZooming] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; adjusted: boolean } | null>(null);
+    const [showOriginalPrompt, setShowOriginalPrompt] = useState(false);
+    const [showOptimizedPrompt, setShowOptimizedPrompt] = useState(true);
     const containerRef = useRef<HTMLDivElement>(null);
     const deleteConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const copySuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -76,11 +78,23 @@ export const ImagePreview = React.memo(function ImagePreview({
         if (typeof image.errorRetryable === 'boolean') lines.push(`${t('preview.failed.retryable')}: ${image.errorRetryable ? t('common.yes') : t('common.no')}`);
         if (image.errorDetail) lines.push(`${t('preview.failed.errorDetail')}: ${image.errorDetail}`);
         if (image.errorRawMessage) lines.push(`${t('preview.failed.rawError')}: ${image.errorRawMessage}`);
+        if (image.promptOptimized) lines.push(`${t('preview.prompt.optimizedLabel')}: ${image.promptOptimized}`);
+        if (image.promptOriginal && image.promptOriginal !== image.promptOptimized) lines.push(`${t('preview.prompt.originalLabel')}: ${image.promptOriginal}`);
         if (image.taskId) lines.push(`${t('preview.failed.taskId')}: ${image.taskId}`);
         if (image.model) lines.push(`${t('preview.failed.model')}: ${image.model}`);
         if (image.prompt) lines.push(`${t('preview.prompt.label')}: ${image.prompt}`);
         return lines.join('\n');
     }, [image, isFailedImage, t]);
+
+    const hasOptimizedPromptPair = useMemo(() => {
+        const original = image?.promptOriginal?.trim() || '';
+        const optimized = image?.promptOptimized?.trim() || '';
+        return Boolean(original && optimized && original !== optimized);
+    }, [image?.promptOriginal, image?.promptOptimized]);
+
+    const singlePromptText = useMemo(() => image?.prompt || '', [image?.prompt]);
+    const optimizedPromptText = useMemo(() => image?.promptOptimized || image?.prompt || '', [image?.promptOptimized, image?.prompt]);
+    const originalPromptText = useMemo(() => image?.promptOriginal || '', [image?.promptOriginal]);
 
     const displayPosition = useMemo(() => {
         if (isDragging || isWheelZooming) return position;
@@ -125,6 +139,9 @@ export const ImagePreview = React.memo(function ImagePreview({
         setContextMenu(null);
         setScale(1);
         setPosition({ x: 0, y: 0 });
+        setCopiedPromptKey(null);
+        setShowOriginalPrompt(false);
+        setShowOptimizedPrompt(true);
     }, [image?.id]);
 
     useEffect(() => {
@@ -352,8 +369,8 @@ export const ImagePreview = React.memo(function ImagePreview({
     }, [image, isCopyingImage]);
 
     // 处理复制提示词 - 优先使用同步方案，速度最快
-    const handleCopyPrompt = useCallback(() => {
-        if (!image?.prompt) return;
+    const handleCopyPrompt = useCallback((text: string, key: 'single' | 'original' | 'optimized') => {
+        if (!text) return;
 
         // 清除之前的定时器
         if (copySuccessTimerRef.current) {
@@ -362,7 +379,7 @@ export const ImagePreview = React.memo(function ImagePreview({
 
         // 方案1: 同步的 document.execCommand (最快，立即返回)
         const textArea = document.createElement('textarea');
-        textArea.value = image.prompt;
+        textArea.value = text;
         textArea.style.position = 'fixed';
         textArea.style.opacity = '0';
         document.body.appendChild(textArea);
@@ -373,21 +390,21 @@ export const ImagePreview = React.memo(function ImagePreview({
 
         if (successful) {
             // 成功：立即显示状态（真实成功，不是乐观更新）
-            setCopySuccess(true);
+            setCopiedPromptKey(key);
             toast.success(t('toast.copyPromptSuccess'));
 
             copySuccessTimerRef.current = setTimeout(() => {
-                setCopySuccess(false);
+                setCopiedPromptKey(null);
             }, 2000);
         } else {
             // 方案1失败，尝试方案2: Clipboard API
-            navigator.clipboard.writeText(image.prompt)
+            navigator.clipboard.writeText(text)
                 .then(() => {
-                    setCopySuccess(true);
+                    setCopiedPromptKey(key);
                     toast.success(t('toast.copyPromptSuccess'));
 
                     copySuccessTimerRef.current = setTimeout(() => {
-                        setCopySuccess(false);
+                        setCopiedPromptKey(null);
                     }, 2000);
                 })
                 .catch((err) => {
@@ -395,7 +412,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                     toast.error(t('toast.copyFailedManual'));
                 });
         }
-    }, [image?.prompt]);
+    }, [t]);
 
     const copyText = useCallback(async (text: string) => {
         if (!text) return false;
@@ -1020,35 +1037,127 @@ export const ImagePreview = React.memo(function ImagePreview({
                             </div>
                         </div>
                         <div className="flex-1 flex flex-col min-h-0">
-                            <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('preview.prompt.label')}</h3>
-                                <button
-                                    onClick={handleCopyPrompt}
-                                    disabled={!image.prompt}
-                                    className={`
-                                        text-xs font-bold flex items-center gap-1.5 py-1 px-2 rounded-lg transition-all
-                                        ${!image.prompt
-                                            ? 'text-slate-400 cursor-not-allowed bg-slate-50'
-                                            : copySuccess
-                                                ? 'text-green-600 bg-green-50'
-                                                : 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
-                                        }
-                                    `}
-                                >
-                                    {copySuccess ? (
-                                        <>
-                                            <Check className="w-3.5 h-3.5" /> {t('preview.prompt.copied')}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Copy className="w-3.5 h-3.5" /> {t('common.copy')}
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                            <div className="flex-1 bg-slate-50 p-5 rounded-2xl border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap overflow-y-auto scrollbar-thin">
-                                {image.prompt || t('preview.prompt.empty')}
-                            </div>
+                            {!hasOptimizedPromptPair ? (
+                                <>
+                                    <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('preview.prompt.label')}</h3>
+                                        <button
+                                            onClick={() => handleCopyPrompt(singlePromptText, 'single')}
+                                            disabled={!singlePromptText}
+                                            className={`
+                                                text-xs font-bold flex items-center gap-1.5 py-1 px-2 rounded-lg transition-all
+                                                ${!singlePromptText
+                                                    ? 'text-slate-400 cursor-not-allowed bg-slate-50'
+                                                    : copiedPromptKey === 'single'
+                                                        ? 'text-green-600 bg-green-50'
+                                                        : 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                                                }
+                                            `}
+                                        >
+                                            {copiedPromptKey === 'single' ? (
+                                                <>
+                                                    <Check className="w-3.5 h-3.5" /> {t('preview.prompt.copied')}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Copy className="w-3.5 h-3.5" /> {t('common.copy')}
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                    <div className="flex-1 bg-slate-50 p-5 rounded-2xl border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap overflow-y-auto scrollbar-thin">
+                                        {singlePromptText || t('preview.prompt.empty')}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex-1 space-y-3 overflow-y-auto pr-1 scrollbar-thin">
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50">
+                                        <div className="flex items-center justify-between gap-3 px-4 py-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowOptimizedPrompt((value) => !value)}
+                                                className="flex-1 text-left"
+                                            >
+                                                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('preview.prompt.optimizedLabel')}</div>
+                                                <div className="mt-1 text-xs text-slate-500">
+                                                    {showOptimizedPrompt ? t('preview.prompt.collapse') : t('preview.prompt.expand')}
+                                                </div>
+                                            </button>
+                                            <button
+                                                onClick={() => handleCopyPrompt(optimizedPromptText, 'optimized')}
+                                                disabled={!optimizedPromptText}
+                                                className={`
+                                                    text-xs font-bold flex items-center gap-1.5 py-1 px-2 rounded-lg transition-all
+                                                    ${!optimizedPromptText
+                                                        ? 'text-slate-400 cursor-not-allowed bg-white'
+                                                        : copiedPromptKey === 'optimized'
+                                                            ? 'text-green-600 bg-green-50'
+                                                            : 'text-blue-600 hover:text-blue-700 hover:bg-white'
+                                                    }
+                                                `}
+                                            >
+                                                {copiedPromptKey === 'optimized' ? (
+                                                    <>
+                                                        <Check className="w-3.5 h-3.5" /> {t('preview.prompt.copied')}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Copy className="w-3.5 h-3.5" /> {t('common.copy')}
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                        {showOptimizedPrompt && (
+                                            <div className="border-t border-slate-200 px-4 py-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                                                {optimizedPromptText || t('preview.prompt.empty')}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="rounded-2xl border border-slate-200 bg-white">
+                                        <div className="flex items-center justify-between gap-3 px-4 py-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowOriginalPrompt((value) => !value)}
+                                                className="flex-1 text-left"
+                                            >
+                                                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('preview.prompt.originalLabel')}</div>
+                                                <div className="mt-1 text-xs text-slate-500">
+                                                    {showOriginalPrompt ? t('preview.prompt.collapse') : t('preview.prompt.expand')}
+                                                </div>
+                                            </button>
+                                            <button
+                                                onClick={() => handleCopyPrompt(originalPromptText, 'original')}
+                                                disabled={!originalPromptText}
+                                                className={`
+                                                    text-xs font-bold flex items-center gap-1.5 py-1 px-2 rounded-lg transition-all
+                                                    ${!originalPromptText
+                                                        ? 'text-slate-400 cursor-not-allowed bg-slate-50'
+                                                        : copiedPromptKey === 'original'
+                                                            ? 'text-green-600 bg-green-50'
+                                                            : 'text-blue-600 hover:text-blue-700 hover:bg-slate-50'
+                                                    }
+                                                `}
+                                            >
+                                                {copiedPromptKey === 'original' ? (
+                                                    <>
+                                                        <Check className="w-3.5 h-3.5" /> {t('preview.prompt.copied')}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Copy className="w-3.5 h-3.5" /> {t('common.copy')}
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                        {showOriginalPrompt && (
+                                            <div className="border-t border-slate-200 px-4 py-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                                                {originalPromptText || t('preview.prompt.empty')}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
