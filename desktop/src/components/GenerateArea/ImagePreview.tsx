@@ -8,6 +8,7 @@ import { ensureBackendReady, getImageDownloadUrl } from '../../services/api';
 import { useHistoryStore } from '../../store/historyStore';
 import { toast } from '../../store/toastStore';
 import { useTranslation } from 'react-i18next';
+import { localizeErrorSummary } from '../../utils/errorI18n';
 
 interface ImagePreviewProps {
     image: (GeneratedImage & { model?: string }) | null;
@@ -27,7 +28,7 @@ export const ImagePreview = React.memo(function ImagePreview({
     sourceContext = 'generate',
     onClose
 }: ImagePreviewProps) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
 
     // 判断是否为失败图片
     const isFailedImage = useMemo(() => !image?.url && !image?.thumbnailUrl && image?.status === 'failed', [image]);
@@ -57,35 +58,39 @@ export const ImagePreview = React.memo(function ImagePreview({
         () => images.filter((img) => Boolean(img.url || img.thumbnailUrl)),
         [images]
     );
+    const localizedError = useMemo(
+        () => (image ? localizeErrorSummary(image) : null),
+        [image, i18n.resolvedLanguage]
+    );
     const failedDetails = useMemo(() => {
         if (!isFailedImage || !image) return [];
         const details: Array<{ label: string; value: string }> = [];
-        if (image.errorCode) details.push({ label: t('preview.failed.errorCode'), value: image.errorCode });
-        if (image.errorCategory) details.push({ label: t('preview.failed.errorCategory'), value: image.errorCategory });
-        if (image.errorRequestId) details.push({ label: t('preview.failed.requestId'), value: image.errorRequestId });
-        if (typeof image.errorRetryable === 'boolean') details.push({ label: t('preview.failed.retryable'), value: image.errorRetryable ? t('common.yes') : t('common.no') });
+        if (localizedError?.errorCode) details.push({ label: t('preview.failed.errorCode'), value: localizedError.errorCode });
+        if (localizedError?.errorCategory) details.push({ label: t('preview.failed.errorCategory'), value: localizedError.errorCategory });
+        if (localizedError?.errorRequestId) details.push({ label: t('preview.failed.requestId'), value: localizedError.errorRequestId });
+        if (typeof localizedError?.errorRetryable === 'boolean') details.push({ label: t('preview.failed.retryable'), value: localizedError.errorRetryable ? t('common.yes') : t('common.no') });
         if (image.model) details.push({ label: t('preview.failed.model'), value: image.model });
         if (image.taskId) details.push({ label: t('preview.failed.taskId'), value: image.taskId });
         return details;
-    }, [image, isFailedImage, t]);
+    }, [image, isFailedImage, localizedError, t]);
 
     const failedCopyText = useMemo(() => {
         if (!isFailedImage || !image) return '';
         const lines: string[] = [];
-        if (image.errorMessage) lines.push(`${t('preview.failed.summary')}: ${image.errorMessage}`);
-        if (image.errorCode) lines.push(`${t('preview.failed.errorCode')}: ${image.errorCode}`);
-        if (image.errorCategory) lines.push(`${t('preview.failed.errorCategory')}: ${image.errorCategory}`);
-        if (image.errorRequestId) lines.push(`${t('preview.failed.requestId')}: ${image.errorRequestId}`);
-        if (typeof image.errorRetryable === 'boolean') lines.push(`${t('preview.failed.retryable')}: ${image.errorRetryable ? t('common.yes') : t('common.no')}`);
-        if (image.errorDetail) lines.push(`${t('preview.failed.errorDetail')}: ${image.errorDetail}`);
-        if (image.errorRawMessage) lines.push(`${t('preview.failed.rawError')}: ${image.errorRawMessage}`);
+        if (localizedError?.errorMessage) lines.push(`${t('preview.failed.summary')}: ${localizedError.errorMessage}`);
+        if (localizedError?.errorCode) lines.push(`${t('preview.failed.errorCode')}: ${localizedError.errorCode}`);
+        if (localizedError?.errorCategory) lines.push(`${t('preview.failed.errorCategory')}: ${localizedError.errorCategory}`);
+        if (localizedError?.errorRequestId) lines.push(`${t('preview.failed.requestId')}: ${localizedError.errorRequestId}`);
+        if (typeof localizedError?.errorRetryable === 'boolean') lines.push(`${t('preview.failed.retryable')}: ${localizedError.errorRetryable ? t('common.yes') : t('common.no')}`);
+        if (localizedError?.errorDetail) lines.push(`${t('preview.failed.errorDetail')}: ${localizedError.errorDetail}`);
+        if (localizedError?.errorRawMessage) lines.push(`${t('preview.failed.rawError')}: ${localizedError.errorRawMessage}`);
         if (image.promptOptimized) lines.push(`${t('preview.prompt.optimizedLabel')}: ${image.promptOptimized}`);
         if (image.promptOriginal && image.promptOriginal !== image.promptOptimized) lines.push(`${t('preview.prompt.originalLabel')}: ${image.promptOriginal}`);
         if (image.taskId) lines.push(`${t('preview.failed.taskId')}: ${image.taskId}`);
         if (image.model) lines.push(`${t('preview.failed.model')}: ${image.model}`);
         if (image.prompt) lines.push(`${t('preview.prompt.label')}: ${image.prompt}`);
         return lines.join('\n');
-    }, [image, isFailedImage, t]);
+    }, [image, isFailedImage, localizedError, t]);
 
     const hasOptimizedPromptPair = useMemo(() => {
         const original = image?.promptOriginal?.trim() || '';
@@ -735,13 +740,13 @@ export const ImagePreview = React.memo(function ImagePreview({
                             </div>
                             <p className="text-lg font-bold text-slate-700 mb-3">{t('preview.failed.title')}</p>
                             <div className="w-full max-w-2xl mx-8 px-4">
-                                {image.errorMessage && (
+                                {localizedError?.errorMessage && (
                                     <p className="text-sm text-slate-500 text-center mb-4 leading-relaxed">
-                                        {image.errorMessage}
+                                        {localizedError.errorMessage}
                                     </p>
                                 )}
 
-                                {(failedDetails.length > 0 || image.errorDetail || image.errorRawMessage) && (
+                                {(failedDetails.length > 0 || localizedError?.errorDetail || localizedError?.errorRawMessage) && (
                                     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 text-left">
                                         <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-3">
                                             {t('preview.failed.detailsTitle')}
@@ -758,18 +763,18 @@ export const ImagePreview = React.memo(function ImagePreview({
                                             </div>
                                         )}
 
-                                        {image.errorDetail && (
+                                        {localizedError?.errorDetail && (
                                             <div className="mb-3">
                                                 <p className="text-xs text-slate-500 font-medium mb-1">{t('preview.failed.errorDetail')}</p>
-                                                <p className="text-xs text-slate-700 leading-relaxed break-words">{image.errorDetail}</p>
+                                                <p className="text-xs text-slate-700 leading-relaxed break-words whitespace-pre-wrap">{localizedError.errorDetail}</p>
                                             </div>
                                         )}
 
-                                        {image.errorRawMessage && (
+                                        {localizedError?.errorRawMessage && (
                                             <div className="mb-1">
                                                 <p className="text-xs text-slate-500 font-medium mb-1">{t('preview.failed.rawError')}</p>
                                                 <pre className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-3 whitespace-pre-wrap break-words font-mono">
-                                                    {image.errorRawMessage}
+                                                    {localizedError.errorRawMessage}
                                                 </pre>
                                             </div>
                                         )}
@@ -780,7 +785,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         void (async () => {
-                                            const ok = await copyText(failedCopyText || image.errorMessage || '');
+                                            const ok = await copyText(failedCopyText || localizedError?.errorMessage || image.errorMessage || '');
                                             if (ok) {
                                                 toast.success(t('preview.failed.errorCopied'));
                                             } else {

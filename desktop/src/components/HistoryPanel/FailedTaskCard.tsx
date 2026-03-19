@@ -4,6 +4,7 @@ import { Trash2, AlertCircle, XCircle, Loader2 } from 'lucide-react';
 import { GenerationTask } from '../../types';
 import { formatDateTime } from '../../utils/date';
 import { useHistoryStore } from '../../store/historyStore';
+import { localizeErrorSummary } from '../../utils/errorI18n';
 
 interface FailedTaskCardProps {
     task: GenerationTask;
@@ -12,8 +13,12 @@ interface FailedTaskCardProps {
 
 // 使用 React.memo 防止不必要的重渲染
 export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick }: FailedTaskCardProps) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const deleteItem = useHistoryStore(s => s.deleteItem);
+    const localizedError = React.useMemo(
+        () => localizeErrorSummary(task),
+        [task, i18n.resolvedLanguage]
+    );
 
     const [isDeleting, setIsDeleting] = React.useState(false);
     const [showConfirm, setShowConfirm] = React.useState(false);
@@ -67,7 +72,7 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
                 return {
                     icon: <XCircle className="w-8 h-8 text-red-500" />,
                     title: t('history.status.failed.title'),
-                    description: task.errorMessage || t('history.status.failed.description'),
+                    description: localizedError.errorMessage || t('history.status.failed.description'),
                     bgColor: 'bg-red-50',
                     borderColor: 'border-red-200'
                 };
@@ -112,7 +117,7 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
                     borderColor: 'border-gray-200'
                 };
         }
-    }, [task.status, task.errorMessage, task.completedCount, task.totalCount, t]);
+    }, [task.status, localizedError.errorMessage, task.completedCount, task.totalCount, t]);
 
     const snapshotLabels = React.useMemo(() => {
         const raw = (task as any).options as string | undefined;

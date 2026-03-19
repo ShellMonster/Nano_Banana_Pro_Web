@@ -1,15 +1,6 @@
 import { GenerationTask, GeneratedImage, BackendTask, BackendHistoryResponse } from '../types';
 import { getImageUrlFromSource } from '../services/api';
-
-function sanitizeBackendErrorMessage(message?: string): string {
-  if (!message) return '';
-  const cleaned = message
-    .split('\n')
-    .filter((line) => !/^\s*at\s+.+/i.test(line))
-    .join('\n')
-    .trim();
-  return cleaned.slice(0, 500);
-}
+import { localizeErrorSummary, sanitizeBackendErrorMessage } from './errorI18n';
 
 /**
  * 将后端 Task 模型映射为前端 GenerationTask 模型
@@ -19,8 +10,10 @@ export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
     return getImageUrlFromSource(source, path || '');
   };
 
-  const sanitizedErrorMessage = sanitizeBackendErrorMessage(task.error_message);
-  const sanitizedRawErrorMessage = sanitizeBackendErrorMessage(task.error_raw_message);
+  const localizedErrorMessage = localizeErrorSummary(task).errorMessage;
+  const rawErrorMessage = sanitizeBackendErrorMessage(task.error_message);
+  const rawErrorDetail = sanitizeBackendErrorMessage(task.error_detail);
+  const rawErrorRawMessage = sanitizeBackendErrorMessage(task.error_raw_message);
   const promptOriginal = task.prompt_original || '';
   const promptOptimized = task.prompt_optimized || '';
   const promptOptimizeMode = task.prompt_optimize_mode || 'off';
@@ -41,13 +34,13 @@ export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
     promptOptimizeMode,
     // 生成弹窗需要展示模型：对齐历史记录的 task.model 显示逻辑
     model: task.model_id || task.provider_name || '',
-    errorMessage: sanitizedErrorMessage,
-    errorRawMessage: sanitizedRawErrorMessage,
-    errorCode: task.error_code,
-    errorCategory: task.error_category,
-    errorRequestId: task.error_request_id,
+    errorMessage: localizedErrorMessage || rawErrorMessage,
+    errorRawMessage: rawErrorRawMessage,
+    errorCode: task.error_code || '',
+    errorCategory: task.error_category || '',
+    errorRequestId: task.error_request_id || '',
     errorRetryable: task.error_retryable,
-    errorDetail: task.error_detail,
+    errorDetail: rawErrorDetail,
     status: task.status === 'completed' ? 'success' : (task.status === 'failed' ? 'failed' : 'pending'),
     // 弹窗预览使用原图
     url: getFullUrl(task.local_path || task.image_url || task.thumbnail_path || task.thumbnail_url, task.image_source),
@@ -65,13 +58,13 @@ export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
     totalCount: task.total_count || 1,
     completedCount: task.status === 'completed' ? (task.total_count || 1) : 0,
     status: task.status as GenerationTask['status'],
-    errorMessage: sanitizedErrorMessage,
-    errorRawMessage: sanitizedRawErrorMessage,
+    errorMessage: localizedErrorMessage || rawErrorMessage,
+    errorRawMessage: rawErrorRawMessage,
     errorCode: task.error_code || '',
     errorCategory: task.error_category || '',
     errorRequestId: task.error_request_id || '',
     errorRetryable: task.error_retryable,
-    errorDetail: task.error_detail || '',
+    errorDetail: rawErrorDetail,
     options: task.config_snapshot || '',
     createdAt: task.created_at,
     updatedAt: task.updated_at || '',

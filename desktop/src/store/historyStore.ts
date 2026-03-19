@@ -6,6 +6,7 @@ import { mapBackendHistoryResponse, mapBackendTaskToFrontend } from '../utils/ma
 import { useGenerateStore } from './generateStore';
 import { toast } from './toastStore';
 import i18n from '../i18n';
+import { localizeErrorSummary } from '../utils/errorI18n';
 
 interface HistoryState {
   items: HistoryItem[];
@@ -455,7 +456,8 @@ function syncWithGenerateStore(historyItems: HistoryItem[]) {
     } else if (historyStatus === 'failed') {
       // 任务失败：结束生成态并提示
       generateStore.failTask(currentTaskInHistory);
-      toast.error(i18n.t('generate.toast.failedWith', { message: currentTaskInHistory.errorMessage || i18n.t('common.unknownError') }));
+      const localizedError = localizeErrorSummary(currentTaskInHistory);
+      toast.error(i18n.t('generate.toast.failedWith', { message: localizedError.errorMessage || i18n.t('common.unknownError') }));
     } else if (historyStatus === 'partial') {
       // 部分完成：同步已生成的结果并结束生成态
       if (currentTaskInHistory.images.length > 0) {

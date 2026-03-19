@@ -3,6 +3,7 @@ import { useGenerateStore } from '../store/generateStore';
 import { getTaskStatus } from '../services/generateApi';
 import { toast } from '../store/toastStore';
 import i18n from '../i18n';
+import { localizeErrorSummary } from '../utils/errorI18n';
 
 // 任务超时时间：10 分钟（防止恢复过期任务）
 const TASK_TIMEOUT = 10 * 60 * 1000;
@@ -78,9 +79,12 @@ export function useTaskRecovery() {
           // 任务失败
           console.log('Task failed');
           clearTaskState();
+          {
+            const localizedError = localizeErrorSummary(taskData);
           toast.error(i18n.t('generate.toast.failedWith', {
-            message: taskData.errorMessage || i18n.t('common.unknownError')
+            message: localizedError.errorMessage || i18n.t('common.unknownError')
           }));
+          }
           break;
 
         case 'partial':
