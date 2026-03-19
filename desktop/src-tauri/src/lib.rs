@@ -618,6 +618,7 @@ async fn download_file_to_path(
 
     let mut response = client
         .get(trimmed_url)
+        .header(reqwest::header::ORIGIN, "tauri://localhost")
         .send()
         .await
         .map_err(|e| format!("download request failed: {}", e))?;
