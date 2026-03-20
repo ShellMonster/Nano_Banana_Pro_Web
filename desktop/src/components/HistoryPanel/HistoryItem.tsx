@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { HistoryItem as HistoryItemType } from '../../types';
 import { Trash2 } from 'lucide-react';
-import { getImageUrl } from '../../services/api';
+import { getImageUrlFromSource } from '../../services/api';
 import { formatDateTime } from '../../utils/date';
 
 interface HistoryItemProps {
@@ -15,7 +15,9 @@ export const HistoryItem = React.memo(function HistoryItem({ item, onDelete }: H
   const { t } = useTranslation();
   // 获取第一张图片用于展示
   const firstImage = item.images && item.images.length > 0 ? item.images[0] : null;
-  const imageUrl = firstImage ? getImageUrl(firstImage.id) : '';
+  const imageUrl = firstImage
+    ? getImageUrlFromSource((firstImage as any).thumbnailSource || (firstImage as any).imageSource, firstImage.thumbnailPath || firstImage.filePath || firstImage.thumbnailUrl || firstImage.url || '')
+    : '';
 
   return (
     <div className="group flex gap-4 p-4 bg-white rounded-lg border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all">

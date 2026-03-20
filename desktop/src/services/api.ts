@@ -10,6 +10,64 @@ export interface ImageSource {
   value?: string;
 }
 
+const isWindowsAbsolutePath = (p: string) => /^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('\\\\');
+const normalizeSlashes = (p: string) => p.replace(/\\/g, '/');
+const isStorageRelativePath = (p: string) => {
+  const normalized = normalizeSlashes(p);
+  return normalized.startsWith('/storage/') || normalized.startsWith('storage/');
+};
+const isPosixAbsolutePath = (p: string) => p.startsWith('/') && !isStorageRelativePath(p);
+const looksLikeAbsolutePath = (p: string) => isPosixAbsolutePath(p) || isWindowsAbsolutePath(p);
+
+const normalizeAssetAbsolutePath = (rawPath: string) => {
+  let normalized = normalizeSlashes(rawPath);
+
+  // 保留 Windows UNC 前缀，避免 //server/share 被压成 /server/share
+  if (normalized.startsWith('//')) {
+    const uncBody = normalized.slice(2).replace(/\/+/g, '/');
+    return `//${uncBody}`;
+  }
+
+  // Windows 盘符路径保持 C:/... 形式，不补前导 /
+  if (isWindowsAbsolutePath(normalized)) {
+    return normalized.replace(/\/+/g, '/');
+  }
+
+  normalized = normalized.replace(/\/+/g, '/');
+  if (!looksLikeAbsolutePath(normalized)) {
+    normalized = `/${normalized}`;
+  }
+  return normalized;
+};
+
+const parseFileUrlPath = (input: string) => {
+  if (!input.startsWith('file://')) return null;
+
+  try {
+    const parsed = new URL(input);
+    const host = parsed.hostname || '';
+    let decodedPath = decodeURIComponent(parsed.pathname || '');
+
+    // file:///C:/... 在 URL.pathname 中会变成 /C:/...，需要还原成 C:/...
+    if (/^\/[a-zA-Z]:\//.test(decodedPath)) {
+      decodedPath = decodedPath.slice(1);
+    }
+
+    if (host && host.toLowerCase() !== 'localhost') {
+      return `//${host}${decodedPath}`;
+    }
+    return decodedPath;
+  } catch {
+    try {
+      const withoutScheme = input.replace(/^file:\/\//, '');
+      const withoutHost = withoutScheme.replace(/^localhost\//i, '');
+      return decodeURIComponent(withoutHost);
+    } catch {
+      return null;
+    }
+  }
+};
+
 // 根据 API 文档，后端地址默认为 http://127.0.0.1:8080
 export let BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8080/api/v1';
 
@@ -225,32 +283,13 @@ export const getImageUrl = (path: string) => {
   }
 
   // file:// URL 在 WebView 中通常不可直接访问；在 Tauri 环境下尽量转换成 asset 协议
-  const fileUrlPath = (() => {
-    if (!trimmed.startsWith('file://')) return null;
-    try {
-      // 兼容 file:///xxx 和 file://localhost/xxx
-      const withoutScheme = trimmed.replace(/^file:\/\//, '');
-      const withoutHost = withoutScheme.replace(/^localhost\//, '');
-      return decodeURIComponent(withoutHost);
-    } catch {
-      return null;
-    }
-  })();
+  const fileUrlPath = parseFileUrlPath(trimmed);
   
   // 如果在 Tauri 环境下，且我们有 appDataDir，且路径看起来是本地存储路径
   // 优先使用 asset:// 协议直接读取本地磁盘，绕过 HTTP 端口，提升性能
   const tauriInternals = (window as any).__TAURI_INTERNALS__ as
     | { convertFileSrc?: (filePath: string, protocol?: string) => string }
     | undefined;
-
-  const isWindowsAbsolutePath = (p: string) => /^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('\\\\');
-  const isStorageRelativePath = (p: string) => {
-    const normalized = p.replace(/\\/g, '/');
-    return normalized.startsWith('/storage/') || normalized.startsWith('storage/');
-  };
-  // 注意：/storage/... 是后端静态资源相对路径，不是磁盘绝对路径
-  const isPosixAbsolutePath = (p: string) => p.startsWith('/') && !isStorageRelativePath(p);
-  const looksLikeAbsolutePath = (p: string) => isPosixAbsolutePath(p) || isWindowsAbsolutePath(p);
 
   const convertFileSrcSync: ((filePath: string) => string) | null = (() => {
     const globalConvert = (window as any).convertFileSrc;
@@ -264,11 +303,7 @@ export const getImageUrl = (path: string) => {
   // 1) 直接是文件路径（绝对路径或 file://）时，优先走 asset 协议
   if (canUseAssetProtocol && (fileUrlPath || looksLikeAbsolutePath(trimmed))) {
     try {
-      let absolutePath = (fileUrlPath || trimmed).replace(/\\/g, '/').replace(/\/+/g, '/');
-      // macOS/Linux 绝对路径必须以 / 开头；Windows 盘符路径不能补 /
-      if (!looksLikeAbsolutePath(absolutePath) && !isWindowsAbsolutePath(absolutePath)) {
-        absolutePath = '/' + absolutePath;
-      }
+      const absolutePath = normalizeAssetAbsolutePath(fileUrlPath || trimmed);
       const url = convertFileSrcSync!(absolutePath);
       console.log('[getImageUrl] Converted absolute path to asset URL:', url, 'from:', absolutePath);
       return url;
@@ -278,20 +313,16 @@ export const getImageUrl = (path: string) => {
   }
 
   // 2) 典型的本地存储相对路径：尽量在 appDataDir 已获取后走 asset 协议
-  if (canUseAssetProtocol && appDataDir && (trimmed.startsWith('storage/') || trimmed.includes('/storage/') || trimmed.includes('\\storage\\'))) {
+  if (canUseAssetProtocol && appDataDir && isStorageRelativePath(trimmed)) {
     try {
       // 这里的 path 可能是 storage/local/xxx.jpg
       // 我们需要拼接成绝对路径：appDataDir + / + path
       const separator = appDataDir.endsWith('/') || appDataDir.endsWith('\\') ? '' : '/';
       // 如果 path 已经包含 appDataDir (可能是绝对路径)，则不重复拼接
-      let absolutePath = trimmed.includes(appDataDir) ? trimmed : `${appDataDir}${separator}${trimmed}`;
-      
-      // 规范化路径：去掉重复的斜杠，处理相对路径
-      absolutePath = absolutePath.replace(/\\/g, '/').replace(/\/+/g, '/');
-      // macOS/Linux 绝对路径必须以 / 开头；Windows 盘符路径不能补 /
-      if (!looksLikeAbsolutePath(absolutePath) && !isWindowsAbsolutePath(absolutePath)) {
-        absolutePath = '/' + absolutePath;
-      }
+      const storagePath = normalizeSlashes(trimmed).replace(/^\/+/, '');
+      const absolutePath = normalizeAssetAbsolutePath(
+        trimmed.includes(appDataDir) ? trimmed : `${appDataDir}${separator}${storagePath}`
+      );
 
       // 使用 Tauri 提供的 convertFileSrc 将绝对路径转为 asset:// 协议 URL
       const url = convertFileSrcSync!(absolutePath);
