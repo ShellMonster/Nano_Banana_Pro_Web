@@ -59,6 +59,20 @@ type GenerateRequest struct {
 	Params   map[string]interface{} `json:"params"`
 }
 
+func sanitizeTaskImagePaths(task *model.Task) {
+	if task == nil {
+		return
+	}
+	task.LocalPath = toPublicImagePath(task.LocalPath)
+	task.ThumbnailPath = toPublicImagePath(task.ThumbnailPath)
+}
+
+func sanitizeTaskImagePathsBatch(tasks []model.Task) {
+	for i := range tasks {
+		sanitizeTaskImagePaths(&tasks[i])
+	}
+}
+
 func buildConfigSnapshot(providerName, modelID string, params map[string]interface{}) string {
 	if params == nil {
 		params = map[string]interface{}{}
@@ -642,6 +656,7 @@ func GetTaskHandler(c *gin.Context) {
 		return
 	}
 	enrichTaskError(&task)
+	sanitizeTaskImagePaths(&task)
 
 	Success(c, task)
 }
@@ -685,6 +700,7 @@ func ListImagesHandler(c *gin.Context) {
 		return
 	}
 	enrichTaskErrors(tasks)
+	sanitizeTaskImagePathsBatch(tasks)
 
 	Success(c, gin.H{
 		"total": total,
