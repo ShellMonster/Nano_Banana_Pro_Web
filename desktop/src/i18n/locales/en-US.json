@@ -173,7 +173,8 @@
     "tabs": {
       "image": "Image Model",
       "chat": "Chat Model",
-      "vision": "Vision Model"
+      "vision": "Vision Model",
+      "notifications": "Notifications"
     },
     "language": {
       "label": "Language",
@@ -242,6 +243,21 @@
       "copyDirTitle": "Copy log folder path",
       "verboseLabel": "Enable verbose logs (more diagnostic info)",
       "help": "If you encounter issues, please send app.log and server.log to the developer (logs may include prompts)."
+    },
+    "notifications": {
+      "title": "System Notifications",
+      "hint": "Send desktop notifications when a generation task finishes. The message prefers the optimized prompt summary so you can tell which image it refers to.",
+      "enable": "Enable system notifications",
+      "enableHint": "Available on macOS and Windows desktop builds.",
+      "backgroundOnly": "Notify only in background",
+      "backgroundOnlyHint": "Skip notifications when the window is visible and focused; notify only when hidden, unfocused, or in the background.",
+      "failure": "Also notify on failures",
+      "failureHint": "When enabled, failed and partially completed tasks will also trigger notifications.",
+      "permissionDenied": "System notification permission is disabled. Please allow notifications for this app in system settings.",
+      "testButton": "Test notification",
+      "testHint": "Use this to verify whether macOS/Windows has registered notification permission correctly.",
+      "testSent": "Test notification sent. Please check your system notification center.",
+      "testFailed": "Failed to send test notification: {{message}}"
     },
     "save": "Sync and Save",
     "toast": {
@@ -497,6 +513,25 @@
       "backendUnavailable": "Backend unavailable. Please try again later."
     },
     "generateConfigTitle": "Generation Settings"
+  },
+  "notifications": {
+    "status": {
+      "completed": {
+        "title": "Image generation complete",
+        "body": "The generation task has completed.",
+        "bodyWithPrompt": "Completed: {{prompt}}"
+      },
+      "partial": {
+        "title": "Image generation partially completed",
+        "body": "{{completed}}/{{total}} images completed.",
+        "bodyWithPrompt": "{{completed}}/{{total}} completed: {{prompt}}"
+      },
+      "failed": {
+        "title": "Image generation failed",
+        "body": "The generation task failed.",
+        "bodyWithPrompt": "Failed: {{prompt}}"
+      }
+    }
   },
   "history": {
     "searchPlaceholder": "Search prompt or model",

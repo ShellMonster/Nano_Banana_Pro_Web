@@ -1,7 +1,7 @@
 {
   "name": "nano-banana-pro-frontend",
   "private": true,
-  "version": "2.6.4",
+  "version": "2.6.5",
   "license": "MIT",
   "description": "大香蕉图片生成工具 - 批量图片生成应用前端",
   "type": "module",
@@ -21,6 +21,7 @@
     "@tauri-apps/cli": "^2.9.6",
     "@tauri-apps/plugin-dialog": "^2.4.2",
     "@tauri-apps/plugin-fs": "^2.4.4",
+    "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-opener": "^2.5.2",
     "@tauri-apps/plugin-os": "^2.3.2",
     "@tauri-apps/plugin-process": "^2.3.1",

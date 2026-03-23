@@ -62,6 +62,7 @@ desktop/src-tauri/*.dmg
 desktop/src-tauri/*.tar.gz
 desktop/bin/
 backend/server
+backend/main
 backend/desktop/src-tauri/bin/
 *.png
 !assets/*.png

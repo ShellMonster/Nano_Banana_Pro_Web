@@ -199,6 +199,7 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
   const handlePreviewDeleteSuccess = useCallback((deletedImage: FlattenedImage) => {
     setFolderImages((prev) => prev.filter((item) => item.id !== deletedImage.id));
     setFolderImagesTotal((prev) => Math.max(0, prev - 1));
+    setSelectedImage((prev) => (prev?.id === deletedImage.id ? null : prev));
     void loadFolders();
   }, [loadFolders]);
 
@@ -304,11 +305,15 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
     return (
       <div {...ariaAttributes} style={cellStyle}>
         <div style={{ width: itemWidth, height: itemHeight }}>
-          <ImageCard image={image} onClick={setSelectedImage} />
+          <ImageCard
+            image={image}
+            onClick={setSelectedImage}
+            onDeleteSuccess={handlePreviewDeleteSuccess}
+          />
         </div>
       </div>
     );
-  }, []);
+  }, [handlePreviewDeleteSuccess]);
 
   const folderTitle = useMemo(() => {
     if (!selectedFolder) return '';
