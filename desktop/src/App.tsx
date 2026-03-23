@@ -5,6 +5,7 @@ import { ToastContainer } from './components/common/Toast';
 import { UpdaterModal } from './components/common/UpdaterModal';
 import { OnboardingTour } from './components/Onboarding/OnboardingTour';
 import i18n from './i18n';
+import { useGenerationNotifications } from './hooks/useGenerationNotifications';
 import { useConfigStore } from './store/configStore';
 import { useGenerateStore } from './store/generateStore';
 
@@ -14,6 +15,7 @@ function App() {
   const language = useConfigStore((s) => s.language);
   const generateStatus = useGenerateStore((s) => s.status);
   const isSubmitting = useGenerateStore((s) => s.isSubmitting);
+  useGenerationNotifications();
 
   useEffect(() => {
     if (!language) return;

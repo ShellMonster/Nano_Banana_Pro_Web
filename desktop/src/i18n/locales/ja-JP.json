@@ -161,7 +161,8 @@
     "tabs": {
       "image": "画像モデル",
       "chat": "チャットモデル",
-      "vision": "ビジョンモデル"
+      "vision": "ビジョンモデル",
+      "notifications": "システム通知"
     },
     "language": {
       "label": "言語",
@@ -230,6 +231,21 @@
       "copyDirTitle": "ログフォルダのパスをコピー",
       "verboseLabel": "詳細ログを有効化（診断情報が増えます）",
       "help": "問題が発生した場合は app.log と server.log を開発者に送ってください（ログにプロンプトが含まれる場合があります）。"
+    },
+    "notifications": {
+      "title": "システム通知",
+      "hint": "生成タスクが終了したときにデスクトップ通知を送信します。どの画像か分かるよう、通知文には最適化後のプロンプト要約を優先して表示します。",
+      "enable": "システム通知を有効化",
+      "enableHint": "macOS と Windows のデスクトップ版で利用できます。",
+      "backgroundOnly": "バックグラウンド時のみ通知",
+      "backgroundOnlyHint": "ウィンドウが前面表示かつフォーカス中のときは通知せず、非表示・非フォーカス・バックグラウンド時のみ通知します。",
+      "failure": "失敗時も通知",
+      "failureHint": "有効にすると、失敗や一部完了のタスクも通知します。",
+      "permissionDenied": "システム通知の権限が無効です。システム設定の通知からこのアプリを許可してください。",
+      "testButton": "通知をテスト",
+      "testHint": "macOS/Windows で通知権限が正しく登録されているか確認するために使います。",
+      "testSent": "テスト通知を送信しました。システム通知センターを確認してください。",
+      "testFailed": "テスト通知の送信に失敗しました: {{message}}"
     },
     "save": "同期して保存",
     "toast": {
@@ -485,6 +501,25 @@
       "backendUnavailable": "バックエンドが利用できません。後でもう一度お試しください。"
     },
     "generateConfigTitle": "生成設定"
+  },
+  "notifications": {
+    "status": {
+      "completed": {
+        "title": "画像生成が完了しました",
+        "body": "生成タスクが完了しました。",
+        "bodyWithPrompt": "完了: {{prompt}}"
+      },
+      "partial": {
+        "title": "画像生成が一部完了しました",
+        "body": "{{completed}}/{{total}} 件が完了しました。",
+        "bodyWithPrompt": "{{completed}}/{{total}} 件完了: {{prompt}}"
+      },
+      "failed": {
+        "title": "画像生成に失敗しました",
+        "body": "生成タスクが失敗しました。",
+        "bodyWithPrompt": "失敗: {{prompt}}"
+      }
+    }
   },
   "history": {
     "searchPlaceholder": "プロンプトまたはモデルを検索",

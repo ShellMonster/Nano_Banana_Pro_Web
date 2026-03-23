@@ -76,6 +76,9 @@ interface ConfigState {
     timeoutSeconds: number;
   } | null;
   defaultPromptOptimizeMode: 'off' | 'text' | 'json';
+  enableSystemNotifications: boolean;
+  notifyOnlyWhenBackground: boolean;
+  notifyOnFailure: boolean;
 
   language: string;
   languageResolved: string | null;
@@ -112,6 +115,9 @@ interface ConfigState {
   setChatMaxRetries: (count: number) => void;
   setChatSyncedConfig: (config: { apiBaseUrl: string; apiKey: string; model: string; timeoutSeconds: number } | null) => void;
   setDefaultPromptOptimizeMode: (mode: 'off' | 'text' | 'json') => void;
+  setEnableSystemNotifications: (enabled: boolean) => void;
+  setNotifyOnlyWhenBackground: (enabled: boolean) => void;
+  setNotifyOnFailure: (enabled: boolean) => void;
   setLanguage: (language: string) => void;
   setLanguageResolved: (languageResolved: string | null) => void;
   setShowOnboarding: (show: boolean) => void;
@@ -153,6 +159,9 @@ export const useConfigStore = create<ConfigState>()(
       chatMaxRetries: 1,
       chatSyncedConfig: null,
       defaultPromptOptimizeMode: 'off',
+      enableSystemNotifications: true,
+      notifyOnlyWhenBackground: true,
+      notifyOnFailure: true,
       language: 'system',
       languageResolved: null,
       showOnboarding: true,  // 首次启动默认显示引导
@@ -185,6 +194,9 @@ export const useConfigStore = create<ConfigState>()(
       setChatMaxRetries: (chatMaxRetries) => set({ chatMaxRetries }),
       setChatSyncedConfig: (chatSyncedConfig) => set({ chatSyncedConfig }),
       setDefaultPromptOptimizeMode: (defaultPromptOptimizeMode) => set({ defaultPromptOptimizeMode }),
+      setEnableSystemNotifications: (enableSystemNotifications) => set({ enableSystemNotifications }),
+      setNotifyOnlyWhenBackground: (notifyOnlyWhenBackground) => set({ notifyOnlyWhenBackground }),
+      setNotifyOnFailure: (notifyOnFailure) => set({ notifyOnFailure }),
       setLanguage: (language) => set({ language }),
       setLanguageResolved: (languageResolved) => set({ languageResolved }),
       setShowOnboarding: (showOnboarding) => set({ showOnboarding }),
@@ -226,6 +238,9 @@ export const useConfigStore = create<ConfigState>()(
         chatMaxRetries: 1,
         chatSyncedConfig: null,
         defaultPromptOptimizeMode: 'off',
+        enableSystemNotifications: true,
+        notifyOnlyWhenBackground: true,
+        notifyOnFailure: true,
         prompt: '',
         count: 1,
         imageSize: '2K',
@@ -237,7 +252,7 @@ export const useConfigStore = create<ConfigState>()(
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 14,
+      version: 15,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;
@@ -332,6 +347,14 @@ export const useConfigStore = create<ConfigState>()(
             imageMaxRetries: next.imageMaxRetries ?? 1,
             visionMaxRetries: next.visionMaxRetries ?? 1,
             chatMaxRetries: next.chatMaxRetries ?? 1
+          };
+        }
+        if (version < 15) {
+          next = {
+            ...next,
+            enableSystemNotifications: next.enableSystemNotifications ?? true,
+            notifyOnlyWhenBackground: next.notifyOnlyWhenBackground ?? true,
+            notifyOnFailure: next.notifyOnFailure ?? true
           };
         }
 

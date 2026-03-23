@@ -11,10 +11,11 @@ import { MoveImageDialog } from './MoveImageDialog';
 interface ImageCardProps {
     image: FlattenedImage;
     onClick: (image: FlattenedImage) => void;
+    onDeleteSuccess?: (image: FlattenedImage) => void;
 }
 
 // 使用 React.memo 防止不必要的重渲染
-export const ImageCard = React.memo(function ImageCard({ image, onClick }: ImageCardProps) {
+export const ImageCard = React.memo(function ImageCard({ image, onClick, onDeleteSuccess }: ImageCardProps) {
     const { t } = useTranslation();
     const [isDeleting, setIsDeleting] = React.useState(false);
     const [showConfirm, setShowConfirm] = React.useState(false);
@@ -105,6 +106,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
             try {
                 // 使用 store 中的删除方法（先本地移除，再刷新）
                 await useHistoryStore.getState().deleteImage(image, { source: 'history' });
+                onDeleteSuccess?.(image);
                 // 成功后重置状态
                 setIsDeleting(false);
                 setShowConfirm(false);
@@ -121,7 +123,7 @@ export const ImageCard = React.memo(function ImageCard({ image, onClick }: Image
             }
             confirmTimerRef.current = setTimeout(() => setShowConfirm(false), 3000);
         }
-    }, [showConfirm, image.id, image.taskId]);
+    }, [showConfirm, image, onDeleteSuccess]);
 
     // 处理右键点击
     const handleContextMenu = useCallback((e: React.MouseEvent) => {

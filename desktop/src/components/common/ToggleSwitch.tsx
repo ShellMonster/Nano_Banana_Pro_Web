@@ -3,14 +3,20 @@ import React from 'react';
 interface ToggleSwitchProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
+  disabled?: boolean;
 }
 
-export function ToggleSwitch({ checked, onChange }: ToggleSwitchProps) {
+export function ToggleSwitch({ checked, onChange, disabled = false }: ToggleSwitchProps) {
   return (
     <button
       type="button"
-      onClick={() => { onChange(!checked); }}
-      className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+      disabled={disabled}
+      aria-disabled={disabled}
+      onClick={() => {
+        if (disabled) return;
+        onChange(!checked);
+      }}
+      className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
         checked ? 'bg-blue-600' : 'bg-slate-300'
       }`}
     >

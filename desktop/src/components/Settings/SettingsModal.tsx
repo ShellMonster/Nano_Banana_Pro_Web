@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, FileText, FolderOpen, Copy, RefreshCw, Languages, MessageSquare, Github, ScanEye, HelpCircle, Image as ImageIcon } from 'lucide-react';
+import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, FileText, FolderOpen, Copy, RefreshCw, Languages, MessageSquare, Github, ScanEye, HelpCircle, Image as ImageIcon, Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '../../store/configStore';
 import { Input } from '../common/Input';
@@ -16,6 +16,7 @@ import { getSystemLocale } from '../../i18n/systemLocale';
 import appIcon from '../../assets/app-icon.png';
 import { IMAGE_MODEL_OPTIONS, VISION_MODEL_OPTIONS, CUSTOM_MODEL_VALUE } from '../../store/configStore';
 import { getPromptOptimizeConfigIssue } from '../../utils/promptOptimizeConfig';
+import { sendTestSystemNotification } from '../../hooks/useGenerationNotifications';
 
 const CHAT_PROVIDER_OPTIONS = [
   { value: 'gemini-chat', label: 'Gemini(/v1beta)', defaultBase: 'https://generativelanguage.googleapis.com' },
@@ -23,7 +24,7 @@ const CHAT_PROVIDER_OPTIONS = [
 ];
 const DEFAULT_CHAT_PROVIDER = 'openai-chat';
 
-type SettingsTab = 'language' | 'image' | 'vision' | 'chat' | 'update' | 'logs';
+type SettingsTab = 'language' | 'image' | 'vision' | 'chat' | 'notifications' | 'update' | 'logs';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -171,6 +172,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setChatSyncedConfig,
     defaultPromptOptimizeMode,
     setDefaultPromptOptimizeMode,
+    enableSystemNotifications,
+    setEnableSystemNotifications,
+    notifyOnlyWhenBackground,
+    setNotifyOnlyWhenBackground,
+    notifyOnFailure,
+    setNotifyOnFailure,
     language,
     languageResolved,
     setLanguage,
@@ -196,6 +203,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const chatYunwuWarn = hasYunwuUrlWarning(chatApiBaseUrl, chatProvider === 'gemini-chat' ? 'gemini' : 'openai');
   const chatBaseWarn = (isGeminiProvider(chatProvider) && hasGeminiBasePathWarning(chatApiBaseUrl)) || chatYunwuWarn.hasWarning;
   const [verboseLogs, setVerboseLogs] = useState(getDiagnosticVerbose());
+  const [draftEnableSystemNotifications, setDraftEnableSystemNotifications] = useState(enableSystemNotifications);
+  const [draftNotifyOnlyWhenBackground, setDraftNotifyOnlyWhenBackground] = useState(notifyOnlyWhenBackground);
+  const [draftNotifyOnFailure, setDraftNotifyOnFailure] = useState(notifyOnFailure);
   const [appVersion, setAppVersion] = useState('');
   const checkForUpdates = useUpdaterStore((s) => s.checkForUpdates);
   const openUpdater = useUpdaterStore((s) => s.open);
@@ -267,8 +277,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     if (isOpen) {
       setDraftEnableRefImageCompression(enableRefImageCompression);
       setDraftPromptOptimizeMode(defaultPromptOptimizeMode);
+      setDraftEnableSystemNotifications(enableSystemNotifications);
+      setDraftNotifyOnlyWhenBackground(notifyOnlyWhenBackground);
+      setDraftNotifyOnFailure(notifyOnFailure);
     }
-  }, [isOpen, enableRefImageCompression, defaultPromptOptimizeMode]);
+  }, [isOpen, enableRefImageCompression, defaultPromptOptimizeMode, enableSystemNotifications, notifyOnlyWhenBackground, notifyOnFailure]);
 
   useEffect(() => {
     let canceled = false;
@@ -501,6 +514,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
       setEnableRefImageCompression(draftEnableRefImageCompression);
       setDefaultPromptOptimizeMode(draftPromptOptimizeMode);
+      setEnableSystemNotifications(draftEnableSystemNotifications);
+      setNotifyOnlyWhenBackground(draftNotifyOnlyWhenBackground);
+      setNotifyOnFailure(draftNotifyOnFailure);
       toast.success(t('settings.toast.saveSuccess'));
       onClose();
     } catch (error: unknown) {
@@ -826,6 +842,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     { id: 'image' as const, label: t('settings.tabs.image'), icon: Box },
     { id: 'vision' as const, label: t('settings.tabs.vision'), icon: ScanEye },
     { id: 'chat' as const, label: t('settings.tabs.chat'), icon: MessageSquare },
+    { id: 'notifications' as const, label: t('settings.tabs.notifications'), icon: Bell },
     { id: 'update' as const, label: t('settings.update.title'), icon: RefreshCw },
     { id: 'logs' as const, label: t('settings.logs.title'), icon: FileText }
   ];
@@ -941,6 +958,72 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       </div>
                     </div>
                   </Modal>
+                </div>
+              )}
+
+              {activeTab === 'notifications' && (
+                <div className="space-y-5">
+                  <div className="space-y-3">
+                    <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                      <Bell className="w-4 h-4 text-blue-600" />
+                      {t('settings.notifications.title')}
+                    </label>
+                    <p className="text-xs text-slate-500 px-1">
+                      {t('settings.notifications.hint')}
+                    </p>
+                  </div>
+
+                  <div className="rounded-3xl border border-slate-200 bg-white/70 p-4 space-y-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-slate-800">{t('settings.notifications.enable')}</p>
+                        <p className="text-xs text-slate-500">{t('settings.notifications.enableHint')}</p>
+                      </div>
+                      <ToggleSwitch
+                        checked={draftEnableSystemNotifications}
+                        onChange={setDraftEnableSystemNotifications}
+                      />
+                    </div>
+
+                    <div className={`flex items-start justify-between gap-4 ${!draftEnableSystemNotifications ? 'opacity-50' : ''}`}>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-slate-800">{t('settings.notifications.backgroundOnly')}</p>
+                        <p className="text-xs text-slate-500">{t('settings.notifications.backgroundOnlyHint')}</p>
+                      </div>
+                      <ToggleSwitch
+                        checked={draftNotifyOnlyWhenBackground}
+                        disabled={!draftEnableSystemNotifications}
+                        onChange={setDraftNotifyOnlyWhenBackground}
+                      />
+                    </div>
+
+                    <div className={`flex items-start justify-between gap-4 ${!draftEnableSystemNotifications ? 'opacity-50' : ''}`}>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-slate-800">{t('settings.notifications.failure')}</p>
+                        <p className="text-xs text-slate-500">{t('settings.notifications.failureHint')}</p>
+                      </div>
+                      <ToggleSwitch
+                        checked={draftNotifyOnFailure}
+                        disabled={!draftEnableSystemNotifications}
+                        onChange={setDraftNotifyOnFailure}
+                      />
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200 space-y-2">
+                      <p className="text-xs text-slate-500">{t('settings.notifications.testHint')}</p>
+                      <Button
+                        variant="ghost"
+                        disabled={!draftEnableSystemNotifications}
+                        onClick={() => {
+                          if (!draftEnableSystemNotifications) return;
+                          void sendTestSystemNotification(t);
+                        }}
+                        className="w-full"
+                      >
+                        {t('settings.notifications.testButton')}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
 

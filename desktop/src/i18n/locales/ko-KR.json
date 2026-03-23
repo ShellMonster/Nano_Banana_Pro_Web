@@ -161,7 +161,8 @@
     "tabs": {
       "image": "이미지 모델",
       "chat": "채팅 모델",
-      "vision": "비전 모델"
+      "vision": "비전 모델",
+      "notifications": "시스템 알림"
     },
     "language": {
       "label": "언어",
@@ -230,6 +231,21 @@
       "copyDirTitle": "로그 폴더 경로 복사",
       "verboseLabel": "상세 로그 활성화(더 많은 진단 정보)",
       "help": "문제가 발생하면 app.log와 server.log를 개발자에게 보내 주세요(로그에 프롬프트가 포함될 수 있음)."
+    },
+    "notifications": {
+      "title": "시스템 알림",
+      "hint": "생성 작업이 끝나면 데스크톱 알림을 보냅니다. 어떤 이미지인지 알아보기 쉽도록 알림에는 최적화된 프롬프트 요약을 우선 표시합니다.",
+      "enable": "시스템 알림 사용",
+      "enableHint": "macOS 및 Windows 데스크톱 빌드에서 지원됩니다.",
+      "backgroundOnly": "백그라운드일 때만 알림",
+      "backgroundOnlyHint": "창이 전면에 보이고 포커스된 경우에는 알리지 않고, 숨김/비포커스/백그라운드일 때만 알립니다.",
+      "failure": "실패도 알림",
+      "failureHint": "활성화하면 실패 및 부분 완료 작업도 알림을 보냅니다.",
+      "permissionDenied": "시스템 알림 권한이 꺼져 있습니다. 시스템 설정의 알림에서 이 앱을 허용해 주세요.",
+      "testButton": "알림 테스트",
+      "testHint": "macOS/Windows 에서 알림 권한이 제대로 등록되었는지 확인할 때 사용합니다.",
+      "testSent": "테스트 알림을 보냈습니다. 시스템 알림 센터를 확인해 주세요.",
+      "testFailed": "테스트 알림 전송 실패: {{message}}"
     },
     "save": "동기화 및 저장",
     "toast": {
@@ -485,6 +501,25 @@
       "backendUnavailable": "백엔드를 사용할 수 없습니다. 나중에 다시 시도해 주세요."
     },
     "generateConfigTitle": "생성 설정"
+  },
+  "notifications": {
+    "status": {
+      "completed": {
+        "title": "이미지 생성 완료",
+        "body": "생성 작업이 완료되었습니다.",
+        "bodyWithPrompt": "완료됨: {{prompt}}"
+      },
+      "partial": {
+        "title": "이미지 생성 일부 완료",
+        "body": "{{completed}}/{{total}}개가 완료되었습니다.",
+        "bodyWithPrompt": "{{completed}}/{{total}} 완료: {{prompt}}"
+      },
+      "failed": {
+        "title": "이미지 생성 실패",
+        "body": "생성 작업이 실패했습니다.",
+        "bodyWithPrompt": "실패: {{prompt}}"
+      }
+    }
   },
   "history": {
     "searchPlaceholder": "프롬프트 또는 모델 검색",
