@@ -226,9 +226,17 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
       }
     };
 
+    const handleHistoryReconciled = () => {
+      if (selectedFolder) {
+        void openFolder(selectedFolder);
+      }
+    };
+
     window.addEventListener('history:image-moved', handleImageMoved as EventListener);
+    window.addEventListener('history:reconciled', handleHistoryReconciled as EventListener);
     return () => {
       window.removeEventListener('history:image-moved', handleImageMoved as EventListener);
+      window.removeEventListener('history:reconciled', handleHistoryReconciled as EventListener);
     };
   }, [loadFolders, openFolder, selectedFolder]);
 
