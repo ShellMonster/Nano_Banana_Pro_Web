@@ -328,8 +328,8 @@ func (p *GeminiProvider) doGenerateContent(ctx context.Context, modelID string, 
 	requestURL := fmt.Sprintf("%s/v1beta/models/%s:generateContent", baseURL, modelID)
 	diagnostic.Logf(params, "request_payload",
 		"url=%s body=%q",
-		requestURL,
-		diagnostic.Preview(string(payloadBytes), 2000),
+		diagnostic.RedactSensitive(requestURL),
+		diagnostic.RedactSensitive(string(payloadBytes)),
 	)
 
 	maxRetries := providerMaxRetries(p.config)
@@ -366,6 +366,13 @@ func (p *GeminiProvider) doGenerateContent(ctx context.Context, modelID string, 
 		elapsed,
 		requestID,
 		diagnostic.Preview(strings.Join(headerLines(resp.Header), " | "), 1000),
+	)
+	diagnostic.Logf(params, "response_body",
+		"status=%s elapsed=%s request_id=%s body=%q",
+		resp.Status,
+		elapsed,
+		requestID,
+		diagnostic.RedactSensitive(string(body)),
 	)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
