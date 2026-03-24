@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "vite --host",
     "build": "tsc && vite build",
+    "build:sidecar": "cd ../backend && go build -o ../desktop/src-tauri/bin/server-aarch64-apple-darwin ./cmd/server/main.go",
+    "tauri:build:latest": "npm run build:sidecar && tauri build",
     "tauri": "tauri",
     "build:check": "vite build",
     "lint": "eslint .",
