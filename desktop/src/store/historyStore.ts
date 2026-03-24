@@ -19,6 +19,7 @@ interface HistoryState {
   viewMode: 'timeline' | 'album';
 
   loadHistory: (reset?: boolean, options?: { silent?: boolean }) => Promise<void>;
+  reconcileHistoryPage: () => Promise<void>;
   loadMore: () => Promise<void>;
   setSearchKeyword: (keyword: string) => void;
   deleteItem: (id: string) => Promise<void>;
@@ -104,6 +105,16 @@ const isNotFoundError = (error: unknown) => {
   return typeof message === 'string' && (message.includes('404') || message.includes('不存在'));
 };
 
+const sortHistoryItems = (items: HistoryItem[]) =>
+  [...items].sort((a, b) => {
+    const aIsActive = a.status === 'pending' || a.status === 'processing';
+    const bIsActive = b.status === 'pending' || b.status === 'processing';
+
+    if (aIsActive && !bIsActive) return -1;
+    if (!aIsActive && bIsActive) return 1;
+    return 0;
+  });
+
 export const useHistoryStore = create<HistoryState>()(
   persist(
     (set, get) => ({
@@ -148,22 +159,7 @@ export const useHistoryStore = create<HistoryState>()(
             // 排序：
             // 1. 正在生成中的任务（pending + processing）最前面（临时置顶）
             // 2. 其他任务保持后端返回的顺序（后端已按时间倒序返回）
-            const sortedList = [...list].sort((a, b) => {
-              // 优先级1：pending 或 processing 状态的任务置顶
-              const aIsActive = a.status === 'pending' || a.status === 'processing';
-              const bIsActive = b.status === 'pending' || b.status === 'processing';
-
-              if (aIsActive && !bIsActive) {
-                return -1; // a 是 pending/processing，b 不是，a 排前面
-              }
-              if (!aIsActive && bIsActive) {
-                return 1; // b 是 pending/processing，a 不是，b 排前面
-              }
-
-              // 优先级2：都不是 active 状态，保持后端返回的顺序
-              // 后端已经按创建时间倒序返回，无需再排序
-              return 0;
-            });
+            const sortedList = sortHistoryItems(list);
 
             // 计算最终的完整列表（用于更新 state 和同步）
             const finalItems = reset ? sortedList : (() => {
@@ -175,21 +171,7 @@ export const useHistoryStore = create<HistoryState>()(
                 }
                 const newItems = Array.from(existingMap.values());
                 // 对合并后的完整列表重新排序，确保顺序正确
-                newItems.sort((a, b) => {
-                  const aIsActive = a.status === 'pending' || a.status === 'processing';
-                  const bIsActive = b.status === 'pending' || b.status === 'processing';
-
-                  if (aIsActive && !bIsActive) {
-                    return -1;
-                  }
-                  if (!aIsActive && bIsActive) {
-                    return 1;
-                  }
-
-                  // 保持后端返回的时间顺序
-                  return 0;
-                });
-                return newItems;
+                return sortHistoryItems(newItems);
             })();
 
             // 更新状态
@@ -225,6 +207,43 @@ export const useHistoryStore = create<HistoryState>()(
               toast.error(errorMessage);
             }
             set({ loading: false });
+        }
+      },
+
+      reconcileHistoryPage: async () => {
+        const { searchKeyword, page } = get();
+        const pageSize = 10;
+
+        try {
+          const response = searchKeyword
+            ? await searchHistory({
+                page,
+                pageSize,
+                keyword: searchKeyword
+              })
+            : await getHistory({
+                page,
+                pageSize
+              });
+
+          const { list, total } = mapBackendHistoryResponse(response as unknown as import('../types').BackendHistoryResponse);
+
+          set((state) => {
+            const serverPageIds = new Set(list.map((item) => item.id));
+            const nextItems = sortHistoryItems([
+              ...state.items.filter((item) => !serverPageIds.has(item.id)),
+              ...list
+            ]);
+
+            return {
+              items: nextItems,
+              total,
+              hasMore: nextItems.length < total,
+              lastLoadedAt: Date.now()
+            };
+          });
+        } catch (error) {
+          console.error('Failed to reconcile history page:', error);
         }
       },
 
@@ -330,8 +349,10 @@ export const useHistoryStore = create<HistoryState>()(
                       };
                   });
 
-                  // 后台轻量同步（不重置分页，避免滚动跳顶）
-                  get().loadHistory(false, { silent: true });
+                  // 后台轻量同步（不重置分页，但要清理服务端已不存在的陈旧项）
+                  void get().reconcileHistoryPage().finally(() => {
+                    window.dispatchEvent(new CustomEvent('history:reconciled'));
+                  });
               }
 
               if (isTemp && isFromGenerate) {
