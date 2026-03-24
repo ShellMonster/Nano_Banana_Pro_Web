@@ -161,8 +161,8 @@ export function HistoryList() {
               task.images.filter(Boolean).forEach(img => {
                   allItems.push({
                       ...img,
-                      url: img.url || getImageUrl(img.filePath || img.thumbnailPath),
-                      thumbnailUrl: img.thumbnailUrl || getImageUrl(img.thumbnailPath || img.filePath),
+                      url: getImageUrl(img.filePath || img.url || img.thumbnailPath || ''),
+                      thumbnailUrl: getImageUrl(img.thumbnailPath || img.filePath || img.thumbnailUrl || img.url || ''),
                       prompt: task.prompt || '',
                       promptOriginal: task.promptOriginal || img.promptOriginal || '',
                       promptOptimized: task.promptOptimized || img.promptOptimized || '',

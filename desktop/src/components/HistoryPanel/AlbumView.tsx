@@ -8,7 +8,7 @@ import { ImageCard } from './ImageCard';
 import { ImagePreview } from '../GenerateArea/ImagePreview';
 import { FlattenedImage } from './HistoryList';
 import { getFolders, getFolderImages, Folder } from '../../services/folderApi';
-import { getImageUrlFromSource } from '../../services/api';
+import { getImageUrl, getImageUrlFromSource } from '../../services/api';
 import { toast } from '../../store/toastStore';
 import { mapBackendHistoryResponse } from '../../utils/mapping';
 import { formatAspectRatioLabel } from '../../utils/aspectRatio';
@@ -109,8 +109,10 @@ export const AlbumView = forwardRef<AlbumViewRef, {}>(function AlbumView(_props,
     list.forEach((task) => {
       if (task.images.length === 0) return;
       task.images.forEach((img) => {
-        const normalizedUrl = img.url || img.filePath || img.thumbnailPath;
-        const normalizedThumbnailUrl = img.thumbnailUrl || img.thumbnailPath || img.filePath || normalizedUrl;
+        const normalizedUrl = getImageUrl(img.filePath || img.url || img.thumbnailPath || '');
+        const normalizedThumbnailUrl = getImageUrl(
+          img.thumbnailPath || img.filePath || img.thumbnailUrl || img.url || ''
+        );
         if (!normalizedUrl) return;
         nextImages.push({
           ...img,
