@@ -42,38 +42,17 @@ export function useTaskStream(taskId: string | null) {
     }
   }, []);
 
-  const getStreamUrl = useCallback((id: string) => {
-    const baseUrl = BASE_URL.replace(/\/+$/, '');
-    return `${baseUrl}/tasks/${id}/stream`;
-  }, []);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      closeStream();
-    };
-  }, [closeStream]);
-
-  useEffect(() => {
-    if (!taskId || isBatchTask || connectionMode === 'polling') {
-      closeStream();
-      return;
-    }
-
-    const streamUrl = getStreamUrl(taskId);
-    const stream = new EventSource(streamUrl);
-    streamRef.current = stream;
+  const bindStream = useCallback((stream: EventSource, streamUrl: string, activeTaskId: string) => {
     const handlePing = () => {
       if (isMountedRef.current) {
         storeRef.current.updateLastMessageTime();
       }
     };
+
     stream.addEventListener('ping', handlePing);
 
     stream.onopen = () => {
       if (isMountedRef.current) {
-        // 连接成功，重置重连计数
         reconnectAttemptsRef.current = 0;
         setUpdateSource('websocket');
         storeRef.current.setConnectionMode('websocket');
@@ -106,6 +85,10 @@ export function useTaskStream(taskId: string | null) {
           setUpdateSource(null);
           storeRef.current.failTask(task);
           closeStream();
+        } else if (task.status === 'partial') {
+          setUpdateSource(null);
+          storeRef.current.completeTask();
+          closeStream();
         }
       } catch (error) {
         console.error('SSE message parse error:', error);
@@ -114,39 +97,37 @@ export function useTaskStream(taskId: string | null) {
 
     stream.onerror = () => {
       console.error('[SSE] Connection error');
+      stream.removeEventListener('ping', handlePing);
       if (!isMountedRef.current) return;
 
-      // 关闭当前连接
-      if (streamRef.current) {
+      if (streamRef.current === stream) {
         streamRef.current.close();
         streamRef.current = null;
+      } else {
+        stream.close();
       }
 
-      // 检查是否可以重连
       const currentMode = useGenerateStore.getState().connectionMode;
       if (reconnectAttemptsRef.current < MAX_SSE_RECONNECT_ATTEMPTS && currentMode !== 'polling') {
-        // 尝试重连
         reconnectAttemptsRef.current++;
         console.log(`[SSE] Attempting reconnect (${reconnectAttemptsRef.current}/${MAX_SSE_RECONNECT_ATTEMPTS})...`);
 
         reconnectTimerRef.current = setTimeout(() => {
           if (!isMountedRef.current) return;
 
-          // 检查当前状态是否仍在处理中
           const state = useGenerateStore.getState();
-          if (state.status !== 'processing' || state.taskId !== taskId) {
+          if (state.status !== 'processing' || state.taskId !== activeTaskId) {
             console.log('[SSE] Task no longer active, skipping reconnect');
             return;
           }
 
-          // 重新创建 SSE 连接
           try {
             const newStream = new EventSource(streamUrl);
             streamRef.current = newStream;
+            bindStream(newStream, streamUrl, activeTaskId);
             console.log('[SSE] Reconnected');
           } catch (err) {
             console.error('[SSE] Reconnect failed:', err);
-            // 重连失败，切换到轮询
             if (getUpdateSource() === 'websocket') {
               setUpdateSource(null);
             }
@@ -154,7 +135,6 @@ export function useTaskStream(taskId: string | null) {
           }
         }, SSE_RECONNECT_DELAY);
       } else {
-        // 重连次数用尽，切换到轮询模式
         console.log('[SSE] Max reconnect attempts reached, switching to polling');
         if (getUpdateSource() === 'websocket') {
           setUpdateSource(null);
@@ -165,7 +145,36 @@ export function useTaskStream(taskId: string | null) {
 
     return () => {
       stream.removeEventListener('ping', handlePing);
+    };
+  }, [closeStream]);
+
+  const getStreamUrl = useCallback((id: string) => {
+    const baseUrl = BASE_URL.replace(/\/+$/, '');
+    return `${baseUrl}/tasks/${id}/stream`;
+  }, []);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
       closeStream();
     };
-  }, [taskId, isBatchTask, connectionMode, getStreamUrl, closeStream]);
+  }, [closeStream]);
+
+  useEffect(() => {
+    if (!taskId || isBatchTask || connectionMode === 'polling') {
+      closeStream();
+      return;
+    }
+
+    const streamUrl = getStreamUrl(taskId);
+    const stream = new EventSource(streamUrl);
+    streamRef.current = stream;
+    const unbind = bindStream(stream, streamUrl, taskId);
+
+    return () => {
+      unbind();
+      closeStream();
+    };
+  }, [taskId, isBatchTask, connectionMode, getStreamUrl, closeStream, bindStream]);
 }

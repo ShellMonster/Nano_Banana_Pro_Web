@@ -242,7 +242,10 @@ export default function MainLayout() {
   const isTaskWatchdogRunningRef = useRef(false);
   const hasWarnedCountMismatchRef = useRef<string | null>(null);
   const staleCountRef = useRef(0);
+  const lastAuthoritativeCheckAtRef = useRef(0);
+  const lastAuthoritativeTaskIdRef = useRef<string | null>(null);
   const BATCH_TASK_PREFIX = 'batch-';
+  const AUTHORITATIVE_SYNC_INTERVAL_MS = 10000;
   const isBatchTaskId = (value: string | null | undefined) => {
     if (!value) return false;
     return value.startsWith(BATCH_TASK_PREFIX);
@@ -263,6 +266,12 @@ export default function MainLayout() {
       if (state.status !== 'processing' || !currentTaskId) return;
       if (isBatchTaskId(currentTaskId)) return;
 
+      if (lastAuthoritativeTaskIdRef.current !== currentTaskId) {
+        lastAuthoritativeTaskIdRef.current = currentTaskId;
+        lastAuthoritativeCheckAtRef.current = 0;
+        staleCountRef.current = 0;
+      }
+
       const now = Date.now();
       const last = state.lastMessageTime ?? state.startTime ?? now;
       const staleMs = now - last;
@@ -273,18 +282,21 @@ export default function MainLayout() {
       if (pollingSeemsAlive) return;
 
       const streamActive = source === 'websocket' && state.connectionMode === 'websocket';
+      const shouldRunAuthoritativeCheck = now - lastAuthoritativeCheckAtRef.current >= AUTHORITATIVE_SYNC_INTERVAL_MS;
       let shouldEscalateToPolling = false;
       if (streamActive) {
-        if (staleMs < POLL_ALIVE_THRESHOLD_MS) {
+        if (staleMs < POLL_ALIVE_THRESHOLD_MS && !shouldRunAuthoritativeCheck) {
           staleCountRef.current = 0;
           return;
         }
 
-        staleCountRef.current += 1;
-        if (staleCountRef.current < STALE_LIMIT) {
+        if (!shouldRunAuthoritativeCheck) {
+          staleCountRef.current += 1;
+        }
+        if (!shouldRunAuthoritativeCheck && staleCountRef.current < STALE_LIMIT) {
           return;
         }
-        shouldEscalateToPolling = true;
+        shouldEscalateToPolling = !shouldRunAuthoritativeCheck;
       } else {
         staleCountRef.current = 0;
       }
@@ -293,6 +305,7 @@ export default function MainLayout() {
       isTaskWatchdogRunningRef.current = true;
 
       try {
+        lastAuthoritativeCheckAtRef.current = now;
         const taskData = await getTaskStatus(currentTaskId);
         if (cancelled) return;
 
@@ -336,7 +349,8 @@ export default function MainLayout() {
           return;
         }
 
-        // 仍在 processing：连续多次 stale 才切到 polling
+        // 仍在 processing：只有实时链路连续 stale 才降级到 polling；
+        // 定期权威校验本身不意味着 websocket 不可用。
         if (shouldEscalateToPolling && latest.connectionMode !== 'polling') {
           latest.setConnectionMode('polling');
         }
