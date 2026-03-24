@@ -19,7 +19,6 @@ import (
 
 const (
 	defaultExportRemoteFetchTimeoutSeconds = 120
-	defaultExportRemoteMaxFileMB           = 512
 )
 
 type exportImagesRequest struct {
@@ -199,19 +198,6 @@ func writeRemoteFile(writer io.Writer, source string) error {
 		return fmt.Errorf("http status %d", resp.StatusCode)
 	}
 
-	maxFileMB := config.GlobalConfig.Exports.RemoteMaxFileMB
-	if maxFileMB <= 0 {
-		maxFileMB = defaultExportRemoteMaxFileMB
-	}
-
-	maxBytes := int64(maxFileMB) * 1024 * 1024
-	reader := io.LimitReader(resp.Body, maxBytes+1)
-	written, err := io.Copy(writer, reader)
-	if err != nil {
-		return err
-	}
-	if written > maxBytes {
-		return fmt.Errorf("remote file exceeds %d bytes", maxBytes)
-	}
-	return nil
+	_, err = io.Copy(writer, resp.Body)
+	return err
 }
