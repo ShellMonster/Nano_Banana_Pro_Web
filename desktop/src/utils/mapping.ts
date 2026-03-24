@@ -9,6 +9,8 @@ export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
   const getFullUrl = (path: string | undefined, source?: BackendTask['image_source']) => {
     return getImageUrlFromSource(source, path || '');
   };
+  const hasResolvedImage =
+    Boolean(task.local_path || task.image_url || task.thumbnail_path || task.thumbnail_url);
 
   const localizedErrorMessage = localizeErrorSummary(task).errorMessage;
   const rawErrorMessage = sanitizeBackendErrorMessage(task.error_message);
@@ -48,6 +50,8 @@ export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
     thumbnailUrl: getFullUrl(task.thumbnail_path || task.local_path || task.thumbnail_url || task.image_url, task.thumbnail_source || task.image_source)
   };
 
+  const shouldExposeImages = hasResolvedImage || task.status === 'completed' || task.status === 'failed' || task.status === 'partial';
+
   return {
     id: task.task_id,
     prompt: task.prompt,
@@ -68,7 +72,7 @@ export const mapBackendTaskToFrontend = (task: BackendTask): GenerationTask => {
     options: task.config_snapshot || '',
     createdAt: task.created_at,
     updatedAt: task.updated_at || '',
-    images: [image]
+    images: shouldExposeImages ? [image] : []
   };
 };
 
