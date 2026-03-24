@@ -33,6 +33,18 @@ let latestHistoryRequestId = 0;
 
 type HistoryTaskUpdate = Partial<HistoryItem> & { id: string };
 
+const stripDerivedImageUrls = (images: GeneratedImage[] = []) =>
+  images.map((img) => ({
+    ...img,
+    url: undefined,
+    thumbnailUrl: undefined,
+  }));
+
+const stripDerivedTaskUrls = (task: HistoryItem): HistoryItem => ({
+  ...task,
+  images: stripDerivedImageUrls(task.images || []),
+});
+
 const mergeImages = (existing: GeneratedImage[] = [], incoming: GeneratedImage[] = []) => {
   if (!incoming.length) return existing;
   const imageMap = new Map(existing.map((img) => [img.id, img]));
@@ -385,9 +397,9 @@ export const useHistoryStore = create<HistoryState>()(
         const page = typeof incoming.page === 'number' ? incoming.page : currentState.page;
         const lastLoadedAt =
           typeof incoming.lastLoadedAt === 'number' ? incoming.lastLoadedAt : currentState.lastLoadedAt;
-        return {
-          ...currentState,
-          items,
+          return {
+            ...currentState,
+          items: items.map(stripDerivedTaskUrls),
           total,
           page,
           lastLoadedAt,

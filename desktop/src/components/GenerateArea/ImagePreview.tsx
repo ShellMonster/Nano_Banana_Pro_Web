@@ -4,7 +4,7 @@ import { GeneratedImage } from '../../types';
 import { Button } from '../common/Button';
 import { Download, Copy, Calendar, Box, Maximize2, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Trash2, Check, ImageOff } from 'lucide-react';
 import { formatDateTime } from '../../utils/date';
-import { ensureBackendReady, getImageDownloadUrl } from '../../services/api';
+import { BASE_URL, ensureBackendReady, getImageDownloadUrl, getImageUrl } from '../../services/api';
 import { useHistoryStore } from '../../store/historyStore';
 import { toast } from '../../store/toastStore';
 import { useTranslation } from 'react-i18next';
@@ -62,6 +62,12 @@ export const ImagePreview = React.memo(function ImagePreview({
         () => (image ? localizeErrorSummary(image) : null),
         [image, i18n.resolvedLanguage]
     );
+    const resolvedFullImageSrc = image
+        ? getImageUrl(image.filePath || image.url || image.thumbnailPath || image.thumbnailUrl || '')
+        : '';
+    const resolvedThumbnailSrc = image
+        ? getImageUrl(image.thumbnailPath || image.filePath || image.thumbnailUrl || image.url || '')
+        : '';
     const failedDetails = useMemo(() => {
         if (!isFailedImage || !image) return [];
         const details: Array<{ label: string; value: string }> = [];
@@ -286,7 +292,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                 return 'image/jpeg';
             };
 
-            const getBestSrc = () => image.url || image.thumbnailUrl || '';
+            const getBestSrc = () => resolvedFullImageSrc || resolvedThumbnailSrc || '';
 
             // Tauri 打包环境下，Web Clipboard API 可能不可用/不稳定：优先走原生剪贴板写入
             if (isTauri) {
@@ -364,12 +370,12 @@ export const ImagePreview = React.memo(function ImagePreview({
             console.error('Copy image failed:', error);
             // 最后兜底：尝试复制链接（避免用户“完全失败”）
             try {
-                const src = image.url || image.thumbnailUrl || '';
-                if (src && navigator.clipboard?.writeText) {
-                    await navigator.clipboard.writeText(src);
-                    toast.info(t('toast.copyImageFallback'));
-                    return;
-                }
+            const src = resolvedFullImageSrc || resolvedThumbnailSrc || '';
+            if (src && navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(src);
+                toast.info(t('toast.copyImageFallback'));
+                return;
+            }
             } catch {}
             toast.error(t('toast.copyImageFailed'));
         } finally {
@@ -640,8 +646,8 @@ export const ImagePreview = React.memo(function ImagePreview({
                     const candidates = [
                         image.filePath,
                         image.thumbnailPath,
-                        image.url,
-                        image.thumbnailUrl,
+                        resolvedFullImageSrc,
+                        resolvedThumbnailSrc,
                     ].filter(Boolean) as string[];
 
                     for (const candidate of candidates) {
@@ -803,8 +809,8 @@ export const ImagePreview = React.memo(function ImagePreview({
                     ) : (
                         <>
                             <div className="absolute inset-0 z-0 pointer-events-none select-none">
-                                <img 
-                                    src={image.thumbnailUrl || image.url} 
+                                        <img 
+                                        src={resolvedThumbnailSrc || resolvedFullImageSrc} 
                                     alt="" 
                                     className="w-full h-full object-cover opacity-30 blur-3xl scale-110 transition-opacity duration-700" 
                                     decoding="async"
@@ -820,7 +826,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                                         handleCopyImage();
                                     }}
                                     onMouseDown={(e) => e.stopPropagation()}
-                                    disabled={!image.url && !image.thumbnailUrl && !image.filePath && !image.thumbnailPath}
+                                    disabled={!resolvedFullImageSrc && !resolvedThumbnailSrc && !image.filePath && !image.thumbnailPath}
                                     className={`
                                         px-3 py-2 bg-black/60 hover:bg-black/75 text-white rounded-xl shadow-xl border border-white/15 backdrop-blur-md transition-all active:scale-95
                                         flex items-center gap-2
@@ -859,7 +865,7 @@ export const ImagePreview = React.memo(function ImagePreview({
                                 {/* 缩略图占位 (模糊) */}
                                 {!fullImageLoaded && (
                                     <img 
-                                        src={image.thumbnailUrl || image.url} 
+                                        src={resolvedThumbnailSrc || resolvedFullImageSrc} 
                                         alt="" 
                                         className={`max-w-full max-h-full object-contain absolute ${
                                           fullImageError ? 'opacity-100 scale-100' : 'blur-lg scale-95 opacity-50'
@@ -872,10 +878,23 @@ export const ImagePreview = React.memo(function ImagePreview({
                                 {/* 高清大图 */}
                                 <img 
                                     ref={imageRef} 
-                                    src={image.url} 
+                                    src={resolvedFullImageSrc} 
                                     alt={image.prompt} 
                                     onLoad={() => setFullImageLoaded(true)}
-                                    onError={() => setFullImageError(true)}
+                                    onError={() => {
+                                        console.error('[ImagePreview] Full image failed to load', {
+                                            src: resolvedFullImageSrc,
+                                            thumbnailSrc: resolvedThumbnailSrc,
+                                            filePath: image.filePath,
+                                            thumbnailPath: image.thumbnailPath,
+                                            imageUrl: image.url,
+                                            thumbnailUrl: image.thumbnailUrl,
+                                            baseUrl: BASE_URL,
+                                            taskId: image.taskId,
+                                            imageId: image.id,
+                                        });
+                                        setFullImageError(true);
+                                    }}
                                     className={`max-w-full max-h-full object-contain shadow-2xl rounded-lg transition-all duration-500 ${fullImageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
                                     decoding="async"
                                     draggable={false} 
