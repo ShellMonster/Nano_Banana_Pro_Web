@@ -144,6 +144,12 @@ function updateBaseUrl(port: number) {
   console.log('API base URL updated to:', newBaseUrl);
 }
 
+export function forceUpdateBackendPort(port: number) {
+  if (typeof port === 'number' && port > 0) {
+    updateBaseUrl(port);
+  }
+}
+
 async function waitForBackendPort(timeoutMs = 10000) {
   if (!window.__TAURI_INTERNALS__) return;
 
@@ -189,6 +195,41 @@ export async function ensureBackendReady(timeoutMs = 10000) {
   if (window.__TAURI_INTERNALS__) {
     await waitForBackendPort(timeoutMs);
   }
+}
+
+export async function getBackendPort(): Promise<number> {
+  if (!window.__TAURI_INTERNALS__) {
+    const match = BASE_URL.match(/127\.0\.0\.1:(\d+)/);
+    return match ? Number(match[1]) : 0;
+  }
+  await tauriInitPromise;
+  if (!tauriInvoke) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    tauriInvoke = invoke;
+  }
+  const port = await tauriInvoke('get_backend_port');
+  return typeof port === 'number' ? port : 0;
+}
+
+export async function isSidecarRunning(): Promise<boolean> {
+  if (!window.__TAURI_INTERNALS__) return true;
+  await tauriInitPromise;
+  if (!tauriInvoke) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    tauriInvoke = invoke;
+  }
+  const result = await tauriInvoke('is_sidecar_running');
+  return Boolean(result);
+}
+
+export async function restartSidecar(): Promise<void> {
+  if (!window.__TAURI_INTERNALS__) return;
+  await tauriInitPromise;
+  if (!tauriInvoke) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    tauriInvoke = invoke;
+  }
+  await tauriInvoke('restart_sidecar');
 }
 
 // 请求拦截器

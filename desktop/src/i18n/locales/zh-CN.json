@@ -509,6 +509,7 @@
   "layout": {
     "loadingModule": "模块加载中...",
     "backendBanner": "后端服务未就绪，部分功能不可用",
+    "backendRecovering": "正在恢复后端连接并同步任务状态，请稍候",
     "toast": {
       "backendUnavailable": "后端服务不可用，请稍后重试"
     },

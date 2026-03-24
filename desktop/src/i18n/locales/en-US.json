@@ -509,6 +509,7 @@
   "layout": {
     "loadingModule": "Loading module...",
     "backendBanner": "Backend not ready. Some features may be unavailable.",
+    "backendRecovering": "Recovering backend connection and syncing task status. Please wait.",
     "toast": {
       "backendUnavailable": "Backend unavailable. Please try again later."
     },

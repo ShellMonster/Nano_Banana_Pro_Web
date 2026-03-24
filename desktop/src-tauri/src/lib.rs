@@ -16,8 +16,14 @@ struct PortPayload {
     port: u16,
 }
 
+#[derive(Clone, serde::Serialize)]
+struct SidecarStatusPayload {
+    running: bool,
+}
+
 struct BackendPort(Arc<Mutex<u16>>);
 struct SidecarState(Arc<Mutex<Option<CommandChild>>>);
+struct SidecarGeneration(Arc<Mutex<u64>>);
 struct GenerationState(Arc<Mutex<bool>>);
 
 #[derive(Default)]
@@ -191,6 +197,11 @@ fn rotate_if_too_large(path: &Path, max_bytes: u64, keep: usize) -> std::io::Res
 fn get_backend_port(state: State<'_, BackendPort>) -> u16 {
     let port = state.0.lock().unwrap();
     *port
+}
+
+#[tauri::command]
+fn is_sidecar_running(state: State<'_, SidecarState>) -> bool {
+    state.0.lock().unwrap().is_some()
 }
 
 #[tauri::command]
@@ -680,11 +691,130 @@ fn kill_sidecar(app_handle: &tauri::AppHandle) {
     }
 }
 
+fn spawn_sidecar(
+    app_handle: &tauri::AppHandle,
+    port_state: Arc<Mutex<u16>>,
+) -> Result<(), String> {
+    let log_state = app_handle.state::<LogState>().inner().clone();
+    let shell = app_handle.shell();
+    let sidecar_command = shell
+        .sidecar("server")
+        .map_err(|err| format!("create sidecar command failed: {}", err))?
+        .env("TAURI_PLATFORM", "macos")
+        .env("TAURI_FAMILY", "unix")
+        .env("GODEBUG", "http2debug=2")
+        .env("GIN_MODE", "release");
+
+    log_state.log_app("INFO", "Attempting to spawn sidecar...");
+    let (mut rx, child) = sidecar_command
+        .spawn()
+        .map_err(|err| format!("spawn sidecar failed: {}", err))?;
+
+    log_state.log_app("INFO", &format!("Sidecar spawned with PID: {:?}", child.pid()));
+
+    let generation = {
+        let generation_state = app_handle.state::<SidecarGeneration>();
+        let mut guard = generation_state.0.lock().unwrap();
+        *guard += 1;
+        *guard
+    };
+
+    {
+        let sidecar_state = app_handle.state::<SidecarState>();
+        let mut guard = sidecar_state.0.lock().unwrap();
+        *guard = Some(child);
+    }
+
+    let app_handle_clone = app_handle.clone();
+    let port_state_inner = port_state.clone();
+    let log_state_for_task = log_state.clone();
+
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stdout(line) => {
+                    let out = String::from_utf8_lossy(&line);
+                    println!("Sidecar STDOUT: {}", out);
+                    log_state_for_task.log_server("STDOUT", out.trim_end());
+
+                    if out.contains("SERVER_PORT=") {
+                        if let Some(port_str) = out.split('=').last() {
+                            if let Ok(port) = port_str.trim().parse::<u16>() {
+                                log_state_for_task.log_app(
+                                    "INFO",
+                                    &format!("Detected backend port: {}", port),
+                                );
+                                if let Ok(mut p) = port_state_inner.lock() {
+                                    *p = port;
+                                }
+                                let _ = app_handle_clone.emit("backend-port", PortPayload { port });
+                                let _ = app_handle_clone.emit(
+                                    "sidecar-status",
+                                    SidecarStatusPayload { running: true },
+                                );
+                            }
+                        }
+                    }
+                }
+                CommandEvent::Stderr(line) => {
+                    let err = String::from_utf8_lossy(&line);
+                    eprintln!("Sidecar STDERR: {}", err);
+                    log_state_for_task.log_server("STDERR", err.trim_end());
+                }
+                CommandEvent::Error(err) => {
+                    eprintln!("Sidecar Error: {}", err);
+                    log_state_for_task.log_app("ERROR", &format!("Sidecar Error: {}", err));
+                }
+                CommandEvent::Terminated(status) => {
+                    log_state_for_task.log_app(
+                        "WARN",
+                        &format!("Sidecar Terminated with status: {:?}", status),
+                    );
+                    if let Ok(mut p) = port_state_inner.lock() {
+                        *p = 0;
+                    }
+                    let current_generation = app_handle_clone
+                        .state::<SidecarGeneration>()
+                        .0
+                        .lock()
+                        .map(|g| *g)
+                        .unwrap_or(0);
+                    if generation == current_generation {
+                        if let Ok(mut c) = app_handle_clone.state::<SidecarState>().0.lock() {
+                            *c = None;
+                        }
+                    }
+                    let _ = app_handle_clone.emit("sidecar-status", SidecarStatusPayload {
+                        running: false,
+                    });
+                }
+                _ => {}
+            }
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+fn restart_sidecar(app: tauri::AppHandle, state: State<'_, BackendPort>) -> Result<(), String> {
+    kill_sidecar(&app);
+    if let Ok(mut p) = state.0.lock() {
+        *p = 0;
+    }
+    let _ = app.emit(
+        "sidecar-status",
+        SidecarStatusPayload { running: false },
+    );
+    spawn_sidecar(&app, state.inner().0.clone())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let port_state = Arc::new(Mutex::new(0u16)); // 初始为 0
     let port_state_for_setup = port_state.clone();
     let port_state_for_state = port_state.clone();
+    let sidecar_generation = Arc::new(Mutex::new(0u64));
     let generation_state = Arc::new(Mutex::new(false));
     let quit_guard_state = Arc::new(Mutex::new(QuitGuard::default()));
 
@@ -698,96 +828,24 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(BackendPort(port_state_for_state))
+        .manage(SidecarGeneration(sidecar_generation))
         .manage(GenerationState(generation_state))
         .manage(QuitGuardState(quit_guard_state))
         .setup(move |app| {
             let log_state = LogState::init(&app.handle());
             app.manage(log_state.clone());
 
-            let shell = app.shell();
-            let sidecar_command = shell
-                .sidecar("server")
-                .unwrap()
-                .env("TAURI_PLATFORM", "macos")
-                .env("TAURI_FAMILY", "unix")
-                .env("GODEBUG", "http2debug=2")
-                .env("GIN_MODE", "release");
-
-            println!("Attempting to spawn sidecar...");
-            log_state.log_app("INFO", "Attempting to spawn sidecar...");
-
-            let (mut rx, child) = sidecar_command.spawn().expect("Failed to spawn sidecar");
-
-            println!("Sidecar spawned with PID: {:?}", child.pid());
-            log_state.log_app(
-                "INFO",
-                &format!("Sidecar spawned with PID: {:?}", child.pid()),
-            );
-
-            let sidecar_state = Arc::new(Mutex::new(Some(child)));
+            let sidecar_state = Arc::new(Mutex::new(None));
             app.manage(SidecarState(sidecar_state.clone()));
-            let child_clone = sidecar_state.clone();
-
-            let app_handle = app.handle().clone();
-            let port_state_inner = port_state_for_setup.clone();
-            let log_state_for_task = log_state.clone();
-
-            tauri::async_runtime::spawn(async move {
-                while let Some(event) = rx.recv().await {
-                    match event {
-                        CommandEvent::Stdout(line) => {
-                            let out = String::from_utf8_lossy(&line);
-                            println!("Sidecar STDOUT: {}", out);
-                            log_state_for_task.log_server("STDOUT", out.trim_end());
-
-                            if out.contains("SERVER_PORT=") {
-                                if let Some(port_str) = out.split('=').last() {
-                                    if let Ok(port) = port_str.trim().parse::<u16>() {
-                                        println!("Detected backend port: {}", port);
-                                        log_state_for_task.log_app(
-                                            "INFO",
-                                            &format!("Detected backend port: {}", port),
-                                        );
-                                        if let Ok(mut p) = port_state_inner.lock() {
-                                            *p = port;
-                                        }
-                                        // 依然发送事件，以便正在运行的页面能立即感知
-                                        let _ =
-                                            app_handle.emit("backend-port", PortPayload { port });
-                                    }
-                                }
-                            }
-                        }
-                        CommandEvent::Stderr(line) => {
-                            let err = String::from_utf8_lossy(&line);
-                            eprintln!("Sidecar STDERR: {}", err);
-                            log_state_for_task.log_server("STDERR", err.trim_end());
-                        }
-                        CommandEvent::Error(err) => {
-                            eprintln!("Sidecar Error: {}", err);
-                            log_state_for_task.log_app("ERROR", &format!("Sidecar Error: {}", err));
-                        }
-                        CommandEvent::Terminated(status) => {
-                            println!("Sidecar Terminated with status: {:?}", status);
-                            log_state_for_task.log_app(
-                                "WARN",
-                                &format!("Sidecar Terminated with status: {:?}", status),
-                            );
-                            // 进程退出了，清空 handle
-                            if let Ok(mut c) = child_clone.lock() {
-                                *c = None;
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            });
+            spawn_sidecar(&app.handle(), port_state_for_setup.clone())
+                .map_err(|err| -> Box<dyn std::error::Error> { err.into() })?;
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             greet,
             get_backend_port,
+            is_sidecar_running,
             get_app_data_dir,
             get_log_dir,
             open_log_dir,
@@ -797,7 +855,8 @@ pub fn run() {
             read_image_from_clipboard,
             persist_ref_image,
             download_file_to_path,
-            set_generation_active
+            set_generation_active,
+            restart_sidecar
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

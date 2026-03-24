@@ -13,6 +13,7 @@ import { InternalDragLayer } from '../common/InternalDragLayer';
 import { getTaskStatus } from '../../services/generateApi';
 import { getUpdateSource } from '../../store/updateSourceStore';
 import { TemplateMarketDrawer } from '../TemplateMarket/TemplateMarketDrawer';
+import { useBackendResumeRecovery } from '../../hooks/useBackendResumeRecovery';
 
 // 使用懒加载减少初始包体积
 const ConfigPanel = lazy(() => import('../ConfigPanel'));
@@ -42,6 +43,7 @@ export default function MainLayout() {
   const totalCount = useGenerateStore((s) => s.totalCount);
   const completedCount = useGenerateStore((s) => s.completedCount);
   const errorMessage = useGenerateStore((s) => s.error);
+  const recoveryStatus = useGenerateStore((s) => s.recoveryStatus);
 
   const [isHydrated, setIsHydrated] = useState(false);
   const [isTauriReady, setIsTauriReady] = useState(false);
@@ -50,6 +52,8 @@ export default function MainLayout() {
   const [isTemplateMarketOpen, setIsTemplateMarketOpen] = useState(false);
   const safeTab = currentTab === 'history' ? 'history' : 'generate';
   const lastTaskIdRef = useRef<string | null>(null);
+
+  useBackendResumeRecovery();
 
   // 1. 确保状态恢复
   useEffect(() => {
@@ -394,11 +398,17 @@ export default function MainLayout() {
       <Header />
       <InternalDragLayer />
 
-      {isBackendHealthy === false && (
-        <div className="mx-4 mt-2 p-3 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 animate-in fade-in slide-in-from-top-2">
+      {(isBackendHealthy === false || recoveryStatus !== 'idle') && (
+        <div className={`mx-4 mt-2 p-3 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 ${
+          recoveryStatus === 'recovering'
+            ? 'bg-amber-50 border border-amber-100 text-amber-700'
+            : 'bg-red-50 border border-red-100 text-red-600'
+        }`}>
           <AlertTriangle className="w-5 h-5 flex-shrink-0" />
           <div className="text-sm font-bold">
-            {t('layout.backendBanner')}
+            {recoveryStatus === 'recovering'
+              ? t('layout.backendRecovering')
+              : t('layout.backendBanner')}
           </div>
         </div>
       )}

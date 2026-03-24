@@ -102,6 +102,7 @@ interface GenerateState {
   // 新增：连接模式和最后消息时间
   connectionMode: 'websocket' | 'polling' | 'none';
   lastMessageTime: number | null;
+  recoveryStatus: 'idle' | 'recovering' | 'backend_unavailable';
 
   setTab: (tab: 'generate' | 'history') => void;
   setSidebarOpen: (isOpen: boolean) => void; // 新增 Action
@@ -119,6 +120,7 @@ interface GenerateState {
   // 新增：切换连接模式和更新消息时间
   setConnectionMode: (mode: 'websocket' | 'polling' | 'none') => void;
   updateLastMessageTime: () => void;
+  setRecoveryStatus: (status: 'idle' | 'recovering' | 'backend_unavailable') => void;
   setSubmitting: (isSubmitting: boolean) => void;
   mergeImagesForTask: (taskId: string, images: GeneratedImage[], options?: MergeOptions) => void;
   // 新增：恢复任务状态（用于刷新后恢复）
@@ -142,6 +144,7 @@ export const useGenerateStore = create<GenerateState>()(
       startTime: null,
       connectionMode: 'none',
       lastMessageTime: null,
+      recoveryStatus: 'idle',
 
       setTab: (currentTab) => set({ currentTab }),
       setSidebarOpen: (isSidebarOpen) => set({ isSidebarOpen }),
@@ -181,7 +184,8 @@ export const useGenerateStore = create<GenerateState>()(
             selectedIds: new Set(),
             startTime: Date.now(),
             connectionMode: 'websocket',  // 初始使用 WebSocket
-            lastMessageTime: Date.now()
+            lastMessageTime: Date.now(),
+            recoveryStatus: 'idle'
         }));
       },
 
@@ -246,7 +250,8 @@ export const useGenerateStore = create<GenerateState>()(
           connectionMode: 'none',
           taskId: null,
           startTime: null,
-          images
+          images,
+          recoveryStatus: 'idle'
         };
       }),
       failTask: (failure) => set((state) => {
@@ -303,7 +308,8 @@ export const useGenerateStore = create<GenerateState>()(
           connectionMode: 'none',
           taskId: null,
           startTime: null,
-          images
+          images,
+          recoveryStatus: 'idle'
         };
       }),
       dismissError: () => set((state) => ({
@@ -337,6 +343,8 @@ export const useGenerateStore = create<GenerateState>()(
       // 新增：更新最后消息时间
       updateLastMessageTime: () => set({ lastMessageTime: Date.now() }),
 
+      setRecoveryStatus: (recoveryStatus) => set({ recoveryStatus }),
+
       // 新增：恢复任务状态（用于刷新后恢复）
       restoreTaskState: (taskState) => set((state) => {
         // 优化：检查之前的连接模式，避免不必要的切换
@@ -358,7 +366,8 @@ export const useGenerateStore = create<GenerateState>()(
           // 恢复的任务使用轮询模式，更可靠且避免WebSocket连接错误
           // 但如果之前已经是 websocket 模式且正常，则保持
           connectionMode: shouldUsePolling ? 'polling' : state.connectionMode,
-          lastMessageTime: Date.now()
+          lastMessageTime: Date.now(),
+          recoveryStatus: 'idle'
         };
       }),
 
@@ -373,6 +382,7 @@ export const useGenerateStore = create<GenerateState>()(
         startTime: null,
         connectionMode: 'none',
         lastMessageTime: null,
+        recoveryStatus: 'idle',
         selectedIds: new Set() // Bug #6修复：清空选中状态
       })
     }),
