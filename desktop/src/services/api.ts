@@ -3,6 +3,7 @@ import { ApiResponse } from '../types';
 
 export interface ApiRequestConfig extends AxiosRequestConfig {
   __returnResponse?: boolean;
+  __skipPortDetection?: boolean;
 }
 
 export interface ImageSource {
@@ -234,7 +235,8 @@ export async function restartSidecar(): Promise<void> {
 
 // 请求拦截器
 api.interceptors.request.use(async (config) => {
-  if (window.__TAURI_INTERNALS__ && !isPortDetected) {
+  const requestConfig = config as ApiRequestConfig;
+  if (window.__TAURI_INTERNALS__ && !isPortDetected && !requestConfig.__skipPortDetection) {
     await waitForBackendPort();
   }
 

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CheckSquare, Square, Download, Trash2, Loader2 } from 'lucide-react';
 import { useGenerateStore } from '../../store/generateStore';
+import { useGenerateDisplayImages } from '../../hooks/useGenerateDisplayImages';
 import { Button } from '../common/Button';
 import { exportImages } from '../../services/historyApi';
 import { toast } from '../../store/toastStore';
@@ -8,7 +9,8 @@ import { useTranslation } from 'react-i18next';
 
 export function BatchActions() {
   const { t } = useTranslation();
-  const { images, selectedIds, selectAll, clearSelection, clearImages } = useGenerateStore();
+  const images = useGenerateDisplayImages();
+  const { selectedIds, selectAll, clearSelection, clearImages } = useGenerateStore();
   const [isExporting, setIsExporting] = useState(false);
   const objectUrlRef = useRef<string | null>(null);  // 记录 ObjectURL
 

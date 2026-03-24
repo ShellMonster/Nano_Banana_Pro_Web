@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import api, { ensureBackendReady, forceUpdateBackendPort, getBackendPort, isSidecarRunning, restartSidecar } from '../services/api';
+import api, { type ApiRequestConfig, ensureBackendReady, forceUpdateBackendPort, getBackendPort, isSidecarRunning, restartSidecar } from '../services/api';
 import { useGenerateStore } from '../store/generateStore';
 import { getTaskStatus } from '../services/generateApi';
 import { toast } from '../store/toastStore';
@@ -25,24 +25,54 @@ export function useBackendResumeRecovery() {
       const store = useGenerateStore.getState();
       const currentTaskId = store.taskId;
       const currentStatus = store.status;
+      const hasProcessingTask = Boolean(currentTaskId && currentStatus === 'processing');
+      const shouldShowRecovering = hasProcessingTask || reason === 'sidecar-running' || reason === 'sidecar-terminated';
+      const shouldEscalateUnavailable = hasProcessingTask || reason === 'sidecar-running' || reason === 'sidecar-terminated';
 
       try {
-        store.setRecoveryStatus('recovering');
+        if (shouldShowRecovering) {
+          store.setRecoveryStatus('recovering');
+        }
         console.log('[resume recovery] triggered', { reason, currentTaskId, currentStatus });
 
         let running = await isSidecarRunning().catch(() => false);
-        if (!running) {
-          console.warn('[resume recovery] sidecar not running, restarting...');
-          await restartSidecar();
-          running = true;
+        let healthOk = false;
+        let port = 0;
+
+        if (running) {
+          try {
+            const fastHealthConfig: ApiRequestConfig = {
+              timeout: 1500,
+              __skipPortDetection: true
+            };
+            await ensureBackendReady(1500);
+            port = await getBackendPort().catch(() => 0);
+            forceUpdateBackendPort(port);
+            await api.get('/health', fastHealthConfig);
+            healthOk = true;
+            console.log('[resume recovery] backend ready (fast path)', { port, running });
+          } catch (error) {
+            console.warn('[resume recovery] fast health probe failed, escalating...', error);
+          }
         }
 
-        await ensureBackendReady(5000);
-        const port = await getBackendPort().catch(() => 0);
-        forceUpdateBackendPort(port);
-        console.log('[resume recovery] backend ready', { port, running });
+        if (!healthOk) {
+          const fullHealthConfig: ApiRequestConfig = {
+            timeout: 5000,
+            __skipPortDetection: true
+          };
+          if (!running) {
+            console.warn('[resume recovery] sidecar not running, restarting...');
+            await restartSidecar();
+            running = true;
+          }
 
-        await api.get('/health');
+          await ensureBackendReady(5000);
+          port = await getBackendPort().catch(() => 0);
+          forceUpdateBackendPort(port);
+          await api.get('/health', fullHealthConfig);
+          console.log('[resume recovery] backend ready (full path)', { port, running });
+        }
 
         if (currentTaskId && currentStatus === 'processing') {
           const task = await getTaskStatus(currentTaskId);
@@ -74,7 +104,11 @@ export function useBackendResumeRecovery() {
       } catch (error) {
         console.error('[resume recovery] failed:', error);
         const latest = useGenerateStore.getState();
-        latest.setRecoveryStatus('backend_unavailable');
+        if (shouldEscalateUnavailable) {
+          latest.setRecoveryStatus('backend_unavailable');
+        } else if (latest.recoveryStatus === 'recovering') {
+          latest.setRecoveryStatus('idle');
+        }
         if (latest.taskId && latest.status === 'processing' && latest.connectionMode !== 'polling') {
           latest.setConnectionMode('polling');
         }
@@ -109,7 +143,6 @@ export function useBackendResumeRecovery() {
           }
           void recover('sidecar-terminated');
         } else {
-          store.setRecoveryStatus('recovering');
           void recover('sidecar-running');
         }
       }).then((fn) => {

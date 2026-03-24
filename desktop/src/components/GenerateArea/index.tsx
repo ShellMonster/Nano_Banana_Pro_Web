@@ -6,6 +6,7 @@ import { BatchActions } from './BatchActions';
 import { ImagePreview } from './ImagePreview';
 import { GeneratedImage } from '../../types';
 import { useGenerateStore } from '../../store/generateStore';
+import { useGenerateDisplayImages } from '../../hooks/useGenerateDisplayImages';
 import { useShallow } from 'zustand/react/shallow';
 import { useTranslation } from 'react-i18next';
 
@@ -22,6 +23,7 @@ export default function GenerateArea() {
       isSubmitting: s.isSubmitting
     }))
   );
+  const displayImages = useGenerateDisplayImages();
 
   const handleCloseError = () => {
       dismissError();
@@ -31,7 +33,7 @@ export default function GenerateArea() {
     setIsErrorExpanded(false);
   }, [error]);
 
-  const isEmpty = images.length === 0 && status !== 'processing' && status !== 'failed' && !isSubmitting;
+  const isEmpty = displayImages.length === 0 && status !== 'processing' && status !== 'failed' && !isSubmitting;
 
   const showErrorToggle = Boolean(error && (error.length > 160 || error.includes('\n')));
 
@@ -106,7 +108,7 @@ export default function GenerateArea() {
       )}
 
       {/* 提交中状态 */}
-      {isSubmitting && images.length === 0 && (
+      {isSubmitting && displayImages.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center p-8 bg-blue-50/20">
           <div className="relative mb-6">
             <div className="absolute inset-0 bg-blue-500/10 rounded-full animate-ping" />
@@ -121,14 +123,14 @@ export default function GenerateArea() {
 
       {/* 图片网格 */}
       <div className={`flex-1 min-h-0 relative ${isEmpty ? 'hidden' : ''}`}>
-        <ImageGrid key={isEmpty ? 'empty' : 'grid'} onPreview={setPreviewImage} />
+        <ImageGrid key={isEmpty ? 'empty' : 'grid'} images={displayImages} onPreview={setPreviewImage} />
       </div>
 
       <BatchActions />
 
       <ImagePreview
         image={previewImage}
-        images={images}
+        images={displayImages}
         onImageChange={setPreviewImage}
         onClose={() => setPreviewImage(null)}
       />

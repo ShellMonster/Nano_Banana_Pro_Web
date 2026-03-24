@@ -274,6 +274,69 @@ export const ImagePreview = React.memo(function ImagePreview({
         setShowDeleteConfirm(false);
     }, []);
 
+    const resolveLocalImagePath = useCallback(async (rawCandidates: string[]) => {
+        const isProtocolPath = (value: string) => /^(https?:|asset:|tauri:|ipc:|blob:|data:)/i.test(value);
+        const isWindowsAbsolute = (value: string) => /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith('\\\\');
+        const isStorageRelative = (value: string) => {
+            const normalized = value.replace(/\\/g, '/');
+            return normalized.startsWith('/storage/') || normalized.startsWith('storage/');
+        };
+
+        let appDataDir = '';
+        if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+            try {
+                const { invoke } = await import('@tauri-apps/api/core');
+                appDataDir = await invoke<string>('get_app_data_dir');
+            } catch (err) {
+                console.warn('[resolveLocalImagePath] get_app_data_dir failed:', err);
+            }
+        }
+
+        for (const raw of rawCandidates) {
+            if (!raw || typeof raw !== 'string') continue;
+            let path = raw.trim();
+            if (!path || isProtocolPath(path)) continue;
+
+            if (path.startsWith('file://')) {
+                try {
+                    const url = new URL(path);
+                    let pathname = decodeURIComponent(url.pathname || '');
+                    if (/^\/[a-zA-Z]:\//.test(pathname)) pathname = pathname.slice(1);
+                    path = url.hostname && url.hostname.toLowerCase() !== 'localhost'
+                        ? `//${url.hostname}${pathname}`
+                        : pathname;
+                } catch {
+                    try {
+                        path = decodeURIComponent(path.replace(/^file:\/\/localhost/i, '').replace(/^file:\/\//i, ''));
+                    } catch {}
+                }
+            }
+
+            const normalized = path.replace(/\\/g, '/');
+
+            if (isStorageRelative(normalized)) {
+                if (!appDataDir) continue;
+                const base = appDataDir.replace(/[\\/]+$/, '');
+                const relative = normalized.replace(/^\/+/, '');
+                return `${base}/${relative}`;
+            }
+
+            if (isWindowsAbsolute(path) || normalized.startsWith('/')) {
+                return path;
+            }
+
+            if (appDataDir) {
+                const base = appDataDir.replace(/[\\/]+$/, '');
+                const relative = normalized.replace(/^\/+/, '');
+                return `${base}/${relative}`;
+            }
+
+            return path;
+        }
+
+        return '';
+    }, []);
+
     // 处理复制图片
     const handleCopyImage = useCallback(async () => {
         if (!image) return;
@@ -298,8 +361,7 @@ export const ImagePreview = React.memo(function ImagePreview({
             if (isTauri) {
                 try {
                     const { invoke } = await import('@tauri-apps/api/core');
-                    const candidates = [image.filePath, image.thumbnailPath].filter(Boolean) as string[];
-                    const localPath = candidates.find((p) => p && !p.includes('://') && !p.startsWith('asset:')) || '';
+                    const localPath = await resolveLocalImagePath([image.filePath, image.thumbnailPath]);
                     if (localPath) {
                         await invoke('copy_image_to_clipboard', { path: localPath });
                         toast.success(t('toast.copyImageSuccess'));
@@ -315,19 +377,11 @@ export const ImagePreview = React.memo(function ImagePreview({
             // 方案 A：Tauri 优先从本地文件读取，避免 asset/CORS 导致 fetch 失败
             if (isTauri) {
                 try {
-                    const { invoke } = await import('@tauri-apps/api/core');
-                    const { readFile, BaseDirectory } = await import('@tauri-apps/plugin-fs');
-
-                    const appDataDir = await invoke<string>('get_app_data_dir');
-                    const appData = appDataDir.replace(/\\/g, '/').replace(/\/+$/, '');
-
-                    const candidates = [image.filePath, image.thumbnailPath].filter(Boolean) as string[];
-                    const pick = candidates.find((p) => p && !p.includes('://')) || '';
+                    const { readFile } = await import('@tauri-apps/plugin-fs');
+                    const pick = await resolveLocalImagePath([image.filePath, image.thumbnailPath]);
 
                     if (pick) {
-                        const normalized = pick.replace(/\\/g, '/').replace(/\/+/g, '/');
-                        const relative = normalized.startsWith(appData + '/') ? normalized.slice(appData.length + 1) : normalized.replace(/^\/+/, '');
-                        const bytes = await readFile(relative, { baseDir: BaseDirectory.AppData });
+                        const bytes = await readFile(pick);
                         blob = new Blob([bytes], { type: guessMime(pick) });
                     }
                 } catch (err) {
@@ -381,7 +435,7 @@ export const ImagePreview = React.memo(function ImagePreview({
         } finally {
             setIsCopyingImage(false);
         }
-    }, [image, isCopyingImage]);
+    }, [image, isCopyingImage, resolveLocalImagePath, resolvedFullImageSrc, resolvedThumbnailSrc, t]);
 
     // 处理复制提示词 - 优先使用同步方案，速度最快
     const handleCopyPrompt = useCallback((text: string, key: 'single' | 'original' | 'optimized') => {
@@ -580,7 +634,7 @@ export const ImagePreview = React.memo(function ImagePreview({
         if (!image) return;
 
         const candidates = [image.filePath, image.thumbnailPath].filter(Boolean) as string[];
-        let path = candidates.find((p) => typeof p === 'string' && p.trim())?.trim() || '';
+        let path = await resolveLocalImagePath(candidates);
 
         if (!path) {
             toast.info(t('toast.imagePathEmpty'));
@@ -593,35 +647,6 @@ export const ImagePreview = React.memo(function ImagePreview({
             return;
         }
 
-        if (path.startsWith('file://')) {
-            try {
-                const withoutScheme = path.replace(/^file:\/\//, '');
-                const withoutHost = withoutScheme.replace(/^localhost\//, '');
-                path = decodeURIComponent(withoutHost);
-            } catch {}
-        }
-
-        const isWindowsAbsolute = /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('\\\\');
-        const isPosixAbsolute = path.startsWith('/');
-        const isAbsolute = isWindowsAbsolute || isPosixAbsolute;
-
-        if (!isAbsolute && typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
-            try {
-                const { invoke } = await import('@tauri-apps/api/core');
-                const appDataDir = await invoke<string>('get_app_data_dir');
-                if (appDataDir) {
-                    const separator = appDataDir.includes('\\') ? '\\' : '/';
-                    const base = appDataDir.endsWith('/') || appDataDir.endsWith('\\')
-                        ? appDataDir.slice(0, -1)
-                        : appDataDir;
-                    const trimmed = path.replace(/^[/\\]+/, '');
-                    path = `${base}${separator}${trimmed}`;
-                }
-            } catch (err) {
-                console.warn('[copyImagePath] resolve appDataDir failed:', err);
-            }
-        }
-
         if (!path) {
             toast.info(t('toast.noLocalPath'));
             return;
@@ -630,7 +655,7 @@ export const ImagePreview = React.memo(function ImagePreview({
         const ok = await copyText(path);
         if (ok) toast.success(t('toast.imagePathCopied'));
         else toast.error(t('toast.copyFailed'));
-    }, [copyText, image]);
+    }, [copyText, image, resolveLocalImagePath, t]);
 
     const handleDownload = useCallback(async () => {
         if (!image?.id) return;

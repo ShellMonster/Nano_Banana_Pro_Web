@@ -7,6 +7,7 @@ import { GeneratedImage } from '../../types';
 import { useTranslation } from 'react-i18next';
 
 interface ImageGridProps {
+  images: GeneratedImage[];
   onPreview: (image: GeneratedImage) => void;
 }
 
@@ -37,11 +38,10 @@ const getColumnCount = (containerWidth: number, viewportWidth: number | undefine
 const getGapSize = (width: number) => (width >= 640 ? 16 : 12);
 const getRowExtraHeight = (width: number) => (width >= 640 ? 96 : 88);
 
-export function ImageGrid({ onPreview }: ImageGridProps) {
+export function ImageGrid({ images, onPreview }: ImageGridProps) {
   const { t } = useTranslation();
-  const { images, selectedIds, toggleSelect } = useGenerateStore(
+  const { selectedIds, toggleSelect } = useGenerateStore(
     useShallow((s) => ({
-      images: s.images,
       selectedIds: s.selectedIds,
       toggleSelect: s.toggleSelect
     }))
