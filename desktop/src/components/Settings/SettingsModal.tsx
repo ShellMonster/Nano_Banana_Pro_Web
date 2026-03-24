@@ -16,7 +16,7 @@ import { getSystemLocale } from '../../i18n/systemLocale';
 import appIcon from '../../assets/app-icon.png';
 import { IMAGE_MODEL_OPTIONS, VISION_MODEL_OPTIONS, CUSTOM_MODEL_VALUE } from '../../store/configStore';
 import { getPromptOptimizeConfigIssue } from '../../utils/promptOptimizeConfig';
-import { sendTestSystemNotification } from '../../hooks/useGenerationNotifications';
+import { ensureNotificationPermission, sendTestSystemNotification } from '../../hooks/useGenerationNotifications';
 
 const CHAT_PROVIDER_OPTIONS = [
   { value: 'gemini-chat', label: 'Gemini(/v1beta)', defaultBase: 'https://generativelanguage.googleapis.com' },
@@ -981,7 +981,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       </div>
                       <ToggleSwitch
                         checked={draftEnableSystemNotifications}
-                        onChange={setDraftEnableSystemNotifications}
+                        onChange={(checked) => {
+                          setDraftEnableSystemNotifications(checked);
+                          if (!checked) return;
+                          void ensureNotificationPermission(t, {
+                            showDeniedToast: true,
+                            source: 'settings'
+                          });
+                        }}
                       />
                     </div>
 

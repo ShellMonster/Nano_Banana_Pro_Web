@@ -256,17 +256,18 @@
       "permissionDenied": "System notification permission is disabled. Please allow notifications for this app in system settings.",
       "testButton": "Test notification",
       "testHint": "Use this to verify whether macOS/Windows has registered notification permission correctly.",
+      "testProbeBody": "This is a test notification to verify that system notifications can appear correctly.",
       "testSent": "Test notification sent. Please check your system notification center.",
       "testFailed": "Failed to send test notification: {{message}}"
     },
-    "save": "Sync and Save",
+    "save": "Save Config",
     "toast": {
       "fetchFailed": "Failed to fetch backend config",
       "imageConfigIncomplete": "Please complete the image model config",
       "chatConfigIncomplete": "Please complete the chat model config",
       "openaiGeminiUnsupported": "OpenAI base URL does not support Gemini models. Please use a compatible endpoint.",
       "geminiBasePathWarning": "Gemini Base URL contains a path (such as /v1). It is recommended to use a host-only URL.",
-      "saveSuccess": "Config synced to server",
+      "saveSuccess": "Configuration saved successfully",
       "saveFailed": "Save failed: {{msg}}",
       "checkNetwork": "Please check your network",
       "logDirDesktopOnly": "Log folder is available on desktop only",
@@ -520,17 +521,26 @@
       "completed": {
         "title": "Image generation complete",
         "body": "The generation task has completed.",
-        "bodyWithPrompt": "Completed: {{prompt}}"
+        "bodyWithPrompt": "Completed: {{prompt}}",
+        "batchTitle": "{{count}} generation tasks completed",
+        "batchBody": "{{count}} generation tasks completed.",
+        "batchBodyWithPrompt": "{{prompt}} and {{additionalCount}} more tasks completed"
       },
       "partial": {
         "title": "Image generation partially completed",
         "body": "{{completed}}/{{total}} images completed.",
-        "bodyWithPrompt": "{{completed}}/{{total}} completed: {{prompt}}"
+        "bodyWithPrompt": "{{completed}}/{{total}} completed: {{prompt}}",
+        "batchTitle": "{{count}} generation tasks partially completed",
+        "batchBody": "{{count}} generation tasks partially completed.",
+        "batchBodyWithPrompt": "{{prompt}} and {{additionalCount}} more tasks partially completed"
       },
       "failed": {
         "title": "Image generation failed",
         "body": "The generation task failed.",
-        "bodyWithPrompt": "Failed: {{prompt}}"
+        "bodyWithPrompt": "Failed: {{prompt}}",
+        "batchTitle": "{{count}} generation tasks failed",
+        "batchBody": "{{count}} generation tasks failed.",
+        "batchBodyWithPrompt": "{{prompt}} and {{additionalCount}} more tasks failed"
       }
     }
   },

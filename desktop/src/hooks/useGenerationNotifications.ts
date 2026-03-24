@@ -14,7 +14,7 @@ const getTaskPromptSummary = (task: HistoryItem) =>
   buildPromptNotificationSummary(task.promptOptimized, task.promptOriginal, task.prompt);
 
 const shouldNotifyForStatus = (status: FinalTaskStatus, notifyOnFailure: boolean) => {
-  if (status === 'failed') return notifyOnFailure;
+  if (status === 'failed' || status === 'partial') return notifyOnFailure;
   return true;
 };
 
@@ -54,6 +54,81 @@ const getNotificationCopy = (task: HistoryItem, t: (key: string, params?: Record
   };
 };
 
+const getTaskSignature = (task: HistoryItem) => `${task.status}:${task.updatedAt || task.createdAt}`;
+
+const getTaskNotificationPayload = (
+  tasks: HistoryItem[],
+  t: (key: string, params?: Record<string, unknown>) => string
+) => {
+  const [firstTask] = tasks;
+  const copy = getNotificationCopy(firstTask, t);
+  if (tasks.length === 1) {
+    return copy;
+  }
+
+  const promptSummary = getTaskPromptSummary(firstTask);
+  const additionalCount = tasks.length - 1;
+  return {
+    title: t(`notifications.status.${firstTask.status}.batchTitle`, { count: tasks.length }),
+    body: promptSummary
+      ? t(`notifications.status.${firstTask.status}.batchBodyWithPrompt`, {
+          prompt: promptSummary,
+          count: tasks.length,
+          additionalCount
+        })
+      : t(`notifications.status.${firstTask.status}.batchBody`, {
+          count: tasks.length,
+          additionalCount
+        })
+  };
+};
+
+export async function ensureNotificationPermission(
+  t: (key: string, params?: Record<string, unknown>) => string,
+  options?: { showDeniedToast?: boolean; source?: 'startup' | 'settings' | 'test' | 'task' }
+) {
+  const showDeniedToast = options?.showDeniedToast ?? true;
+  const source = options?.source || 'startup';
+
+  const { isPermissionGranted, requestPermission } = await import('@tauri-apps/plugin-notification');
+  let permissionGranted = await isPermissionGranted();
+  console.info('[notification] permission state', { source, permissionGranted });
+  if (!permissionGranted) {
+    const permission = await requestPermission();
+    console.info('[notification] requestPermission result', { source, permission });
+    permissionGranted = permission === 'granted';
+  }
+
+  if (!permissionGranted && showDeniedToast) {
+    toast.info(t('settings.notifications.permissionDenied'));
+  }
+
+  return permissionGranted;
+}
+
+const getWindowVisibilitySnapshot = async () => {
+  const visibilityState = typeof document !== 'undefined' ? document.visibilityState : 'visible';
+  let focused = true;
+  let visible = true;
+
+  try {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    const appWindow = getCurrentWindow();
+    [focused, visible] = await Promise.all([
+      appWindow.isFocused().catch(() => false),
+      appWindow.isVisible().catch(() => true)
+    ]);
+  } catch (error) {
+    console.warn('[notification] window visibility probe failed', error);
+  }
+
+  return {
+    visibilityState,
+    focused,
+    visible
+  };
+};
+
 export function useGenerationNotifications() {
   const { t } = useTranslation();
   const items = useHistoryStore((s) => s.items);
@@ -66,18 +141,6 @@ export function useGenerationNotifications() {
   const lastStatusSignatureRef = useRef<Map<string, string>>(new Map());
   const permissionRequestedRef = useRef(false);
   const permissionDeniedToastShownRef = useRef(false);
-
-  useEffect(() => {
-    const nextMap = new Map<string, string>();
-    for (const task of items) {
-      if (task.status !== 'completed' && task.status !== 'failed' && task.status !== 'partial') {
-        continue;
-      }
-      const signature = `${task.status}:${task.updatedAt || task.createdAt}`;
-      nextMap.set(task.id, signature);
-    }
-    lastStatusSignatureRef.current = nextMap;
-  }, [items]);
 
   useEffect(() => {
     if (enableSystemNotifications && !previousEnabledRef.current) {
@@ -101,14 +164,10 @@ export function useGenerationNotifications() {
 
     const ensurePermission = async () => {
       try {
-        const { isPermissionGranted, requestPermission } = await import('@tauri-apps/plugin-notification');
-        let permissionGranted = await isPermissionGranted();
-        console.info('[notification] initial permission state', { permissionGranted });
-        if (!permissionGranted) {
-          const permission = await requestPermission();
-          console.info('[notification] requestPermission result', { permission });
-          permissionGranted = permission === 'granted';
-        }
+        const permissionGranted = await ensureNotificationPermission(t, {
+          showDeniedToast: false,
+          source: 'startup'
+        });
         permissionRequestedRef.current = true;
         if (!permissionGranted) {
           if (!permissionDeniedToastShownRef.current) {
@@ -128,6 +187,7 @@ export function useGenerationNotifications() {
     if (!enableSystemNotifications) return;
     if (!isTauriRuntime()) return;
 
+    const signatureSnapshot = new Map(lastStatusSignatureRef.current);
     const finalTasks = [...items]
       .filter((task) => task.status === 'completed' || task.status === 'failed' || task.status === 'partial')
       .sort((a, b) => {
@@ -142,50 +202,111 @@ export function useGenerationNotifications() {
           return false;
         }
 
-        const currentSignature = `${task.status}:${task.updatedAt || task.createdAt}`;
-        const previousSignature = lastStatusSignatureRef.current.get(task.id);
+        const currentSignature = getTaskSignature(task);
+        const previousSignature = signatureSnapshot.get(task.id);
         return currentSignature !== previousSignature;
       });
     if (!finalTasks.length) return;
 
     const notify = async () => {
       try {
+        const visibility = await getWindowVisibilitySnapshot();
+        let { visibilityState, focused, visible } = visibility;
+
         if (notifyOnlyWhenBackground) {
-          const isVisible = typeof document !== 'undefined' ? document.visibilityState === 'visible' : true;
-          const { getCurrentWindow } = await import('@tauri-apps/api/window');
-          const appWindow = getCurrentWindow();
-          const [focused, visible] = await Promise.all([
-            appWindow.isFocused().catch(() => false),
-            appWindow.isVisible().catch(() => true)
-          ]);
+          const isVisible = visibilityState === 'visible';
           if (isVisible && focused && visible) {
+            console.info('[notification] skipped: app visible in foreground', {
+              taskIds: finalTasks.map((task) => task.id),
+              statuses: finalTasks.map((task) => task.status),
+              visibilityState,
+              focused,
+              visible
+            });
             return;
           }
         }
 
-        const { isPermissionGranted, requestPermission, sendNotification } = await import('@tauri-apps/plugin-notification');
-        let permissionGranted = await isPermissionGranted();
+        const { sendNotification } = await import('@tauri-apps/plugin-notification');
+        const permissionGranted = await ensureNotificationPermission(t, {
+          showDeniedToast: false,
+          source: 'task'
+        });
         if (!permissionGranted) {
-          const permission = await requestPermission();
-          permissionGranted = permission === 'granted';
+          console.info('[notification] skipped: permission not granted', {
+            taskIds: finalTasks.map((task) => task.id),
+            statuses: finalTasks.map((task) => task.status)
+          });
+          return;
         }
-        if (!permissionGranted) return;
 
-        for (const task of finalTasks) {
+        const tasksToNotify = finalTasks.filter((task) => {
           const finalStatus = task.status as FinalTaskStatus;
-          if (!shouldNotifyForStatus(finalStatus, notifyOnFailure)) continue;
+          if (!shouldNotifyForStatus(finalStatus, notifyOnFailure)) {
+            signatureSnapshot.set(task.id, getTaskSignature(task));
+            console.info('[notification] skipped: failure notifications disabled', {
+              taskId: task.id,
+              status: task.status
+            });
+            return false;
+          }
 
           const signature = `${task.id}:${finalStatus}:${task.updatedAt || task.createdAt}`;
-          if (notifiedRef.current.has(signature)) continue;
+          if (notifiedRef.current.has(signature)) {
+            signatureSnapshot.set(task.id, getTaskSignature(task));
+            console.info('[notification] skipped: already notified', {
+              taskId: task.id,
+              status: task.status
+            });
+            return false;
+          }
 
-          const copy = getNotificationCopy(task, t);
-          await sendNotification({
-            title: copy.title,
-            body: copy.body
-          });
-          notifiedRef.current.add(signature);
-          lastStatusSignatureRef.current.set(task.id, `${task.status}:${task.updatedAt || task.createdAt}`);
+          return true;
+        });
+
+        if (!tasksToNotify.length) {
+          lastStatusSignatureRef.current = signatureSnapshot;
+          return;
         }
+
+        const groupedTasks = new Map<FinalTaskStatus, HistoryItem[]>();
+        for (const task of tasksToNotify) {
+          const status = task.status as FinalTaskStatus;
+          const list = groupedTasks.get(status) || [];
+          list.push(task);
+          groupedTasks.set(status, list);
+        }
+
+        const statusOrder: FinalTaskStatus[] = ['failed', 'partial', 'completed'];
+        for (const status of statusOrder) {
+          const tasks = groupedTasks.get(status);
+          if (!tasks?.length) continue;
+
+          const payload = getTaskNotificationPayload(tasks, t);
+          await sendNotification({
+            title: payload.title,
+            body: payload.body
+          });
+          console.info('[notification] task notification sent', {
+            taskIds: tasks.map((task) => task.id),
+            status,
+            count: tasks.length,
+            title: payload.title,
+            body: payload.body,
+            notifyOnlyWhenBackground,
+            visibilityState,
+            focused,
+            visible
+          });
+
+          for (const task of tasks) {
+            const signature = `${task.id}:${status}:${task.updatedAt || task.createdAt}`;
+            notifiedRef.current.add(signature);
+            signatureSnapshot.set(task.id, getTaskSignature(task));
+          }
+        }
+
+        lastStatusSignatureRef.current = signatureSnapshot;
       } catch (error) {
         console.warn('[notification] send failed', error);
       }
@@ -197,24 +318,28 @@ export function useGenerationNotifications() {
 
 export async function sendTestSystemNotification(t: (key: string, params?: Record<string, unknown>) => string) {
   try {
-    const { isPermissionGranted, requestPermission, sendNotification } = await import('@tauri-apps/plugin-notification');
-    let permissionGranted = await isPermissionGranted();
-    console.info('[notification] test permission state', { permissionGranted });
+    const { sendNotification } = await import('@tauri-apps/plugin-notification');
+    const permissionGranted = await ensureNotificationPermission(t, {
+      showDeniedToast: true,
+      source: 'test'
+    });
     if (!permissionGranted) {
-      const permission = await requestPermission();
-      console.info('[notification] test requestPermission result', { permission });
-      permissionGranted = permission === 'granted';
-    }
-    if (!permissionGranted) {
-      toast.info(t('settings.notifications.permissionDenied'));
       return;
     }
 
+    const visibility = await getWindowVisibilitySnapshot();
+    const title = t('notifications.status.completed.title');
+    const body = t('settings.notifications.testProbeBody');
+
     await sendNotification({
-      title: t('notifications.status.completed.title'),
-      body: 'Notification permission probe'
+      title,
+      body
     });
-    console.info('[notification] test notification sent');
+    console.info('[notification] test notification sent', {
+      title,
+      body,
+      ...visibility
+    });
     toast.success(t('settings.notifications.testSent'));
   } catch (error) {
     console.error('[notification] test notification failed', error);
