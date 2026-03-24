@@ -5,8 +5,16 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 )
+
+var sensitiveValuePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)("api[_-]?key"\s*:\s*")([^"]+)(")`),
+	regexp.MustCompile(`(?i)("authorization"\s*:\s*")([^"]+)(")`),
+	regexp.MustCompile(`(?i)([?&]key=)([^&\s]+)`),
+	regexp.MustCompile(`(?i)(bearer\s+)([A-Za-z0-9._\-]+)`),
+}
 
 func VerboseEnabled(params map[string]interface{}) bool {
 	if params == nil {
@@ -80,6 +88,14 @@ func Preview(text string, maxRunes int) string {
 		return trimmed
 	}
 	return string(runes[:maxRunes]) + "...(truncated)"
+}
+
+func RedactSensitive(text string) string {
+	redacted := text
+	for _, pattern := range sensitiveValuePatterns {
+		redacted = pattern.ReplaceAllString(redacted, "${1}***REDACTED***${3}")
+	}
+	return redacted
 }
 
 func ExtractRequestID(text string) string {

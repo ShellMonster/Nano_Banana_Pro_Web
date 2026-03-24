@@ -221,6 +221,11 @@ func (p *OpenAIProvider) doChatRequest(ctx context.Context, body map[string]inte
 	}
 
 	requestURL := strings.TrimRight(strings.TrimSpace(p.apiBase), "/") + "/chat/completions"
+	diagnostic.Logf(params, "request_payload",
+		"url=%s body=%q",
+		diagnostic.RedactSensitive(requestURL),
+		diagnostic.RedactSensitive(string(payloadBytes)),
+	)
 	maxRetries := providerMaxRetries(p.config)
 	var elapsed time.Duration
 	resp, _, err := doRequestWithRetry(ctx, params, p.Name(), maxRetries, func(attempt int) (*http.Response, error) {
@@ -259,6 +264,13 @@ func (p *OpenAIProvider) doChatRequest(ctx context.Context, body map[string]inte
 		elapsed,
 		requestID,
 		diagnostic.Preview(strings.Join(headerLines(resp.Header), " | "), 1000),
+	)
+	diagnostic.Logf(params, "response_body",
+		"status=%s elapsed=%s request_id=%s body=%q",
+		resp.Status,
+		elapsed,
+		requestID,
+		diagnostic.RedactSensitive(string(respBody)),
 	)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
