@@ -94,10 +94,7 @@ func NewGeminiProvider(config *model.ProviderConfig) (*GeminiProvider, error) {
 func (p *GeminiProvider) newHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
-			DisableKeepAlives:   true,
 			ForceAttemptHTTP2:   false,
-			MaxIdleConns:        0,
-			MaxIdleConnsPerHost: 0,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: false,
 				MinVersion:         tls.VersionTLS12,
@@ -345,7 +342,6 @@ func (p *GeminiProvider) doGenerateContent(ctx context.Context, modelID string, 
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("X-Goog-Api-Key", p.config.APIKey)
-		req.Header.Set("Connection", "close")
 
 		client := p.newHTTPClient()
 		startedAt := time.Now()
