@@ -198,6 +198,20 @@ func validateRefPathForTauri(raw string) (string, error) {
 	if trimmed == "" {
 		return "", fmt.Errorf("empty ref path")
 	}
+	if normalizedStorage := normalizeStoragePath(trimmed); normalizedStorage != "" {
+		if configDir, err := os.UserConfigDir(); err == nil && strings.TrimSpace(configDir) != "" {
+			candidate := filepath.Join(configDir, "com.dztool.banana", strings.TrimPrefix(normalizedStorage, "/"))
+			if _, err := os.Stat(candidate); err == nil {
+				return filepath.Clean(candidate), nil
+			}
+		}
+		if cacheDir, err := os.UserCacheDir(); err == nil && strings.TrimSpace(cacheDir) != "" {
+			candidate := filepath.Join(cacheDir, "com.dztool.banana", strings.TrimPrefix(normalizedStorage, "/"))
+			if _, err := os.Stat(candidate); err == nil {
+				return filepath.Clean(candidate), nil
+			}
+		}
+	}
 	abs, err := filepath.Abs(trimmed)
 	if err != nil {
 		return "", fmt.Errorf("invalid ref path: %w", err)
