@@ -33,6 +33,40 @@ const sleep = (ms: number) => new Promise<void>((resolve) => {
   setTimeout(resolve, ms);
 });
 
+const normalizeRefPath = (value: string) => value.replace(/\\/g, '/').replace(/\/+/g, '/');
+const isWindowsAbsolutePath = (value: string) => /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith('\\\\');
+const isAbsoluteRefPath = (value: string) => value.startsWith('/') || isWindowsAbsolutePath(value);
+const isStorageRelativeRefPath = (value: string) => {
+  const normalized = normalizeRefPath(value);
+  return normalized.startsWith('/storage/') || normalized.startsWith('storage/');
+};
+
+async function resolveRefPathForUpload(rawPath: string): Promise<string> {
+  const trimmed = String(rawPath || '').trim();
+  if (!trimmed) return '';
+
+  const normalized = normalizeRefPath(trimmed);
+  if (isAbsoluteRefPath(normalized) && !isStorageRelativeRefPath(normalized)) {
+    return normalized;
+  }
+
+  if (window.__TAURI_INTERNALS__ && isStorageRelativeRefPath(normalized)) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const appDataDir = await invoke<string>('get_app_data_dir');
+      const base = normalizeRefPath(String(appDataDir || '').trim()).replace(/\/+$/, '');
+      const relative = normalized.replace(/^\/+/, '');
+      if (base) {
+        return `${base}/${relative}`;
+      }
+    } catch (error) {
+      console.warn('[useGenerate] resolve storage ref path failed:', error);
+    }
+  }
+
+  return '';
+}
+
 export function useGenerate() {
   const config = useConfigStore();
   const { startTask, status, taskId, failTask, updateProgress, updateProgressBatch, completeTask, setConnectionMode, connectionMode, setSubmitting, isSubmitting: isStoreSubmitting } = useGenerateStore();
@@ -569,16 +603,24 @@ export function useGenerate() {
         }
         
         // 添加所有参考图片
-        config.refFiles.forEach((file) => {
+        for (const file of config.refFiles) {
           const extFile = file as any;
           if (extFile.__path) {
-            // 如果有本地路径，直接传路径，避免大文件 IPC 传输
-            formData.append('refPaths', extFile.__path);
-          } else {
+            const resolvedPath = await resolveRefPathForUpload(extFile.__path);
+            if (resolvedPath) {
+              // 如果有真实本地路径，直接传路径，避免大文件 IPC 传输
+              formData.append('refPaths', resolvedPath);
+              continue;
+            }
+          }
+
+          if (file.size > 0) {
             // 否则传二进制文件 (Web 环境或拖拽上传)
             formData.append('refImages', file);
+          } else {
+            console.warn('[useGenerate] skip ref image without valid path or file bytes');
           }
-        });
+        }
 
         response = await generateBatchWithImages(formData);
       } else {
