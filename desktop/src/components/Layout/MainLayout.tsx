@@ -273,19 +273,24 @@ export default function MainLayout() {
       }
 
       const now = Date.now();
-      const last = state.lastMessageTime ?? state.startTime ?? now;
-      const staleMs = now - last;
+      const lastHeartbeat = state.lastHeartbeatTime ?? state.startTime ?? now;
+      const lastTaskUpdate = state.lastTaskUpdateTime ?? state.startTime ?? now;
+      const heartbeatStaleMs = now - lastHeartbeat;
+      const taskUpdateStaleMs = now - lastTaskUpdate;
 
       // 若已有“看起来活着”的轮询在跑，就不要重复拉（避免桌面端双重轮询）
       const source = getUpdateSource();
-      const pollingSeemsAlive = source === 'polling' && state.connectionMode === 'polling' && staleMs < POLL_ALIVE_THRESHOLD_MS;
+      const pollingSeemsAlive =
+        source === 'polling' &&
+        state.connectionMode === 'polling' &&
+        taskUpdateStaleMs < POLL_ALIVE_THRESHOLD_MS;
       if (pollingSeemsAlive) return;
 
       const streamActive = source === 'websocket' && state.connectionMode === 'websocket';
       const shouldRunAuthoritativeCheck = now - lastAuthoritativeCheckAtRef.current >= AUTHORITATIVE_SYNC_INTERVAL_MS;
       let shouldEscalateToPolling = false;
       if (streamActive) {
-        if (staleMs < POLL_ALIVE_THRESHOLD_MS && !shouldRunAuthoritativeCheck) {
+        if (taskUpdateStaleMs < POLL_ALIVE_THRESHOLD_MS && !shouldRunAuthoritativeCheck) {
           staleCountRef.current = 0;
           return;
         }
@@ -296,7 +301,7 @@ export default function MainLayout() {
         if (!shouldRunAuthoritativeCheck && staleCountRef.current < STALE_LIMIT) {
           return;
         }
-        shouldEscalateToPolling = !shouldRunAuthoritativeCheck;
+        shouldEscalateToPolling = !shouldRunAuthoritativeCheck || heartbeatStaleMs >= POLL_ALIVE_THRESHOLD_MS;
       } else {
         staleCountRef.current = 0;
       }
