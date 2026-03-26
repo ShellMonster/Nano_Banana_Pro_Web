@@ -101,7 +101,8 @@ interface GenerateState {
   startTime: number | null;
   // 新增：连接模式和最后消息时间
   connectionMode: 'websocket' | 'polling' | 'none';
-  lastMessageTime: number | null;
+  lastHeartbeatTime: number | null;
+  lastTaskUpdateTime: number | null;
   recoveryStatus: 'idle' | 'recovering' | 'backend_unavailable';
 
   setTab: (tab: 'generate' | 'history') => void;
@@ -119,7 +120,8 @@ interface GenerateState {
   removeImage: (id: string) => void;
   // 新增：切换连接模式和更新消息时间
   setConnectionMode: (mode: 'websocket' | 'polling' | 'none') => void;
-  updateLastMessageTime: () => void;
+  updateLastHeartbeatTime: () => void;
+  updateLastTaskUpdateTime: () => void;
   setRecoveryStatus: (status: 'idle' | 'recovering' | 'backend_unavailable') => void;
   setSubmitting: (isSubmitting: boolean) => void;
   mergeImagesForTask: (taskId: string, images: GeneratedImage[], options?: MergeOptions) => void;
@@ -143,7 +145,8 @@ export const useGenerateStore = create<GenerateState>()(
       error: null,
       startTime: null,
       connectionMode: 'none',
-      lastMessageTime: null,
+      lastHeartbeatTime: null,
+      lastTaskUpdateTime: null,
       recoveryStatus: 'idle',
 
       setTab: (currentTab) => set({ currentTab }),
@@ -184,7 +187,8 @@ export const useGenerateStore = create<GenerateState>()(
             selectedIds: new Set(),
             startTime: Date.now(),
             connectionMode: 'websocket',  // 初始使用 WebSocket
-            lastMessageTime: Date.now(),
+            lastHeartbeatTime: Date.now(),
+            lastTaskUpdateTime: Date.now(),
             recoveryStatus: 'idle'
         }));
       },
@@ -198,7 +202,7 @@ export const useGenerateStore = create<GenerateState>()(
         return {
             completedCount,
             images: newImages,
-            lastMessageTime: Date.now()  // 更新最后消息时间
+            lastTaskUpdateTime: Date.now()
         };
       }),
 
@@ -215,7 +219,7 @@ export const useGenerateStore = create<GenerateState>()(
         return {
           completedCount,
           images: newImages,
-          lastMessageTime: Date.now()
+          lastTaskUpdateTime: Date.now()
         };
       }),
 
@@ -235,7 +239,7 @@ export const useGenerateStore = create<GenerateState>()(
         const shouldTouchLastMessage = state.taskId === taskId;
         return {
           images: newImages,
-          ...(shouldTouchLastMessage ? { lastMessageTime: Date.now() } : {})
+          ...(shouldTouchLastMessage ? { lastTaskUpdateTime: Date.now() } : {})
         };
       }),
 
@@ -327,7 +331,7 @@ export const useGenerateStore = create<GenerateState>()(
         selectedIds: new Set(state.images.filter(img => img.status === 'success').map(img => img.id))
       })),
       clearSelection: () => set({ selectedIds: new Set() }),
-      clearImages: () => set({ images: [], completedCount: 0, totalCount: 0, taskId: null, status: 'idle', startTime: null, connectionMode: 'none', lastMessageTime: null }),
+      clearImages: () => set({ images: [], completedCount: 0, totalCount: 0, taskId: null, status: 'idle', startTime: null, connectionMode: 'none', lastHeartbeatTime: null, lastTaskUpdateTime: null }),
       removeImage: (id) => set((state) => {
         const nextSelected = new Set(state.selectedIds);
         nextSelected.delete(id);
@@ -340,8 +344,8 @@ export const useGenerateStore = create<GenerateState>()(
       // 新增：设置连接模式
       setConnectionMode: (mode) => set({ connectionMode: mode }),
 
-      // 新增：更新最后消息时间
-      updateLastMessageTime: () => set({ lastMessageTime: Date.now() }),
+      updateLastHeartbeatTime: () => set({ lastHeartbeatTime: Date.now() }),
+      updateLastTaskUpdateTime: () => set({ lastTaskUpdateTime: Date.now() }),
 
       setRecoveryStatus: (recoveryStatus) => set({ recoveryStatus }),
 
@@ -366,7 +370,8 @@ export const useGenerateStore = create<GenerateState>()(
           // 恢复的任务使用轮询模式，更可靠且避免WebSocket连接错误
           // 但如果之前已经是 websocket 模式且正常，则保持
           connectionMode: shouldUsePolling ? 'polling' : state.connectionMode,
-          lastMessageTime: Date.now(),
+          lastHeartbeatTime: Date.now(),
+          lastTaskUpdateTime: Date.now(),
           recoveryStatus: 'idle'
         };
       }),
@@ -381,7 +386,8 @@ export const useGenerateStore = create<GenerateState>()(
         error: null,
         startTime: null,
         connectionMode: 'none',
-        lastMessageTime: null,
+        lastHeartbeatTime: null,
+        lastTaskUpdateTime: null,
         recoveryStatus: 'idle',
         selectedIds: new Set() // Bug #6修复：清空选中状态
       })

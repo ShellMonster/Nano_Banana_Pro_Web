@@ -18,7 +18,8 @@ export function useTaskStream(taskId: string | null) {
     completeTask: useGenerateStore.getState().completeTask,
     failTask: useGenerateStore.getState().failTask,
     setConnectionMode: useGenerateStore.getState().setConnectionMode,
-    updateLastMessageTime: useGenerateStore.getState().updateLastMessageTime
+    updateLastHeartbeatTime: useGenerateStore.getState().updateLastHeartbeatTime,
+    updateLastTaskUpdateTime: useGenerateStore.getState().updateLastTaskUpdateTime
   });
 
   const streamRef = useRef<EventSource | null>(null);
@@ -45,7 +46,7 @@ export function useTaskStream(taskId: string | null) {
   const bindStream = useCallback((stream: EventSource, streamUrl: string, activeTaskId: string) => {
     const handlePing = () => {
       if (isMountedRef.current) {
-        storeRef.current.updateLastMessageTime();
+        storeRef.current.updateLastHeartbeatTime();
       }
     };
 
@@ -56,7 +57,8 @@ export function useTaskStream(taskId: string | null) {
         reconnectAttemptsRef.current = 0;
         setUpdateSource('websocket');
         storeRef.current.setConnectionMode('websocket');
-        storeRef.current.updateLastMessageTime();
+        storeRef.current.updateLastHeartbeatTime();
+        storeRef.current.updateLastTaskUpdateTime();
         console.log('[SSE] Connection established');
       }
     };
@@ -70,6 +72,8 @@ export function useTaskStream(taskId: string | null) {
         if (getUpdateSource() !== 'websocket') {
           return;
         }
+
+        storeRef.current.updateLastTaskUpdateTime();
 
         if (task.images && task.images.length > 0) {
           storeRef.current.updateProgressBatch(task.completedCount, task.images);
