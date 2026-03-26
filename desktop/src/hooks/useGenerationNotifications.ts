@@ -14,6 +14,8 @@ const isTauriRuntime = () => typeof window !== 'undefined' && Boolean((window as
 const getTaskPromptSummary = (task: HistoryItem) =>
   buildPromptNotificationSummary(task.promptOptimized, task.promptOriginal, task.prompt);
 
+const getTaskFinalSignature = (task: HistoryItem) => `${task.status}:${task.updatedAt || task.createdAt}`;
+
 const shouldNotifyForStatus = (status: FinalTaskStatus, notifyOnFailure: boolean) => {
   if (status === 'failed' || status === 'partial') return notifyOnFailure;
   return true;
@@ -137,6 +139,7 @@ export function useGenerationNotifications() {
   const enableBaselineRef = useRef<number | null>(enableSystemNotifications ? Date.now() : null);
   const previousEnabledRef = useRef(enableSystemNotifications);
   const lastStatusRef = useRef<Map<string, TaskLifecycleStatus>>(new Map());
+  const handledFinalSignatureRef = useRef<Map<string, string>>(new Map());
   const permissionRequestedRef = useRef(false);
   const permissionDeniedToastShownRef = useRef(false);
 
@@ -183,6 +186,7 @@ export function useGenerationNotifications() {
     if (!isTauriRuntime()) return;
 
     const statusSnapshot = new Map(lastStatusRef.current);
+    const handledSnapshot = new Map(handledFinalSignatureRef.current);
     const finalTasks = [...items]
       .filter((task) => task.status === 'completed' || task.status === 'failed' || task.status === 'partial')
       .sort((a, b) => {
@@ -195,23 +199,26 @@ export function useGenerationNotifications() {
         const baseline = enableBaselineRef.current;
         if (baseline != null && Number.isFinite(taskTime) && taskTime < baseline) {
           statusSnapshot.set(task.id, task.status);
+          handledSnapshot.set(task.id, getTaskFinalSignature(task));
           return false;
         }
 
         const previousStatus = statusSnapshot.get(task.id) || 'unknown';
+        const currentSignature = getTaskFinalSignature(task);
         const becameFinal =
           previousStatus !== task.status &&
           previousStatus !== 'completed' &&
           previousStatus !== 'failed' &&
           previousStatus !== 'partial';
 
-        return becameFinal;
+        return becameFinal || handledSnapshot.get(task.id) !== currentSignature;
       });
     for (const task of items) {
       statusSnapshot.set(task.id, task.status);
     }
     if (!finalTasks.length) {
       lastStatusRef.current = statusSnapshot;
+      handledFinalSignatureRef.current = handledSnapshot;
       return;
     }
 
@@ -231,6 +238,7 @@ export function useGenerationNotifications() {
               visible
             });
             lastStatusRef.current = statusSnapshot;
+            handledFinalSignatureRef.current = handledSnapshot;
             return;
           }
         }
@@ -246,6 +254,7 @@ export function useGenerationNotifications() {
             statuses: finalTasks.map((task) => task.status)
           });
           lastStatusRef.current = statusSnapshot;
+          handledFinalSignatureRef.current = handledSnapshot;
           return;
         }
 
@@ -264,6 +273,7 @@ export function useGenerationNotifications() {
 
         if (!tasksToNotify.length) {
           lastStatusRef.current = statusSnapshot;
+          handledFinalSignatureRef.current = handledSnapshot;
           return;
         }
 
@@ -296,12 +306,17 @@ export function useGenerationNotifications() {
             focused,
             visible
           });
+          for (const task of tasks) {
+            handledSnapshot.set(task.id, getTaskFinalSignature(task));
+          }
         }
 
         lastStatusRef.current = statusSnapshot;
+        handledFinalSignatureRef.current = handledSnapshot;
       } catch (error) {
         console.warn('[notification] send failed', error);
         lastStatusRef.current = statusSnapshot;
+        handledFinalSignatureRef.current = handledSnapshot;
       }
     };
 
