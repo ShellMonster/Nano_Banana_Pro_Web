@@ -7,6 +7,7 @@ import { buildPromptNotificationSummary } from '../utils/notificationSummary';
 import { toast } from '../store/toastStore';
 
 type FinalTaskStatus = 'completed' | 'failed' | 'partial';
+type TaskLifecycleStatus = HistoryItem['status'] | 'unknown';
 
 const isTauriRuntime = () => typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
 
@@ -53,8 +54,6 @@ const getNotificationCopy = (task: HistoryItem, t: (key: string, params?: Record
       : t('notifications.status.completed.body')
   };
 };
-
-const getTaskSignature = (task: HistoryItem) => `${task.status}:${task.updatedAt || task.createdAt}`;
 
 const getTaskNotificationPayload = (
   tasks: HistoryItem[],
@@ -135,24 +134,20 @@ export function useGenerationNotifications() {
   const enableSystemNotifications = useConfigStore((s) => s.enableSystemNotifications);
   const notifyOnlyWhenBackground = useConfigStore((s) => s.notifyOnlyWhenBackground);
   const notifyOnFailure = useConfigStore((s) => s.notifyOnFailure);
-  const notifiedRef = useRef<Set<string>>(new Set());
   const enableBaselineRef = useRef<number | null>(enableSystemNotifications ? Date.now() : null);
   const previousEnabledRef = useRef(enableSystemNotifications);
-  const lastStatusSignatureRef = useRef<Map<string, string>>(new Map());
+  const lastStatusRef = useRef<Map<string, TaskLifecycleStatus>>(new Map());
   const permissionRequestedRef = useRef(false);
   const permissionDeniedToastShownRef = useRef(false);
 
   useEffect(() => {
     if (enableSystemNotifications && !previousEnabledRef.current) {
       enableBaselineRef.current = Date.now();
-      const seeded = new Map<string, string>();
+      const seeded = new Map<string, TaskLifecycleStatus>();
       for (const task of items) {
-        if (task.status !== 'completed' && task.status !== 'failed' && task.status !== 'partial') {
-          continue;
-        }
-        seeded.set(task.id, `${task.status}:${task.updatedAt || task.createdAt}`);
+        seeded.set(task.id, task.status);
       }
-      lastStatusSignatureRef.current = seeded;
+      lastStatusRef.current = seeded;
     }
     previousEnabledRef.current = enableSystemNotifications;
   }, [enableSystemNotifications, items]);
@@ -187,7 +182,7 @@ export function useGenerationNotifications() {
     if (!enableSystemNotifications) return;
     if (!isTauriRuntime()) return;
 
-    const signatureSnapshot = new Map(lastStatusSignatureRef.current);
+    const statusSnapshot = new Map(lastStatusRef.current);
     const finalTasks = [...items]
       .filter((task) => task.status === 'completed' || task.status === 'failed' || task.status === 'partial')
       .sort((a, b) => {
@@ -199,14 +194,26 @@ export function useGenerationNotifications() {
         const taskTime = new Date(task.updatedAt || task.createdAt).getTime();
         const baseline = enableBaselineRef.current;
         if (baseline != null && Number.isFinite(taskTime) && taskTime < baseline) {
+          statusSnapshot.set(task.id, task.status);
           return false;
         }
 
-        const currentSignature = getTaskSignature(task);
-        const previousSignature = signatureSnapshot.get(task.id);
-        return currentSignature !== previousSignature;
+        const previousStatus = statusSnapshot.get(task.id) || 'unknown';
+        const becameFinal =
+          previousStatus !== task.status &&
+          previousStatus !== 'completed' &&
+          previousStatus !== 'failed' &&
+          previousStatus !== 'partial';
+
+        return becameFinal;
       });
-    if (!finalTasks.length) return;
+    for (const task of items) {
+      statusSnapshot.set(task.id, task.status);
+    }
+    if (!finalTasks.length) {
+      lastStatusRef.current = statusSnapshot;
+      return;
+    }
 
     const notify = async () => {
       try {
@@ -223,6 +230,7 @@ export function useGenerationNotifications() {
               focused,
               visible
             });
+            lastStatusRef.current = statusSnapshot;
             return;
           }
         }
@@ -237,24 +245,14 @@ export function useGenerationNotifications() {
             taskIds: finalTasks.map((task) => task.id),
             statuses: finalTasks.map((task) => task.status)
           });
+          lastStatusRef.current = statusSnapshot;
           return;
         }
 
         const tasksToNotify = finalTasks.filter((task) => {
           const finalStatus = task.status as FinalTaskStatus;
           if (!shouldNotifyForStatus(finalStatus, notifyOnFailure)) {
-            signatureSnapshot.set(task.id, getTaskSignature(task));
             console.info('[notification] skipped: failure notifications disabled', {
-              taskId: task.id,
-              status: task.status
-            });
-            return false;
-          }
-
-          const signature = `${task.id}:${finalStatus}:${task.updatedAt || task.createdAt}`;
-          if (notifiedRef.current.has(signature)) {
-            signatureSnapshot.set(task.id, getTaskSignature(task));
-            console.info('[notification] skipped: already notified', {
               taskId: task.id,
               status: task.status
             });
@@ -265,7 +263,7 @@ export function useGenerationNotifications() {
         });
 
         if (!tasksToNotify.length) {
-          lastStatusSignatureRef.current = signatureSnapshot;
+          lastStatusRef.current = statusSnapshot;
           return;
         }
 
@@ -298,17 +296,12 @@ export function useGenerationNotifications() {
             focused,
             visible
           });
-
-          for (const task of tasks) {
-            const signature = `${task.id}:${status}:${task.updatedAt || task.createdAt}`;
-            notifiedRef.current.add(signature);
-            signatureSnapshot.set(task.id, getTaskSignature(task));
-          }
         }
 
-        lastStatusSignatureRef.current = signatureSnapshot;
+        lastStatusRef.current = statusSnapshot;
       } catch (error) {
         console.warn('[notification] send failed', error);
+        lastStatusRef.current = statusSnapshot;
       }
     };
 
