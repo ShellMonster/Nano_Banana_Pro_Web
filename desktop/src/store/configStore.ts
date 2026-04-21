@@ -8,7 +8,7 @@ const IMAGE_MODELS = {
 } as const;
 
 const OPENAI_IMAGE_MODELS = {
-  GPT_IMAGE_1: { value: 'gpt-image-1', label: 'GPT Image 1' },
+  GPT_IMAGE_1: { value: 'gpt-image-2-all', label: 'GPT Image 2 All' },
 } as const;
 
 export const OPENAI_IMAGE_SIZE_OPTIONS = [

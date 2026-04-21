@@ -7,6 +7,7 @@ import { useHistoryStore } from '../../store/historyStore';
 import { useInternalDragStore } from '../../store/internalDragStore';
 import { useTranslation } from 'react-i18next';
 import { formatAspectRatioLabel } from '../../utils/aspectRatio';
+import type { ImageOptions } from '../../types';
 
 interface ImageCardProps {
   image: GeneratedImage;
@@ -33,9 +34,18 @@ export const ImageCard = React.memo(function ImageCard({
 
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [showConfirm, setShowConfirm] = React.useState(false);
+  const [activeSource, setActiveSource] = useState<'thumbnail' | 'full'>('thumbnail');
+  const [loadError, setLoadError] = useState(false);
+  const [loadedSource, setLoadedSource] = useState<'thumbnail' | 'full' | null>(null);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const startDrag = useInternalDragStore((s) => s.startDrag);
+
+  useEffect(() => {
+    setActiveSource('thumbnail');
+    setLoadError(false);
+    setLoadedSource(null);
+  }, [image.id, image.thumbnailUrl, image.url, image.filePath, image.thumbnailPath]);
 
   useEffect(() => {
     return () => {
@@ -117,11 +127,25 @@ export const ImageCard = React.memo(function ImageCard({
     }
   }, [image, isSuccess, isFailed, onClick]);
 
+  const parsedOptions = useMemo<ImageOptions | null>(() => {
+    try {
+      if (!image.options) return null;
+      return typeof image.options === 'string'
+        ? JSON.parse(image.options)
+        : image.options;
+    } catch {
+      return null;
+    }
+  }, [image.options]);
+
   const meta = useMemo(() => {
     const w = image.width || 0;
     const h = image.height || 0;
 
     const resolutionLabel = (() => {
+      const imageSize = String(parsedOptions?.imageSize || '').trim();
+      if (imageSize) return imageSize.toUpperCase();
+
       const max = Math.max(w, h);
       if (max >= 3840) return '4K';
       if (max >= 2048) return '2K';
@@ -130,19 +154,9 @@ export const ImageCard = React.memo(function ImageCard({
     })();
 
     const aspectRatioLabel = (() => {
-      // 1) 优先使用 options 里的比例（与历史记录保持一致）
-      try {
-        const opts =
-          typeof image.options === 'string'
-            ? JSON.parse(image.options)
-            : image.options;
-        if (opts && typeof opts === 'object' && 'aspectRatio' in (opts as any)) {
-          const ar = String((opts as any).aspectRatio || '').trim();
-          if (ar) return ar;
-        }
-      } catch {}
+      const optionAspectRatio = String(parsedOptions?.aspectRatio || '').trim();
+      if (optionAspectRatio) return optionAspectRatio;
 
-      // 2) 回退到 width/height 推断比例（与历史区使用同一算法）
       if (w > 0 && h > 0) {
         return formatAspectRatioLabel(w, h);
       }
@@ -162,31 +176,24 @@ export const ImageCard = React.memo(function ImageCard({
     })();
 
     return { resolutionLabel, aspectRatioLabel, timeLabel };
-  }, [image.width, image.height, image.createdAt, image.options, i18n.language]);
+  }, [image.width, image.height, image.createdAt, parsedOptions, i18n.language]);
 
-  // 使用 useMemo 优化规格信息解析
-  const specs = useMemo(() => {
-    try {
-      if (image.options) {
-        const opts = typeof image.options === 'string'
-          ? JSON.parse(image.options)
-          : image.options;
-        return `${opts.aspectRatio || '1:1'} · ${opts.imageSize || '1K'}`;
-      }
-    } catch (e) {}
-    // 如果是 pending 状态，尝试从 options 对象中获取（针对刚生成的占位符）
-    if (isPending && (image as any).options) {
-      const opts = (image as any).options;
-      return `${opts.aspectRatio || '1:1'} · ${opts.imageSize || '1K'}`;
-    }
-    return '';
-  }, [image.options, isPending]);
+  const imageSources = useMemo(() => {
+    const thumbnail = image.thumbnailUrl || '';
+    const full = image.url || '';
+    const preferred = activeSource === 'thumbnail' ? thumbnail : full;
+    const fallback = activeSource === 'thumbnail' ? full : '';
+    const primary = preferred || fallback;
+    const currentSource = preferred
+      ? activeSource
+      : fallback
+        ? 'full'
+        : null;
+    const hasRenderableSource = Boolean(primary);
+    return { thumbnail, full, primary, currentSource, hasRenderableSource };
+  }, [image.thumbnailUrl, image.url, activeSource]);
 
-  // 使用 useMemo 优化规格标签解析
-  const specParts = useMemo(() => {
-    if (!specs) return ['1:1', '1K'];
-    return specs.split(' · ');
-  }, [specs]);
+  const shouldRenderImage = isSuccess && imageSources.hasRenderableSource && !loadError;
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (!isSuccess || e.button !== 0) return;
@@ -213,27 +220,46 @@ export const ImageCard = React.memo(function ImageCard({
     const hasSource = Boolean(url || thumbnailUrl || filePath || thumbnailPath);
     if (!hasSource) return;
 
-    const getBlob = () => new Promise<Blob | null>((resolve) => {
+    const fetchBlobFromSource = async (src: string) => {
+      if (!src) return null;
+      try {
+        const response = await fetch(src);
+        if (!response.ok) return null;
+        return await response.blob();
+      } catch {
+        return null;
+      }
+    };
+
+    const getBlob = async () => {
+      const preferredSources = loadedSource === 'full'
+        ? [url, filePath, thumbnailUrl, thumbnailPath]
+        : [thumbnailUrl, thumbnailPath, url, filePath];
+
+      for (const src of preferredSources) {
+        const blob = await fetchBlobFromSource(src);
+        if (blob) return blob;
+      }
+
       const img = imgRef.current;
       if (!img || !img.complete || img.naturalWidth <= 0 || img.naturalHeight <= 0) {
-        resolve(null);
-        return;
+        return null;
       }
+
       try {
         const canvas = document.createElement('canvas');
         canvas.width = img.naturalWidth;
         canvas.height = img.naturalHeight;
         const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(null);
-          return;
-        }
+        if (!ctx) return null;
         ctx.drawImage(img, 0, 0);
-        canvas.toBlob((blob) => resolve(blob || null), 'image/png');
+        return await new Promise<Blob | null>((resolve) => {
+          canvas.toBlob((blob) => resolve(blob || null), 'image/png');
+        });
       } catch {
-        resolve(null);
+        return null;
       }
-    });
+    };
 
     startDrag(
       {
@@ -249,7 +275,7 @@ export const ImageCard = React.memo(function ImageCard({
       e.clientX,
       e.clientY
     );
-  }, [image.id, image.url, image.thumbnailUrl, image.filePath, image.thumbnailPath, isSuccess, startDrag]);
+  }, [image.id, image.url, image.thumbnailUrl, image.filePath, image.thumbnailPath, isSuccess, startDrag, loadedSource]);
 
   return (
     <div
@@ -368,16 +394,41 @@ export const ImageCard = React.memo(function ImageCard({
               </div>
             )}
           </div>
-        ) : isSuccess ? (
+        ) : shouldRenderImage ? (
           <div className="w-full h-full relative">
             <img
               ref={imgRef}
-              src={image.thumbnailUrl || image.url}
+              src={imageSources.primary}
               alt={image.prompt || t('generate.card.imageAlt')}
               className="w-full h-full object-cover"
               loading="lazy"
               decoding="async"
               draggable={false}
+              onLoad={() => {
+                setLoadError(false);
+                setLoadedSource(imageSources.currentSource);
+              }}
+              onError={(event) => {
+                const currentSrc = (event.currentTarget.getAttribute('src') || '').trim();
+                if (
+                  activeSource === 'thumbnail' &&
+                  image.thumbnailUrl &&
+                  currentSrc === image.thumbnailUrl &&
+                  imageSources.full
+                ) {
+                  setActiveSource('full');
+                  setLoadedSource(null);
+                  return;
+                }
+                setLoadError(true);
+                console.warn('[ImageCard] image load failed', {
+                  id: image.id,
+                  thumbnailUrl: image.thumbnailUrl,
+                  url: image.url,
+                  filePath: image.filePath,
+                  thumbnailPath: image.thumbnailPath
+                });
+              }}
             />
             
             {/* 渐变遮罩 - 仅在悬浮时显示更多信息 */}
@@ -412,7 +463,9 @@ export const ImageCard = React.memo(function ImageCard({
               <div className="absolute inset-0 bg-red-500/10 rounded-full animate-pulse" />
               <XCircle className="w-10 h-10 text-red-400 relative z-10" />
             </div>
-            <span className="text-sm font-bold text-red-500 tracking-tight">{t('generate.card.failed')}</span>
+            <span className="text-sm font-bold text-red-500 tracking-tight">
+              {isFailed ? t('generate.card.failed') : t('generate.preview.loadError')}
+            </span>
           </div>
         )}
       </div>
