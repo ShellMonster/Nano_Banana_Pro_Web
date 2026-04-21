@@ -49,12 +49,12 @@ func InitDB(dbPath string) {
 
 	// 兼容旧版本默认超时（0/60s）记录：按 Provider 类型修复到对应默认值
 	if err := DB.Model(&ProviderConfig{}).
-		Where("provider_name IN ? AND (timeout_seconds <= 0 OR timeout_seconds = ?)", []string{"gemini", "openai"}, 60).
+		Where("provider_name IN ? AND (timeout_seconds <= 0 OR timeout_seconds = ?)", []string{"gemini", "openai", "openai-image"}, 60).
 		Update("timeout_seconds", 500).Error; err != nil {
 		log.Printf("更新生图默认超时失败: %v", err)
 	}
 	if err := DB.Model(&ProviderConfig{}).
-		Where("provider_name NOT IN ? AND (timeout_seconds <= 0 OR timeout_seconds = ?)", []string{"gemini", "openai"}, 60).
+		Where("provider_name NOT IN ? AND (timeout_seconds <= 0 OR timeout_seconds = ?)", []string{"gemini", "openai", "openai-image"}, 60).
 		Update("timeout_seconds", 150).Error; err != nil {
 		log.Printf("更新对话默认超时失败: %v", err)
 	}
@@ -75,7 +75,7 @@ func InitDB(dbPath string) {
 
 func defaultTimeoutForProvider(providerName string) time.Duration {
 	switch providerName {
-	case "gemini", "openai":
+	case "gemini", "openai", "openai-image":
 		return 500 * time.Second
 	default:
 		return 150 * time.Second

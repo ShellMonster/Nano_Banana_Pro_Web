@@ -130,13 +130,16 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
                 parsed?.aspectRatio ||
                 parsed?.aspect_ratio ||
                 parsed?.aspect;
+            const nativeSize = parsed?.size;
             const imageSize =
                 parsed?.imageSize ||
                 parsed?.resolution_level ||
                 parsed?.image_size;
 
             const imageSizeLabel =
-                typeof imageSize === 'string' && imageSize.trim()
+                typeof nativeSize === 'string' && nativeSize.trim()
+                    ? nativeSize.trim()
+                    : typeof imageSize === 'string' && imageSize.trim()
                     ? imageSize.trim().toUpperCase()
                     : '—';
             const aspectRatioLabel = (() => {

@@ -425,6 +425,8 @@
       "title": "生成设置",
       "count": "数量 (1-10)",
       "resolution": "分辨率",
+      "nativeSize": "尺寸",
+      "quality": "质量",
       "resolution1k": "1K (1024px)",
       "resolution2k": "2K (2048px)",
       "resolution4k": "4K (3840px)",

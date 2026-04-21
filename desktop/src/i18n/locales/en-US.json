@@ -425,6 +425,8 @@
       "title": "Generation Settings",
       "count": "Count (1-10)",
       "resolution": "Resolution",
+      "nativeSize": "Size",
+      "quality": "Quality",
       "resolution1k": "1K (1024px)",
       "resolution2k": "2K (2048px)",
       "resolution4k": "4K (3840px)",

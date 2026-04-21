@@ -87,6 +87,9 @@ func defaultModelForProvider(providerName string, purpose ModelPurpose) string {
 	if purpose == PurposeChat || name == "openai-chat" {
 		return "gemini-3-flash-preview"
 	}
+	if name == "openai-image" {
+		return "gpt-image-1"
+	}
 	if name == "openai" {
 		return ""
 	}

@@ -14,7 +14,7 @@ import { useUpdaterStore } from '../../store/updaterStore';
 import i18n, { DEFAULT_LANGUAGE } from '../../i18n';
 import { getSystemLocale } from '../../i18n/systemLocale';
 import appIcon from '../../assets/app-icon.png';
-import { IMAGE_MODEL_OPTIONS, VISION_MODEL_OPTIONS, CUSTOM_MODEL_VALUE } from '../../store/configStore';
+import { getDefaultImageModelForProvider, getImageModelOptions, VISION_MODEL_OPTIONS, CUSTOM_MODEL_VALUE } from '../../store/configStore';
 import { getPromptOptimizeConfigIssue } from '../../utils/promptOptimizeConfig';
 import { ensureNotificationPermission, sendTestSystemNotification } from '../../hooks/useGenerationNotifications';
 
@@ -53,8 +53,6 @@ const getChatProviderDefaults = (provider: string) => {
     model: 'gemini-3-flash-preview'
   };
 };
-
-const getDefaultImageModelForProvider = (_provider: string) => IMAGE_MODEL_OPTIONS[0].value;
 
 const resolveSystemLanguage = (locale: string | null) => {
   if (!locale) return DEFAULT_LANGUAGE;
@@ -217,9 +215,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [updateHint, setUpdateHint] = useState<{ type: 'checking' | 'latest' | 'available' | 'error'; message: string } | null>(null);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const [showOnboardingConfirm, setShowOnboardingConfirm] = useState(false);
+  const imageModelOptions = useMemo(() => getImageModelOptions(imageProvider), [imageProvider]);
   // Model Select state for UI - 'custom' when value not in preset
   const [imageModelSelect, setImageModelSelect] = useState<string>(() => {
-    const isPreset = IMAGE_MODEL_OPTIONS.some(o => o.value === imageModel);
+    const isPreset = getImageModelOptions(imageProvider).some((o) => o.value === imageModel);
     return isPreset ? imageModel : CUSTOM_MODEL_VALUE;
   });
 
@@ -230,9 +229,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   // 同步 imageModelSelect：当 imageModel 被外部更新时（如 fetchConfigs、切换 Provider）保持下拉框一致
   useEffect(() => {
-    const isPreset = IMAGE_MODEL_OPTIONS.some(o => o.value === imageModel);
+    const isPreset = imageModelOptions.some((o) => o.value === imageModel);
     setImageModelSelect(isPreset ? imageModel : CUSTOM_MODEL_VALUE);
-  }, [imageModel]);
+  }, [imageModel, imageModelOptions]);
 
   // 同步 visionModelSelect：当 visionModel 被外部更新时保持下拉框一致
   useEffect(() => {
@@ -1057,6 +1056,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               >
                 <option value="gemini">Gemini(/v1beta)</option>
                 <option value="openai">OpenAI(/v1)</option>
+                <option value="openai-image">OpenAI Images(/v1)</option>
                 {/* 后续可扩展更多 provider */}
               </Select>
             </div>
@@ -1124,7 +1124,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 onChange={handleImageModelSelectChange}
                 className="h-10 bg-slate-100 text-slate-900 font-bold rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               >
-                {IMAGE_MODEL_OPTIONS.map(opt => (
+                {imageModelOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
                 <option value={CUSTOM_MODEL_VALUE}>{t('settings.model.custom')}</option>
