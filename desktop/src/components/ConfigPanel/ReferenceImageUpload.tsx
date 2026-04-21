@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { ImagePlus, X, Image as ImageIcon, ChevronDown, ChevronUp, Sparkles, Loader2 } from 'lucide-react';
-import { useConfigStore } from '../../store/configStore';
+import { useConfigStore, supportsReferenceImages } from '../../store/configStore';
 import { useInternalDragStore, type InternalDragPayload } from '../../store/internalDragStore';
 import { cn } from '../common/Button';
 import { toast } from '../../store/toastStore';
@@ -105,6 +105,7 @@ const normalizeLocalPathInput = (value: string) => {
 export function ReferenceImageUpload() {
   const { t } = useTranslation();
   const refFiles = useConfigStore((s) => s.refFiles);
+  const imageModel = useConfigStore((s) => s.imageModel);
   const addRefFiles = useConfigStore((s) => s.addRefFiles);
   const removeRefFile = useConfigStore((s) => s.removeRefFile);
   const setRefFiles = useConfigStore((s) => s.setRefFiles);
@@ -155,6 +156,7 @@ export function ReferenceImageUpload() {
   // 图片反推提示词相关状态
   const [isExtractingPrompt, setIsExtractingPrompt] = useState(false);
   const [extractingIndex, setExtractingIndex] = useState<number | null>(null);
+  const allowReferenceImages = supportsReferenceImages(imageModel);
 
   // 计算文件 MD5（使用工具函数）
   const calculateMd5Callback = useCallback(calculateMd5, []);
@@ -169,6 +171,15 @@ export function ReferenceImageUpload() {
       objectUrlsRef.current.clear();
     };
   }, []);
+
+  useEffect(() => {
+    if (allowReferenceImages || refFiles.length === 0) {
+      return;
+    }
+    setRefFiles([]);
+    setRefImageEntries([]);
+    toast.info(t('refImage.unsupportedModelCleared'));
+  }, [allowReferenceImages, refFiles.length, setRefFiles, setRefImageEntries, t]);
 
   const preloadDialog = useCallback(async () => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -1591,25 +1602,26 @@ export function ReferenceImageUpload() {
   };
 
   const showDragOver = isDraggingOver || (isInternalDragging && isOverDropTarget);
+  const interactive = allowReferenceImages;
 
   return (
     <div
       ref={dropRef}
       className="space-y-2"
-      onPaste={handlePaste}
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onPaste={interactive ? handlePaste : undefined}
+      onDragEnter={interactive ? handleDragEnter : undefined}
+      onDragOver={interactive ? handleDragOver : undefined}
+      onDragLeave={interactive ? handleDragLeave : undefined}
+      onDrop={interactive ? handleDrop : undefined}
       style={{ WebkitAppRegion: 'no-drag' } as any}
     >
       {/* 标题行 + 折叠按钮 */}
       <div
         className={cn(
           "flex items-center justify-between rounded-xl transition-all",
-          showDragOver && "bg-blue-50 ring-2 ring-blue-400 ring-dashed"
+          interactive && showDragOver && "bg-blue-50 ring-2 ring-blue-400 ring-dashed"
         )}
-        onClick={handleAreaClick}
+        onClick={interactive ? handleAreaClick : undefined}
       >
         <div className="flex items-center gap-2">
           <button
@@ -1623,19 +1635,24 @@ export function ReferenceImageUpload() {
             {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
           </button>
           <label
-            className="text-sm font-medium text-gray-700 flex items-center gap-2 cursor-pointer"
+            className={cn("text-sm font-medium text-gray-700 flex items-center gap-2", interactive && "cursor-pointer")}
           >
             <ImageIcon className="w-4 h-4 text-blue-500" />
             {t('refImage.title', { count: refFiles.length })}
           </label>
         </div>
         <div className="flex items-center gap-2">
-          {showDragOver && (
+          {!interactive && (
+            <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+              {t('refImage.unsupportedModel')}
+            </span>
+          )}
+          {interactive && showDragOver && (
             <span className="text-[10px] text-blue-600 font-medium">
               {t('refImage.dropHint')}
             </span>
           )}
-          {refFiles.length > 0 && !showDragOver && (
+          {interactive && refFiles.length > 0 && !showDragOver && (
             <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">
               {t('refImage.modeActive')}
             </span>
@@ -1646,7 +1663,7 @@ export function ReferenceImageUpload() {
       {/* 收起状态提示 */}
       {!isExpanded && refFiles.length === 0 && (
         <div className="text-[11px] text-slate-400 italic pl-7">
-          {t('refImage.collapsedHint')}
+          {interactive ? t('refImage.collapsedHint') : t('refImage.unsupportedHint')}
         </div>
       )}
 
@@ -1736,7 +1753,7 @@ export function ReferenceImageUpload() {
           )}
 
           {/* 上传按钮/区域 */}
-          {refFiles.length === 0 && refFiles.length < 10 && (
+          {interactive && refFiles.length === 0 && refFiles.length < 10 && (
               <button
                 data-onboarding="ref-image-upload"
                 onClick={handleUploadClick}
@@ -1755,6 +1772,15 @@ export function ReferenceImageUpload() {
                     <span className="text-[10px] text-slate-400 mt-0.5">{t('refImage.supportHint')}</span>
                 </div>
               </button>
+          )}
+          {!interactive && refFiles.length === 0 && (
+            <div className="w-full py-3 border border-dashed border-amber-200 rounded-2xl flex flex-col items-center justify-center gap-2 bg-amber-50/60">
+              <ImagePlus className="w-6 h-6 text-amber-300" />
+              <div className="flex flex-col items-center">
+                <span className="text-xs font-bold text-amber-700">{t('refImage.unsupportedModel')}</span>
+                <span className="text-[10px] text-amber-600 mt-0.5">{t('refImage.unsupportedHint')}</span>
+              </div>
+            </div>
           )}
         </>
       )}

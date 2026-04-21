@@ -10,6 +10,7 @@ import { useHistoryStore } from '../store/historyStore';
 import i18n from '../i18n';
 import { getDiagnosticVerbose } from '../utils/diagnosticLogger';
 import { getPromptOptimizeConfigIssue } from '../utils/promptOptimizeConfig';
+import { isDalle3Model } from '../store/configStore';
 
 // 流式连接建立超时时间（毫秒）- 超过此时间未建立连接则启动轮询
 // 本地后端通常不会推实时进度，过长会导致用户"卡住"的观感
@@ -408,6 +409,26 @@ export function useGenerate() {
       const requestedCount = Math.max(1, Number(config.count) || 1);
       const promptOptimizeMode = config.defaultPromptOptimizeMode || 'off';
       const shouldAutoOptimizePrompt = promptOptimizeMode !== 'off';
+      const useDalle3Params = isDalle3Model(config.imageModel);
+      const requestImageSize = useDalle3Params ? config.imageNativeSize : config.imageSize;
+      const buildImageParams = (count: number) => ({
+        prompt: config.prompt,
+        count,
+        ...(useDalle3Params ? {
+          size: config.imageNativeSize,
+          quality: config.imageQuality,
+          style: config.imageStyle,
+        } : {
+          aspectRatio: config.aspectRatio,
+          imageSize: config.imageSize,
+        }),
+        verbose_logging: verboseLogging,
+        ...(shouldAutoOptimizePrompt ? {
+          prompt_optimize_mode: promptOptimizeMode,
+          prompt_optimize_provider: config.chatProvider,
+          prompt_optimize_model: config.chatModel,
+        } : {}),
+      });
 
       const submitSingleGenerate = async () => {
         if (config.refFiles.length > 0) {
@@ -440,18 +461,7 @@ export function useGenerate() {
         return generateBatch({
           provider: config.imageProvider,
           model_id: config.imageModel,
-          params: {
-            prompt: config.prompt,
-            count: 1,
-            aspectRatio: config.aspectRatio,
-            imageSize: config.imageSize,
-            verbose_logging: verboseLogging,
-            ...(shouldAutoOptimizePrompt ? {
-              prompt_optimize_mode: promptOptimizeMode,
-              prompt_optimize_provider: config.chatProvider,
-              prompt_optimize_model: config.chatModel,
-            } : {}),
-          }
+          params: buildImageParams(1)
         } as any);
       };
 
@@ -490,7 +500,7 @@ export function useGenerate() {
         startTask(batchTaskId, requestedCount, {
           prompt: config.prompt,
           aspectRatio: config.aspectRatio,
-          imageSize: config.imageSize
+          imageSize: requestImageSize
         });
         setConnectionMode('none');
         expectedTaskIdRef.current = batchTaskId;
@@ -628,18 +638,7 @@ export function useGenerate() {
         response = await generateBatch({
           provider: config.imageProvider,
           model_id: config.imageModel,
-          params: {
-            prompt: config.prompt,
-            count: requestedCount,
-            aspectRatio: config.aspectRatio,
-            imageSize: config.imageSize,
-            verbose_logging: verboseLogging,
-            ...(shouldAutoOptimizePrompt ? {
-              prompt_optimize_mode: promptOptimizeMode,
-              prompt_optimize_provider: config.chatProvider,
-              prompt_optimize_model: config.chatModel,
-            } : {}),
-          }
+          params: buildImageParams(requestedCount)
         } as any);
       }
 
@@ -657,7 +656,7 @@ export function useGenerate() {
       startTask(newTaskId, requestedCount, {
           prompt: config.prompt,
           aspectRatio: config.aspectRatio,
-          imageSize: config.imageSize
+          imageSize: requestImageSize
       });
 
       // 生成区与历史区同步：先写入一条本地任务占位，避免历史列表不刷新导致状态不同步

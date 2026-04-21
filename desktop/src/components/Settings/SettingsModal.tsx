@@ -14,7 +14,7 @@ import { useUpdaterStore } from '../../store/updaterStore';
 import i18n, { DEFAULT_LANGUAGE } from '../../i18n';
 import { getSystemLocale } from '../../i18n/systemLocale';
 import appIcon from '../../assets/app-icon.png';
-import { IMAGE_MODEL_OPTIONS, VISION_MODEL_OPTIONS, CUSTOM_MODEL_VALUE } from '../../store/configStore';
+import { IMAGE_MODEL_OPTIONS, VISION_MODEL_OPTIONS, CUSTOM_MODEL_VALUE, isDalle3Model } from '../../store/configStore';
 import { getPromptOptimizeConfigIssue } from '../../utils/promptOptimizeConfig';
 import { ensureNotificationPermission, sendTestSystemNotification } from '../../hooks/useGenerationNotifications';
 
@@ -53,6 +53,10 @@ const getChatProviderDefaults = (provider: string) => {
     model: 'gemini-3-flash-preview'
   };
 };
+
+const getDefaultImageModelForProvider = (provider: string) => (
+  provider === 'openai' ? 'dall-e-3' : IMAGE_MODEL_OPTIONS[0].value
+);
 
 const resolveSystemLanguage = (locale: string | null) => {
   if (!locale) return DEFAULT_LANGUAGE;
@@ -325,10 +329,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         const modelFromConfig = getDefaultModelId(imageConfig.models);
         if (modelFromConfig) {
           setImageModel(modelFromConfig);
+        } else {
+          setImageModel(getDefaultImageModelForProvider(imageProvider));
         }
         setImageTimeoutSeconds(normalizeTimeout(imageConfig.timeout_seconds, 500));
         setImageMaxRetries(normalizeRetryCount(imageConfig.max_retries, 1));
       } else {
+        setImageModel(getDefaultImageModelForProvider(imageProvider));
         setImageTimeoutSeconds(500);
         setImageMaxRetries(1);
       }
@@ -550,10 +557,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const modelFromConfig = getDefaultModelId(config.models);
       if (modelFromConfig) {
         setImageModel(modelFromConfig);
+      } else {
+        setImageModel(getDefaultImageModelForProvider(newProvider));
       }
       setImageTimeoutSeconds(normalizeTimeout(config.timeout_seconds, 500));
       setImageMaxRetries(normalizeRetryCount(config.max_retries, 1));
     } else {
+      setImageModel(getDefaultImageModelForProvider(newProvider));
       setImageTimeoutSeconds(500);
       setImageMaxRetries(1);
     }
@@ -1079,7 +1089,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
               />
               {imageBaseWarn && <BaseUrlWarning yunwuWarn={imageYunwuWarn} />}
-              {imageProvider === 'openai' && (
+              {imageProvider === 'openai' && isDalle3Model(imageModel) && (
                 <p className="text-xs text-red-500 px-1">{t('settings.provider.openaiImageLimit')}</p>
               )}
             </div>
