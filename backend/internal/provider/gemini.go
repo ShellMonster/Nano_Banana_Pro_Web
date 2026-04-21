@@ -94,7 +94,7 @@ func NewGeminiProvider(config *model.ProviderConfig) (*GeminiProvider, error) {
 func (p *GeminiProvider) newHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
-			ForceAttemptHTTP2:   false,
+			ForceAttemptHTTP2: false,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: false,
 				MinVersion:         tls.VersionTLS12,

@@ -1602,7 +1602,6 @@ export function ReferenceImageUpload() {
   };
 
   const showDragOver = isDraggingOver || (isInternalDragging && isOverDropTarget);
-  const interactive = allowReferenceImages;
 
   if (!allowReferenceImages) {
     return (
@@ -1625,20 +1624,20 @@ export function ReferenceImageUpload() {
     <div
       ref={dropRef}
       className="space-y-2"
-      onPaste={interactive ? handlePaste : undefined}
-      onDragEnter={interactive ? handleDragEnter : undefined}
-      onDragOver={interactive ? handleDragOver : undefined}
-      onDragLeave={interactive ? handleDragLeave : undefined}
-      onDrop={interactive ? handleDrop : undefined}
+      onPaste={handlePaste}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       style={{ WebkitAppRegion: 'no-drag' } as any}
     >
       {/* 标题行 + 折叠按钮 */}
       <div
         className={cn(
           "flex items-center justify-between rounded-xl transition-all",
-          interactive && showDragOver && "bg-blue-50 ring-2 ring-blue-400 ring-dashed"
+          showDragOver && "bg-blue-50 ring-2 ring-blue-400 ring-dashed"
         )}
-        onClick={interactive ? handleAreaClick : undefined}
+        onClick={handleAreaClick}
       >
         <div className="flex items-center gap-2">
           <button
@@ -1652,19 +1651,19 @@ export function ReferenceImageUpload() {
             {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
           </button>
           <label
-            className={cn("text-sm font-medium text-gray-700 flex items-center gap-2", interactive && "cursor-pointer")}
+            className="text-sm font-medium text-gray-700 flex items-center gap-2 cursor-pointer"
           >
             <ImageIcon className="w-4 h-4 text-blue-500" />
             {t('refImage.title', { count: refFiles.length })}
           </label>
         </div>
         <div className="flex items-center gap-2">
-          {interactive && showDragOver && (
+          {showDragOver && (
             <span className="text-[10px] text-blue-600 font-medium">
               {t('refImage.dropHint')}
             </span>
           )}
-          {interactive && refFiles.length > 0 && !showDragOver && (
+          {refFiles.length > 0 && !showDragOver && (
             <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">
               {t('refImage.modeActive')}
             </span>
@@ -1765,7 +1764,7 @@ export function ReferenceImageUpload() {
           )}
 
           {/* 上传按钮/区域 */}
-          {interactive && refFiles.length === 0 && refFiles.length < 10 && (
+          {refFiles.length === 0 && refFiles.length < 10 && (
               <button
                 data-onboarding="ref-image-upload"
                 onClick={handleUploadClick}
