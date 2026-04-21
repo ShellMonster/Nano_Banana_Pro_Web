@@ -43,7 +43,7 @@ export const getImageModelOptions = (provider: string) => (
 
 export const getDefaultImageModelForProvider = (provider: string) => {
   const options = getImageModelOptions(provider);
-  return options[0]?.value || IMAGE_MODELS.FLASH.value;
+  return options[0].value;
 };
 
 const normalizeImageModelForProvider = (provider: string, rawModel: unknown) => {
