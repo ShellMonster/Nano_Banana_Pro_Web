@@ -91,7 +91,7 @@ func defaultModelForProvider(providerName string, purpose ModelPurpose) string {
 		return "gpt-image-1"
 	}
 	if name == "openai" {
-		return ""
+		return "gemini-3-pro-image-preview"
 	}
 	return "gemini-3-pro-image-preview"
 }
