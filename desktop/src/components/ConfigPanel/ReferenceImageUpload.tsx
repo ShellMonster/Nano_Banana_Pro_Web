@@ -157,6 +157,7 @@ export function ReferenceImageUpload() {
   const [isExtractingPrompt, setIsExtractingPrompt] = useState(false);
   const [extractingIndex, setExtractingIndex] = useState<number | null>(null);
   const allowReferenceImages = supportsReferenceImages(imageProvider);
+  const prevAllowReferenceImagesRef = useRef(allowReferenceImages);
 
   // 计算文件 MD5（使用工具函数）
   const calculateMd5Callback = useCallback(calculateMd5, []);
@@ -173,13 +174,14 @@ export function ReferenceImageUpload() {
   }, []);
 
   useEffect(() => {
-    if (allowReferenceImages || refFiles.length === 0) {
-      return;
-    }
-    setRefFiles([]);
-    setRefImageEntries([]);
+    const wasAllowed = prevAllowReferenceImagesRef.current;
+    prevAllowReferenceImagesRef.current = allowReferenceImages;
+
+    if (allowReferenceImages || wasAllowed === allowReferenceImages) return;
+    if (refFiles.length === 0 && refImageEntries.length === 0) return;
+
     toast.info(t('refImage.unsupportedModel'));
-  }, [allowReferenceImages, refFiles.length, setRefFiles, setRefImageEntries, t]);
+  }, [allowReferenceImages, refFiles.length, refImageEntries.length, t]);
 
   const preloadDialog = useCallback(async () => {
     if (!window.__TAURI_INTERNALS__) return;

@@ -46,6 +46,13 @@ export const getDefaultImageModelForProvider = (provider: string) => {
   return options[0]?.value || IMAGE_MODELS.FLASH.value;
 };
 
+const normalizeImageModelForProvider = (provider: string, rawModel: unknown) => {
+  const model = typeof rawModel === 'string' ? rawModel.trim() : '';
+  const options = getImageModelOptions(provider);
+  const isValid = options.some((option) => option.value === model);
+  return isValid ? model : getDefaultImageModelForProvider(provider);
+};
+
 // 默认生图模型名称
 export const DEFAULT_IMAGE_MODEL = getDefaultImageModelForProvider('gemini');
 
@@ -299,7 +306,7 @@ export const useConfigStore = create<ConfigState>()(
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 18,
+      version: 19,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;
@@ -415,6 +422,23 @@ export const useConfigStore = create<ConfigState>()(
             ...next,
             imageNativeSize: next.imageNativeSize ?? 'auto',
             imageQuality: next.imageQuality ?? 'auto'
+          };
+        }
+        if (version < 19) {
+          const imageProvider = String(next.imageProvider ?? 'gemini').trim() || 'gemini';
+          const imageNativeSize = typeof next.imageNativeSize === 'string' && next.imageNativeSize.trim()
+            ? next.imageNativeSize.trim()
+            : 'auto';
+          const imageQuality = typeof next.imageQuality === 'string' && next.imageQuality.trim()
+            ? next.imageQuality.trim()
+            : 'auto';
+
+          next = {
+            ...next,
+            imageProvider,
+            imageModel: normalizeImageModelForProvider(imageProvider, next.imageModel),
+            imageNativeSize,
+            imageQuality
           };
         }
 
