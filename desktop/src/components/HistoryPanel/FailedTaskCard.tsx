@@ -130,29 +130,18 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
                 parsed?.aspectRatio ||
                 parsed?.aspect_ratio ||
                 parsed?.aspect;
-            const nativeSize =
-                parsed?.size ||
-                parsed?.image_native_size;
             const imageSize =
                 parsed?.imageSize ||
                 parsed?.resolution_level ||
                 parsed?.image_size;
 
-            const nativeSizeLabel = typeof nativeSize === 'string' && nativeSize.trim()
-                ? nativeSize.trim()
-                : '';
-            const imageSizeLabel = nativeSizeLabel || (
+            const imageSizeLabel =
                 typeof imageSize === 'string' && imageSize.trim()
                     ? imageSize.trim().toUpperCase()
-                    : '—'
-            );
+                    : '—';
             const aspectRatioLabel = (() => {
                 if (typeof aspectRatio === 'string' && aspectRatio.trim()) {
                     return aspectRatio.trim();
-                }
-                const match = nativeSizeLabel.match(/^(\d+)\s*x\s*(\d+)$/i);
-                if (match) {
-                    return formatAspectRatioLabel(Number(match[1]), Number(match[2]));
                 }
                 return '—';
             })();

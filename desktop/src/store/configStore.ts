@@ -5,7 +5,6 @@ import type { PersistedRefImage } from '../types';
 const IMAGE_MODELS = {
   FLASH: { value: 'gemini-3.1-flash-image-preview', label: 'Flash' },
   PRO: { value: 'gemini-3-pro-image-preview', label: 'Pro' },
-  DALLE3: { value: 'dall-e-3', label: 'DALL·E 3' },
 } as const;
 
 // 默认生图模型名称
@@ -15,7 +14,6 @@ export const DEFAULT_IMAGE_MODEL = IMAGE_MODELS.FLASH.value;
 export const IMAGE_MODEL_OPTIONS = [
   { value: IMAGE_MODELS.FLASH.value, label: `${IMAGE_MODELS.FLASH.label} (${IMAGE_MODELS.FLASH.value})` },
   { value: IMAGE_MODELS.PRO.value, label: `${IMAGE_MODELS.PRO.label} (${IMAGE_MODELS.PRO.value})` },
-  { value: IMAGE_MODELS.DALLE3.value, label: `${IMAGE_MODELS.DALLE3.label} (${IMAGE_MODELS.DALLE3.value})` },
 ] as const;
 
 export const VISION_MODEL_OPTIONS = [
@@ -33,26 +31,6 @@ export const IMAGE_MODEL_CONFIG: Record<string, { aspectRatios: string[] }> = {
     aspectRatios: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']
   }
 };
-
-export const DALLE3_SIZE_OPTIONS = [
-  { value: '1024x1024', label: '1024 x 1024' },
-  { value: '1024x1792', label: '1024 x 1792' },
-  { value: '1792x1024', label: '1792 x 1024' }
-] as const;
-
-export const DALLE3_QUALITY_OPTIONS = [
-  { value: 'standard', label: 'Standard' },
-  { value: 'hd', label: 'HD' }
-] as const;
-
-export const DALLE3_STYLE_OPTIONS = [
-  { value: 'vivid', label: 'Vivid' },
-  { value: 'natural', label: 'Natural' }
-] as const;
-
-export const isDalle3Model = (model: string): boolean => String(model || '').trim().toLowerCase() === IMAGE_MODELS.DALLE3.value;
-export const supportsReferenceImages = (model: string): boolean => !isDalle3Model(model);
-export const usesNativeImageSize = (model: string): boolean => isDalle3Model(model);
 
 // Helper function to get supported aspect ratios for a model
 export const getModelAspectRatios = (model: string): string[] => {
@@ -112,9 +90,6 @@ interface ConfigState {
   count: number;
   imageSize: string;
   aspectRatio: string;
-  imageNativeSize: string;
-  imageQuality: string;
-  imageStyle: string;
   refFiles: File[];
   refImageEntries: PersistedRefImage[];
 
@@ -150,9 +125,6 @@ interface ConfigState {
   setCount: (count: number) => void;
   setImageSize: (size: string) => void;
   setAspectRatio: (ratio: string) => void;
-  setImageNativeSize: (size: string) => void;
-  setImageQuality: (quality: string) => void;
-  setImageStyle: (style: string) => void;
   setRefFiles: (files: File[]) => void;
   addRefFiles: (files: File[]) => void;
   removeRefFile: (index: number) => void;
@@ -197,9 +169,6 @@ export const useConfigStore = create<ConfigState>()(
       count: 1,
       imageSize: '2K',
       aspectRatio: '1:1',
-      imageNativeSize: '1024x1024',
-      imageQuality: 'standard',
-      imageStyle: 'vivid',
       refFiles: [],
       refImageEntries: [],
 
@@ -235,9 +204,6 @@ export const useConfigStore = create<ConfigState>()(
       setCount: (count) => set({ count }),
       setImageSize: (imageSize) => set({ imageSize }),
       setAspectRatio: (aspectRatio) => set({ aspectRatio }),
-      setImageNativeSize: (imageNativeSize) => set({ imageNativeSize }),
-      setImageQuality: (imageQuality) => set({ imageQuality }),
-      setImageStyle: (imageStyle) => set({ imageStyle }),
       setRefFiles: (refFiles) => set({ refFiles }),
       setRefImageEntries: (refImageEntries) => set({ refImageEntries }),
 
@@ -279,9 +245,6 @@ export const useConfigStore = create<ConfigState>()(
         count: 1,
         imageSize: '2K',
         aspectRatio: '1:1',
-        imageNativeSize: '1024x1024',
-        imageQuality: 'standard',
-        imageStyle: 'vivid',
         refFiles: [],
         refImageEntries: [],
       })
@@ -289,7 +252,7 @@ export const useConfigStore = create<ConfigState>()(
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 16,
+      version: 17,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;
@@ -298,6 +261,7 @@ export const useConfigStore = create<ConfigState>()(
       migrate: (persistedState, version) => {
         const state = persistedState as any;
         let next = state;
+        const imageModelValues = new Set<string>(IMAGE_MODEL_OPTIONS.map((option) => option.value));
         if (version < 2) {
           next = {
             ...state,
@@ -394,12 +358,13 @@ export const useConfigStore = create<ConfigState>()(
             notifyOnFailure: next.notifyOnFailure ?? true
           };
         }
-        if (version < 16) {
+        if (version < 17) {
+          const currentImageModel = String(next.imageModel ?? '').trim();
           next = {
             ...next,
-            imageNativeSize: next.imageNativeSize ?? '1024x1024',
-            imageQuality: next.imageQuality ?? 'standard',
-            imageStyle: next.imageStyle ?? 'vivid'
+            imageModel: !currentImageModel || !imageModelValues.has(currentImageModel)
+              ? DEFAULT_IMAGE_MODEL
+              : currentImageModel
           };
         }
 

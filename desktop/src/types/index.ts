@@ -40,9 +40,6 @@ export interface GeneratedImage {
 export interface ImageOptions {
   aspectRatio?: string;
   imageSize?: string;
-  size?: string;
-  quality?: string;
-  style?: string;
 }
 
 // 任务模型

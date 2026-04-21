@@ -138,8 +138,6 @@
     "addMore": "继续添加",
     "supportHint": "(支持多选或拖拽)",
     "unsupportedModel": "当前模型不支持参考图",
-    "unsupportedHint": "DALL·E 3 当前仅支持文本生图，请移除参考图后再生成",
-    "unsupportedModelCleared": "已自动清空当前模型不支持的参考图",
     "toast": {
       "full": "参考图已满",
       "exists": "图片已存在",
@@ -187,7 +185,6 @@
       "label": "AI对接方式",
       "recommended": "推荐平台：",
       "yunwu": "云雾API",
-      "openaiImageLimit": "DALL·E 3 使用固定尺寸档位，不支持 1K/2K/4K 与参考图",
       "geminiBasePathHint": "Gemini 类型建议 Base URL 仅填写域名，不要带 /v1 或具体接口路径",
       "yunwuMissingV1Hint": "云雾 API 的 Base URL 建议包含 /v1",
       "yunwuExtraPathHint": "云雾 API 的 Base URL 建议只保留到 /v1，不要包含更深路径"
@@ -428,9 +425,6 @@
       "title": "生成设置",
       "count": "数量 (1-10)",
       "resolution": "分辨率",
-      "nativeSize": "尺寸",
-      "quality": "质量",
-      "style": "风格",
       "resolution1k": "1K (1024px)",
       "resolution2k": "2K (2048px)",
       "resolution4k": "4K (3840px)",

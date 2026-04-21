@@ -172,7 +172,6 @@
       "label": "プロバイダー",
       "recommended": "推奨:",
       "yunwu": "Yunwu API",
-      "openaiImageLimit": "OpenAI プロバイダーは現在 1K 画像のみ対応しています",
       "geminiBasePathHint": "Gemini タイプの Base URL はドメインのみを推奨します（/v1 や具体的なエンドポイントは不要）。",
       "yunwuMissingV1Hint": "Yunwu API の Base URL は /v1 を含めることを推奨します",
       "yunwuExtraPathHint": "Yunwu API の Base URL は /v1 までにしてください（下位パス不要）"
