@@ -411,6 +411,16 @@ export function useGenerate() {
       const shouldAutoOptimizePrompt = promptOptimizeMode !== 'off';
       const useDalle3Params = isDalle3Model(config.imageModel);
       const requestImageSize = useDalle3Params ? config.imageNativeSize : config.imageSize;
+      const taskOptions = useDalle3Params
+        ? {
+            size: config.imageNativeSize,
+            quality: config.imageQuality,
+            style: config.imageStyle,
+          }
+        : {
+            aspectRatio: config.aspectRatio,
+            imageSize: config.imageSize,
+          };
       const buildImageParams = (count: number) => ({
         prompt: config.prompt,
         count,
@@ -499,8 +509,9 @@ export function useGenerate() {
         const batchTaskId = `${BATCH_TASK_PREFIX}${Date.now()}`;
         startTask(batchTaskId, requestedCount, {
           prompt: config.prompt,
-          aspectRatio: config.aspectRatio,
-          imageSize: requestImageSize
+          aspectRatio: useDalle3Params ? undefined : config.aspectRatio,
+          imageSize: requestImageSize,
+          options: taskOptions
         });
         setConnectionMode('none');
         expectedTaskIdRef.current = batchTaskId;
@@ -655,8 +666,9 @@ export function useGenerate() {
       // 启动任务
       startTask(newTaskId, requestedCount, {
           prompt: config.prompt,
-          aspectRatio: config.aspectRatio,
-          imageSize: requestImageSize
+          aspectRatio: useDalle3Params ? undefined : config.aspectRatio,
+          imageSize: requestImageSize,
+          options: taskOptions
       });
 
       // 生成区与历史区同步：先写入一条本地任务占位，避免历史列表不刷新导致状态不同步
