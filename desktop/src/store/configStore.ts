@@ -7,14 +7,54 @@ const IMAGE_MODELS = {
   PRO: { value: 'gemini-3-pro-image-preview', label: 'Pro' },
 } as const;
 
-// 默认生图模型名称
-export const DEFAULT_IMAGE_MODEL = IMAGE_MODELS.FLASH.value;
+const OPENAI_IMAGE_MODELS = {
+  GPT_IMAGE_1: { value: 'gpt-image-1', label: 'GPT Image 1' },
+} as const;
+
+export const OPENAI_IMAGE_SIZE_OPTIONS = [
+  { value: 'auto', label: 'Auto' },
+  { value: '1024x1024', label: '1024 x 1024' },
+  { value: '1024x1536', label: '1024 x 1536' },
+  { value: '1536x1024', label: '1536 x 1024' }
+] as const;
+
+export const OPENAI_IMAGE_QUALITY_OPTIONS = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' }
+] as const;
 
 // Model options for the dropdown selectors
-export const IMAGE_MODEL_OPTIONS = [
+export const GEMINI_IMAGE_MODEL_OPTIONS = [
   { value: IMAGE_MODELS.FLASH.value, label: `${IMAGE_MODELS.FLASH.label} (${IMAGE_MODELS.FLASH.value})` },
   { value: IMAGE_MODELS.PRO.value, label: `${IMAGE_MODELS.PRO.label} (${IMAGE_MODELS.PRO.value})` },
 ] as const;
+
+export const OPENAI_IMAGE_MODEL_OPTIONS = [
+  { value: OPENAI_IMAGE_MODELS.GPT_IMAGE_1.value, label: `${OPENAI_IMAGE_MODELS.GPT_IMAGE_1.label} (${OPENAI_IMAGE_MODELS.GPT_IMAGE_1.value})` },
+] as const;
+
+export const IMAGE_MODEL_OPTIONS = GEMINI_IMAGE_MODEL_OPTIONS;
+
+export const getImageModelOptions = (provider: string) => (
+  provider === 'openai-image' ? OPENAI_IMAGE_MODEL_OPTIONS : GEMINI_IMAGE_MODEL_OPTIONS
+);
+
+export const getDefaultImageModelForProvider = (provider: string) => {
+  const options = getImageModelOptions(provider);
+  return options[0].value;
+};
+
+const normalizeImageModelForProvider = (provider: string, rawModel: unknown) => {
+  const model = typeof rawModel === 'string' ? rawModel.trim() : '';
+  const options = getImageModelOptions(provider);
+  const isValid = options.some((option) => option.value === model);
+  return isValid ? model : getDefaultImageModelForProvider(provider);
+};
+
+// 默认生图模型名称
+export const DEFAULT_IMAGE_MODEL = getDefaultImageModelForProvider('gemini');
 
 export const VISION_MODEL_OPTIONS = [
   { value: 'gemini-3-flash-preview', label: 'Flash (gemini-3-flash-preview)' },
@@ -31,6 +71,10 @@ export const IMAGE_MODEL_CONFIG: Record<string, { aspectRatios: string[] }> = {
     aspectRatios: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']
   }
 };
+
+export const supportsReferenceImages = (provider: string): boolean => provider !== 'openai-image';
+export const usesNativeImageSize = (provider: string): boolean => provider === 'openai-image';
+export const supportsQualityControl = (provider: string): boolean => provider === 'openai-image';
 
 // Helper function to get supported aspect ratios for a model
 export const getModelAspectRatios = (model: string): string[] => {
@@ -90,6 +134,8 @@ interface ConfigState {
   count: number;
   imageSize: string;
   aspectRatio: string;
+  imageNativeSize: string;
+  imageQuality: string;
   refFiles: File[];
   refImageEntries: PersistedRefImage[];
 
@@ -125,6 +171,8 @@ interface ConfigState {
   setCount: (count: number) => void;
   setImageSize: (size: string) => void;
   setAspectRatio: (ratio: string) => void;
+  setImageNativeSize: (size: string) => void;
+  setImageQuality: (quality: string) => void;
   setRefFiles: (files: File[]) => void;
   addRefFiles: (files: File[]) => void;
   removeRefFile: (index: number) => void;
@@ -169,6 +217,8 @@ export const useConfigStore = create<ConfigState>()(
       count: 1,
       imageSize: '2K',
       aspectRatio: '1:1',
+      imageNativeSize: 'auto',
+      imageQuality: 'auto',
       refFiles: [],
       refImageEntries: [],
 
@@ -204,6 +254,8 @@ export const useConfigStore = create<ConfigState>()(
       setCount: (count) => set({ count }),
       setImageSize: (imageSize) => set({ imageSize }),
       setAspectRatio: (aspectRatio) => set({ aspectRatio }),
+      setImageNativeSize: (imageNativeSize) => set({ imageNativeSize }),
+      setImageQuality: (imageQuality) => set({ imageQuality }),
       setRefFiles: (refFiles) => set({ refFiles }),
       setRefImageEntries: (refImageEntries) => set({ refImageEntries }),
 
@@ -245,6 +297,8 @@ export const useConfigStore = create<ConfigState>()(
         count: 1,
         imageSize: '2K',
         aspectRatio: '1:1',
+        imageNativeSize: 'auto',
+        imageQuality: 'auto',
         refFiles: [],
         refImageEntries: [],
       })
@@ -252,7 +306,7 @@ export const useConfigStore = create<ConfigState>()(
     {
       name: 'app-config-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 15,
+      version: 19,
       // 关键：不要将 File 对象序列化到 localStorage（File 对象无法序列化）
       partialize: (state) => {
           const { refFiles, ...rest } = state;
@@ -355,6 +409,36 @@ export const useConfigStore = create<ConfigState>()(
             enableSystemNotifications: next.enableSystemNotifications ?? true,
             notifyOnlyWhenBackground: next.notifyOnlyWhenBackground ?? true,
             notifyOnFailure: next.notifyOnFailure ?? true
+          };
+        }
+        if (version < 17) {
+          next = {
+            ...next,
+            imageModel: next.imageModel ?? DEFAULT_IMAGE_MODEL
+          };
+        }
+        if (version < 18) {
+          next = {
+            ...next,
+            imageNativeSize: next.imageNativeSize ?? 'auto',
+            imageQuality: next.imageQuality ?? 'auto'
+          };
+        }
+        if (version < 19) {
+          const imageProvider = String(next.imageProvider ?? 'gemini').trim() || 'gemini';
+          const imageNativeSize = typeof next.imageNativeSize === 'string' && next.imageNativeSize.trim()
+            ? next.imageNativeSize.trim()
+            : 'auto';
+          const imageQuality = typeof next.imageQuality === 'string' && next.imageQuality.trim()
+            ? next.imageQuality.trim()
+            : 'auto';
+
+          next = {
+            ...next,
+            imageProvider,
+            imageModel: normalizeImageModelForProvider(imageProvider, next.imageModel),
+            imageNativeSize,
+            imageQuality
           };
         }
 

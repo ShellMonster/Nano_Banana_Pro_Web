@@ -101,6 +101,12 @@ func buildConfigSnapshot(providerName, modelID string, params map[string]interfa
 	} else if v, ok := params["image_size"].(string); ok && v != "" {
 		snapshot["imageSize"] = v
 	}
+	if v, ok := params["size"].(string); ok && strings.TrimSpace(v) != "" {
+		snapshot["size"] = strings.TrimSpace(v)
+	}
+	if v, ok := params["quality"].(string); ok && strings.TrimSpace(v) != "" {
+		snapshot["quality"] = strings.TrimSpace(v)
+	}
 
 	// count 可能是 float64（JSON 解析）或 int（服务内部）
 	if v, ok := params["count"].(int); ok && v > 0 {
@@ -132,7 +138,7 @@ func fetchProviderConfig(providerName string) *model.ProviderConfig {
 
 func defaultTimeoutSecondsForProvider(providerName string) int {
 	switch providerName {
-	case "gemini", "openai":
+	case "gemini", "openai", "openai-image":
 		return 500
 	default:
 		return 150
@@ -141,7 +147,7 @@ func defaultTimeoutSecondsForProvider(providerName string) int {
 
 func providerDefaultMaxRetries(providerName string) int {
 	switch providerName {
-	case "gemini", "openai":
+	case "gemini", "openai", "openai-image":
 		return 1
 	default:
 		return 1
