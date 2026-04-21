@@ -46,7 +46,7 @@ backend/                   # Go 后端 (Sidecar)
 │   ├── provider/          # AI 提供商适配器
 │   │   ├── gemini.go      # Gemini /v1beta 接口
 │   │   ├── openai.go      # OpenAI /v1/chat/completions (多模态)
-│   │   ├── openai_image.go # OpenAI /v1/images/generations (gpt-image-2-all)
+│   │   ├── openai_image.go # OpenAI /v1/images/generations (gpt-image-2)
 │   │   └── model_resolver.go # 模型名称解析
 │   ├── worker/pool.go     # Worker 池 (6 workers, 100 queue, panic recovery)
 │   ├── model/             # 数据模型 (ProviderConfig, Task, Folder)
@@ -94,10 +94,10 @@ frontend/                  # 独立 Web 前端 (v2.5.2, 非 Tauri)
 |---|---|---|
 | `gemini` | `/v1beta/models/{model}:generateContent` | 文生图/图生图，支持 4K |
 | `openai` | `/v1/chat/completions` (多模态) | 文生图/图生图/提示词优化 |
-| `openai-image` | `/v1/images/generations` | 专用图片生成 (gpt-image-2-all) |
+| `openai-image` | `/v1/images/generations` | 专用图片生成 (gpt-image-2) |
 
 - 提供商配置热更新：存储在 SQLite，修改后立即生效，无需重启
-- 默认模型：`gemini-2.0-flash-exp` (gemini), `gpt-4o` (openai), `gpt-image-2-all` (openai-image)
+- 默认模型：`gemini-2.0-flash-exp` (gemini), `gpt-4o` (openai), `gpt-image-2` (openai-image)
 
 ## 关键架构决策
 
@@ -132,7 +132,7 @@ frontend/                  # 独立 Web 前端 (v2.5.2, 非 Tauri)
 ## 注意事项 & 易错点
 
 1. **端口冲突**：Go sidecar 监听 `127.0.0.1:8080`，确保无其他进程占用。调试时检查 `lsof -i :8080`
-2. **模型名称**：`openai-image` provider 默认模型是 `gpt-image-2-all`（v2.8.0 更新），不支持 `quality` 参数
+2. **模型名称**：`openai-image` provider 默认模型是 `gpt-image-2`（v2.8.0 更新），不支持 `quality` 参数
 3. **版本同步**：发布前确保 5 个文件的版本号一致（见上方「通用」部分）
 4. **Tauri 权限**：新功能涉及文件系统/网络访问时需更新 `capabilities/default.json`
 5. **Docker vs Desktop**：后端通过 `platform/runtime.go` 检测运行环境，Docker 监听 `0.0.0.0`，Tauri 监听 `127.0.0.1`

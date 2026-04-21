@@ -23,7 +23,7 @@
 </p>
 
 > 🆕 **v2.8.0 アップデート**:
-> - **🤖 OpenAI 専用画像生成**: 新しい `openai-image` プロバイダータイプ、`/v1/images/generations` 標準 API をサポート（gpt-image-2-all モデル）。
+> - **🤖 OpenAI 専用画像生成**: 新しい `openai-image` プロバイダータイプ、`/v1/images/generations` 標準 API をサポート（gpt-image-2 モデル）。
 > - **🎨 画像カードのリファクタリング**: サムネイル/フルサイズのスマート切り替え、ドラッグ＆ドロップの改善、読み込み体験の向上。
 
 > 💡 **推奨**: 最高の生成体験とコストパフォーマンスを得るために、[Yunwu API](https://yunwu.ai/register?aff=i4hh) の使用をお勧めします。
@@ -194,7 +194,7 @@ graph TD
     WorkerPool <--> SQLite
     GeminiSDK <--> |Imagen 3.0| Cloud[Google AI Cloud]
     OpenAISDK <--> |Chat Completions| CloudAI[OpenAI 互換サービス]
-    OpenAIImage <--> |gpt-image-2-all| CloudImg[OpenAI Image API]
+    OpenAIImage <--> |gpt-image-2| CloudImg[OpenAI Image API]
     GoServer -.-> |画像を保存| FS
     FS -.-> |リソースマップ| AssetProtocol
     AssetProtocol -.-> |高速表示| UI
