@@ -224,8 +224,8 @@ func (p *OpenAIProvider) ValidateParams(params map[string]interface{}) error {
 		if raw, ok := params["reference_images"].([]interface{}); ok && len(raw) > 0 {
 			return fmt.Errorf("DALL·E 3 暂不支持参考图")
 		}
-		if count, ok := toInt(params["count"]); ok && count > 1 {
-			return fmt.Errorf("DALL·E 3 单次请求仅支持生成 1 张图片")
+		if count, ok := toInt(params["count"]); ok && (count < 1 || count > 10) {
+			return fmt.Errorf("DALL·E 3 的 count/n 必须介于 1 和 10 之间")
 		}
 	}
 	return nil
@@ -263,6 +263,9 @@ func (p *OpenAIProvider) buildImagesGenerationRequestBody(modelID string, params
 	}
 	if user, _ := params["user"].(string); strings.TrimSpace(user) != "" {
 		body.User = strings.TrimSpace(user)
+	}
+	if count, ok := toInt(params["count"]); ok && count >= 1 && count <= 10 {
+		body.N = count
 	}
 	if body.Size == "" {
 		body.Size = "1024x1024"

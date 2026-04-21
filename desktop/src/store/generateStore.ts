@@ -24,6 +24,15 @@ function roundToMultiple(n: number, multiple: number) {
 }
 
 function getExpectedDimensions(aspectRatio: string, imageSize: string): { width: number; height: number } | null {
+  const nativeSizeMatch = String(imageSize || '').trim().match(/^(\d+)\s*x\s*(\d+)$/i);
+  if (nativeSizeMatch) {
+    const width = Number(nativeSizeMatch[1]);
+    const height = Number(nativeSizeMatch[2]);
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      return { width, height };
+    }
+  }
+
   const ratio = parseAspectRatio(aspectRatio);
   const max = IMAGE_SIZE_MAX_PX[String(imageSize || '').toUpperCase()];
   if (!ratio || !max) return null;
@@ -107,7 +116,16 @@ interface GenerateState {
 
   setTab: (tab: 'generate' | 'history') => void;
   setSidebarOpen: (isOpen: boolean) => void; // 新增 Action
-  startTask: (taskId: string, totalCount: number, config: { prompt: string, aspectRatio: string, imageSize: string }) => void;
+  startTask: (
+    taskId: string,
+    totalCount: number,
+    config: {
+      prompt: string;
+      aspectRatio?: string;
+      imageSize: string;
+      options?: GeneratedImage['options'];
+    }
+  ) => void;
   updateProgress: (completedCount: number, image?: GeneratedImage | null) => void;
   updateProgressBatch: (completedCount: number, images: GeneratedImage[]) => void;
   completeTask: () => void;
@@ -154,7 +172,11 @@ export const useGenerateStore = create<GenerateState>()(
       setSubmitting: (isSubmitting) => set({ isSubmitting }),
 
       startTask: (taskId, totalCount, config) => {
-        const expected = getExpectedDimensions(config.aspectRatio, config.imageSize);
+        const expected = getExpectedDimensions(config.aspectRatio || '', config.imageSize);
+        const placeholderOptions = config.options || {
+          aspectRatio: config.aspectRatio,
+          imageSize: config.imageSize
+        };
         const placeholders: GeneratedImage[] = Array.from({ length: totalCount }).map((_, i) => ({
             id: `temp-${Date.now()}-${i}`,
             taskId,
@@ -168,10 +190,7 @@ export const useGenerateStore = create<GenerateState>()(
             status: 'pending' as const,
             prompt: config.prompt,
             url: '',
-            options: {
-                aspectRatio: config.aspectRatio,
-                imageSize: config.imageSize
-            }
+            options: placeholderOptions
         }));
 
         set((state) => ({
