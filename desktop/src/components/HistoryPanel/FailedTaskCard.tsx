@@ -146,6 +146,12 @@ export const FailedTaskCard = React.memo(function FailedTaskCard({ task, onClick
                 if (typeof aspectRatio === 'string' && aspectRatio.trim()) {
                     return aspectRatio.trim();
                 }
+                if (typeof nativeSize === 'string') {
+                    const match = nativeSize.trim().match(/^(\d+)\s*x\s*(\d+)$/i);
+                    if (match) {
+                        return formatAspectRatioLabel(Number(match[1]), Number(match[2]));
+                    }
+                }
                 return '—';
             })();
 
