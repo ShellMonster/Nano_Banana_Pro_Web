@@ -30,7 +30,7 @@ var (
 
 func defaultTimeoutSeconds(providerName string) int {
 	switch providerName {
-	case "gemini", "openai":
+	case "gemini", "openai", "openai-image":
 		return 500
 	default:
 		return 150
@@ -66,7 +66,7 @@ func InitProviders() error {
 	defer initMu.Unlock()
 
 	// 0. 确保基础 Provider 至少存在于数据库中（即使没有配置文件）
-	defaultProviders := []string{"gemini", "openai"}
+	defaultProviders := []string{"gemini", "openai", "openai-image"}
 	for _, name := range defaultProviders {
 		var count int64
 		model.DB.Model(&model.ProviderConfig{}).Where("provider_name = ?", name).Count(&count)
@@ -135,6 +135,8 @@ func InitProviders() error {
 			p, err = NewGeminiProvider(&cfg)
 		case "openai":
 			p, err = NewOpenAIProvider(&cfg)
+		case "openai-image":
+			p, err = NewOpenAIImageProvider(&cfg)
 		default:
 			log.Printf("未知的 Provider 类型: %s", cfg.ProviderName)
 			continue

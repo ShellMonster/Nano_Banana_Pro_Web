@@ -39,5 +39,20 @@ func main() {
 		log.Fatalf("初始化 OpenAI 配置失败: %v", err)
 	}
 
-	log.Println("默认 Gemini/OpenAI 配置已初始化")
+	openAIImageConfig := model.ProviderConfig{
+		ProviderName:   "openai-image",
+		DisplayName:    "OpenAI Images",
+		APIBase:        "https://api.openai.com/v1",
+		APIKey:         "YOUR_API_KEY_HERE",
+		Models:         `[{"id": "gpt-image-1", "name": "gpt-image-1", "default": true}]`,
+		Enabled:        true,
+		TimeoutSeconds: 500,
+		MaxRetries:     3,
+	}
+
+	if err := model.DB.Where(model.ProviderConfig{ProviderName: "openai-image"}).FirstOrCreate(&openAIImageConfig).Error; err != nil {
+		log.Fatalf("初始化 OpenAI Images 配置失败: %v", err)
+	}
+
+	log.Println("默认 Gemini/OpenAI/OpenAI Images 配置已初始化")
 }

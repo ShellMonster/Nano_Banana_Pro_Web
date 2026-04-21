@@ -40,6 +40,8 @@ export interface GeneratedImage {
 export interface ImageOptions {
   aspectRatio?: string;
   imageSize?: string;
+  size?: string;
+  quality?: string;
 }
 
 // 任务模型
@@ -81,6 +83,8 @@ export interface BatchGenerateRequest {
   // 正式 API 参数
   imageSize?: string;
   aspectRatio?: string;
+  size?: string;
+  quality?: string;
 }
 
 // 历史记录列表项（通常即为 Task）
