@@ -22,18 +22,9 @@
   <img src="assets/preview3.png" alt="Banana Pro Web Preview 3" width="800">
 </p>
 
-> 💡 **Recent Highlights**:
+> 🆕 **v2.8.0 Updates**:
 > - **🤖 Dedicated OpenAI Image Generation**: New `openai-image` provider type supporting `/v1/images/generations` standard API (gpt-image-2-all model).
 > - **🎨 Image Card Refactor**: Smart thumbnail/full-size switching, improved drag-and-drop, better loading experience.
-> - **🎓 Onboarding Tour**: Interactive guide shown on first launch to help new users get started. Can be replayed anytime from settings.
-> - **🔍 Independent Vision Model Config**: New "Vision Model" settings tab for reverse prompt feature, inherits image model config by default.
-> - **✨ Reverse Prompt Extraction**: Click "Extract Prompt" on reference images to let AI analyze and generate reusable prompts.
-> - **🔒 Security Enhancements**: 20MB upload limit for images, path traversal protection for local file reads.
-> - **🌐 Multi-language Output**: Reverse prompt supports output in 20+ languages based on interface language setting (EN/ZH/JP/KR etc.).
-> - **✨ OpenAI Standard API Integration**: Switch between Gemini / OpenAI compatible interfaces for both prompt optimization and image generation.
-> - **🤖 Enhanced Prompt Optimization**: New **JSON Mode** button, supporting structured JSON output with automatic formatting and backfilling for better prompt quality.
-> - **🧵 Template Market**: Pull-down to open a full-screen template market with filtering, previewing, source tracking, and usage tips.
-> - **🚀 Performance Optimization**: History records and template market migrated to virtual lists/grids for smoother image loading.
 
 > 💡 **Recommended**: For the best generation experience and cost-effectiveness, we recommend using [Yunwu API](https://yunwu.ai/register?aff=i4hh).
 >
