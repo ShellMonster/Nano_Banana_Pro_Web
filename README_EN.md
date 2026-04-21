@@ -23,7 +23,7 @@
 </p>
 
 > 🆕 **v2.8.0 Updates**:
-> - **🤖 Dedicated OpenAI Image Generation**: New `openai-image` provider type supporting `/v1/images/generations` standard API (gpt-image-2-all model).
+> - **🤖 Dedicated OpenAI Image Generation**: New `openai-image` provider type supporting `/v1/images/generations` standard API (gpt-image-2 model).
 > - **🎨 Image Card Refactor**: Smart thumbnail/full-size switching, improved drag-and-drop, better loading experience.
 
 > 💡 **Recommended**: For the best generation experience and cost-effectiveness, we recommend using [Yunwu API](https://yunwu.ai/register?aff=i4hh).
@@ -286,7 +286,7 @@ Integrated Tauri Updater for one-click updates.
 | :--- | :--- |
 | `AI Provider` | `gemini` (/v1beta), `openai` (/v1/chat/completions), or `openai-image` (/v1/images/generations). Each uses its own Base URL and model. |
 | `API Base / Key` | Standard OpenAI format compatibility. |
-| `Image Model` | Primary model for image generation (e.g., gemini-2.0-flash-exp, gpt-4o, gpt-image-2-all). |
+| `Image Model` | Primary model for image generation (e.g., gemini-2.0-flash-exp, gpt-4o, gpt-image-2). |
 | `Vision Model` | Model for reverse prompt extraction. Inherits Image Model's Base URL and API Key by default. |
 | `Chat Model` | Model for prompt optimization. |
 | `Storage Dir` | Default to system `AppData` (Win) or `Application Support` (Mac). |

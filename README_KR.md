@@ -23,7 +23,7 @@
 </p>
 
 > 🆕 **v2.8.0 업데이트**:
-> - **🤖 전용 OpenAI 이미지 생성**: 새로운 `openai-image` 제공자 유형, `/v1/images/generations` 표준 API 지원 (gpt-image-2-all 모델).
+> - **🤖 전용 OpenAI 이미지 생성**: 새로운 `openai-image` 제공자 유형, `/v1/images/generations` 표준 API 지원 (gpt-image-2 모델).
 > - **🎨 이미지 카드 리팩토링**: 썸네일/전체 크기 스마트 전환, 드래그 앤 드롭 개선, 로딩 경험 향상.
 
 > 💡 **추천**: 최고의 생성 경험과 가성비를 위해 [Yunwu API](https://yunwu.ai/register?aff=i4hh) 사용을 권장합니다.

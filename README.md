@@ -20,7 +20,7 @@
 </p>
 
 > 🆕 **v2.8.0 更新**：
-> - **🤖 OpenAI 专用图片生成**：新增 `openai-image` 提供商类型，支持 `/v1/images/generations` 标准接口（gpt-image-2-all 模型）。
+> - **🤖 OpenAI 专用图片生成**：新增 `openai-image` 提供商类型，支持 `/v1/images/generations` 标准接口（gpt-image-2 模型）。
 > - **🎨 图片卡片重构**：缩略图/全图智能切换，拖拽优化，加载体验提升。
 
 > 💡 **推荐使用**：为了获得最佳的生成体验与极高的性价比，推荐搭配 [云雾API](https://yunwu.ai/register?aff=i4hh) 使用。
@@ -350,7 +350,7 @@ cat ~/.tauri/banana-updater.key
 | `Templates Remote URL` | 远程模板 JSON 地址（默认 GitHub Raw），启动时会拉取并缓存。 |
 | `asset://` | 自定义资源协议，用于安全、快速地访问本地生成的图片。 |
 
-> **提示**：OpenAI 类型接口通常要求生图模型（model_id）必填；Gemini 类型需使用 `/v1beta` 路径。`OpenAI Image` 类型默认使用 `gpt-image-2-all` 模型，不支持 `quality` 参数。
+> **提示**：OpenAI 类型接口通常要求生图模型（model_id）必填；Gemini 类型需使用 `/v1beta` 路径。`OpenAI Image` 类型默认使用 `gpt-image-2` 模型，不支持 `quality` 参数。
 
 ---
 
