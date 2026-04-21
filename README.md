@@ -29,6 +29,8 @@
 > - **🤖 提示词优化增强**：新增 **JSON 模式** 按钮，支持强制输出结构化 JSON 并自动格式化回填，提升 Prompt 质量。
 > - **🧵 模板市场**：下拉打开整版模板市场，支持筛选、预览、来源与技巧提示，一键复用。
 > - **🚀 大规模列表性能优化**：历史记录与模板市场改为虚拟列表/虚拟网格，图片加载更顺滑。
+> - **🤖 OpenAI 专用图片生成**：新增 `openai-image` 提供商类型，支持 `/v1/images/generations` 标准接口（gpt-image-2-all 模型）。
+> - **🎨 图片卡片重构**：缩略图/全图智能切换，拖拽优化，加载体验提升。
 
 > 💡 **推荐使用**：为了获得最佳的生成体验与极高的性价比，推荐搭配 [云雾API](https://yunwu.ai/register?aff=i4hh) 使用。
 >
@@ -44,7 +46,7 @@
 
 - **🚀 极致性能**：采用 **Tauri 2.0** 架构，配合 **Go 语言** 编写的高并发 Sidecar 后端，资源占用极低。
 - **🖼️ 4K 超清创作**：深度优化 Gemini 3.0 模型，支持多种画幅的 4K 超清图像生成。
-- **🔌 标准接口兼容**：支持 Gemini(/v1beta) 与 OpenAI(/v1) 标准格式对接，Base URL 与模型可配置。
+- **🔌 标准接口兼容**：支持 Gemini(/v1beta)、OpenAI(/v1 多模态) 与 OpenAI Image(/v1/images/generations) 三种提供商类型，Base URL 与模型可配置。
 - **⚡ 自定义协议 (asset://)**：在桌面端注册原生资源协议，绕过 HTTP 协议栈，本地图片加载速度提升 300%。
 - **💾 智能历史管理**：内置本地数据库与持久化缓存，支持任务状态自动恢复与大批量历史记录秒开。
 - **📸 精准图生图**：支持多参考图输入，提供细腻的风格与构图控制。
@@ -74,7 +76,7 @@
 - **多样化画幅选择**：预设 1:1, 16:9, 9:16, 4:3, 2:3 等多种主流比例。
 - **画质自定义**：支持从 1K 到 4K 的超清分辨率配置。
 - **智能尺寸适配**：系统会自动根据模型特性，将图片尺寸对齐到最佳像素点（8的倍数），确保生成效果最优化。
-- **对接方式切换**：设置中可选 `Gemini(/v1beta)` 或 `OpenAI(/v1)`，并分别配置 Base URL / API Key / 模型 ID。
+- **对接方式切换**：设置中可选 `Gemini(/v1beta)`、`OpenAI(/v1 多模态)` 或 `OpenAI Image(/v1/images/generations)`，并分别配置 Base URL / API Key / 模型 ID。
 
 ### 4. 极致的交互与管理
 - **大图沉浸式预览**：支持全屏查看图片，提供自由缩放与拖拽功能。
@@ -90,7 +92,7 @@
 - **稳定连接保障**：自动切换 WebSocket 与 HTTP 轮询模式，确保在复杂网络环境下生成任务不中断。
 
 ### 6. 模板市场 (Template Market)
-- **海量资源**：目前已收录 **900+** 优质模板，涵盖多种风格与行业。
+- **海量资源**：目前已收录 **935+** 优质模板，涵盖多种风格与行业。
 - **下拉打开**：顶部“拉绳”交互，向下拉出整版模板市场。
 - **多维筛选**：支持搜索、渠道/物料/行业/画幅比例筛选。
 - **PPT 类目**：标记为 `PPT` 的 16:9 模板会集中展示，便于制作演示稿素材。
@@ -203,7 +205,9 @@ graph TD
     subgraph "推理后端层 (Go Sidecar)"
         GoServer[Gin API 服务]
         WorkerPool[并发任务池]
-        GeminiSDK[Google GenAI SDK]
+        GeminiProvider[Gemini Provider]
+        OpenAIProvider[OpenAI Provider]
+        OpenAIImageProvider[OpenAI Image Provider]
         SQLite[(SQLite 任务存储)]
     end
 
@@ -212,9 +216,13 @@ graph TD
     IPC <--> TauriBridge
     TauriBridge <--> GoServer
     GoServer <--> WorkerPool
-    WorkerPool <--> GeminiSDK
+    WorkerPool <--> GeminiProvider
+    WorkerPool <--> OpenAIProvider
+    WorkerPool <--> OpenAIImageProvider
     WorkerPool <--> SQLite
-    GeminiSDK <--> |Imagen 3.0| Cloud[Google AI Cloud]
+    GeminiProvider <--> |/v1beta| GeminiCloud[Google AI Cloud]
+    OpenAIProvider <--> |/v1/chat/completions| OAICloud[OpenAI 兼容服务]
+    OpenAIImageProvider <--> |/v1/images/generations| OAIImageCloud[OpenAI Image 服务]
     GoServer -.-> |保存图像| FS
     FS -.-> |映射资源| AssetProtocol
     AssetProtocol -.-> |极速显示| UI
@@ -224,7 +232,7 @@ graph TD
 
 1. **前端 (React + Zustand)**：负责响应式 UI 与状态管理，提供流畅的用户交互。
 2. **桌面容器 (Tauri)**：作为 Rust 桥梁，处理窗口控制、本地资源访问及 Sidecar 进程管理。
-3. **推理引擎 (Go Sidecar)**：负责与 Google GenAI SDK 通讯，处理 Worker 任务池与本地图片存储。
+3. **推理引擎 (Go Sidecar)**：负责与 Gemini、OpenAI 及 OpenAI Image 三种 AI 提供商通讯，处理 Worker 任务池与本地图片存储。
 
 ### 核心优化点
 - **IPC 负荷优化**：前端与后端之间仅传递文件路径，大型二进制数据通过 `asset://` 协议直接由前端读取。
@@ -292,13 +300,13 @@ npm run dev
 ```
 
 ### 5. 自动化构建 (GitHub Actions)
-只需推送带有版本号的标签（如 `v1.3.0`），即可触发自动化构建：
+只需推送带有版本号的标签（如 `v2.8.0`），即可触发自动化构建：
 ```bash
-git tag v1.3.0
-git push origin v1.3.0
+git tag v2.8.0
+git push origin v2.8.0
 ```
 
-> **注意**：v1.3.0 之后支持通过推送 Tag 自动生成 Release 并上传多平台二进制文件。
+> **注意**：v2.8.0 支持通过推送 Tag 自动生成 Release 并上传多平台二进制文件。
 
 ### 6. 自动更新 (Updater)
 项目已集成 Tauri 官方 Updater 插件，发布新版本后用户启动应用会收到更新提示，可一键下载安装。
@@ -342,7 +350,7 @@ cat ~/.tauri/banana-updater.key
 
 | 配置项 | 描述 |
 | :--- | :--- |
-| `AI对接方式` | `Gemini(/v1beta)` 或 `OpenAI(/v1)`；不同模式使用不同的 Base URL 与模型。 |
+| `AI对接方式` | `Gemini(/v1beta)`、`OpenAI(/v1 多模态)` 或 `OpenAI Image(/v1/images/generations)`；不同模式使用不同的 Base URL 与模型。 |
 | `API Base / API Key` | 兼容标准 OpenAI 格式接口，可替换成任意兼容平台。 |
 | `生图模型` | 用于生成图片的主模型。 |
 | `识图模型` | 用于逆向提示词功能，分析图片并生成提示词。默认继承生图配置的 Base URL 和 API Key。 |
@@ -351,9 +359,7 @@ cat ~/.tauri/banana-updater.key
 | `Templates Remote URL` | 远程模板 JSON 地址（默认 GitHub Raw），启动时会拉取并缓存。 |
 | `asset://` | 自定义资源协议，用于安全、快速地访问本地生成的图片。 |
 
-> **提示**：OpenAI 类型接口通常要求生图模型（model_id）必填；Gemini 类型需使用 `/v1beta` 路径。
->
-> **注意**：OpenAI 对接方式当前仅支持 1K 图片生成（具体取决于所用兼容接口）。
+> **提示**：OpenAI 类型接口通常要求生图模型（model_id）必填；Gemini 类型需使用 `/v1beta` 路径。`OpenAI Image` 类型默认使用 `gpt-image-2-all` 模型，不支持 `quality` 参数。
 
 ---
 

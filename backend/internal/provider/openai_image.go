@@ -61,13 +61,6 @@ func (p *OpenAIImageProvider) ValidateParams(params map[string]interface{}) erro
 		return fmt.Errorf("size 仅支持 auto、1024x1024、1024x1536、1536x1024")
 	}
 
-	quality, _ := params["quality"].(string)
-	switch strings.TrimSpace(strings.ToLower(quality)) {
-	case "", "auto", "low", "medium", "high":
-	default:
-		return fmt.Errorf("quality 仅支持 auto、low、medium、high")
-	}
-
 	return nil
 }
 
@@ -146,9 +139,6 @@ func (p *OpenAIImageProvider) buildImagesGenerationRequestBody(modelID string, p
 	}
 	if size, _ := params["size"].(string); strings.TrimSpace(size) != "" {
 		body.Size = strings.TrimSpace(strings.ToLower(size))
-	}
-	if quality, _ := params["quality"].(string); strings.TrimSpace(quality) != "" {
-		body.Quality = strings.TrimSpace(strings.ToLower(quality))
 	}
 	if count, ok := toInt(params["count"]); ok && count >= 1 && count <= 10 {
 		body.N = count

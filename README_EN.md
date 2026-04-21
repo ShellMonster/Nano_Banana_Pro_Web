@@ -23,6 +23,8 @@
 </p>
 
 > 💡 **Recent Highlights**:
+> - **🤖 Dedicated OpenAI Image Generation**: New `openai-image` provider type supporting `/v1/images/generations` standard API (gpt-image-2-all model).
+> - **🎨 Image Card Refactor**: Smart thumbnail/full-size switching, improved drag-and-drop, better loading experience.
 > - **🎓 Onboarding Tour**: Interactive guide shown on first launch to help new users get started. Can be replayed anytime from settings.
 > - **🔍 Independent Vision Model Config**: New "Vision Model" settings tab for reverse prompt feature, inherits image model config by default.
 > - **✨ Reverse Prompt Extraction**: Click "Extract Prompt" on reference images to let AI analyze and generate reusable prompts.
@@ -47,7 +49,7 @@
 
 - **🚀 Extreme Performance**: Built with **Tauri 2.0** architecture and a high-concurrency Sidecar backend written in **Go**, ensuring extremely low resource usage.
 - **🖼️ 4K Ultra-HD Creation**: Deeply optimized Gemini 3.0 model, supporting 4K UHD generation across multiple aspect ratios.
-- **🔌 Standard API Compatibility**: Supports Gemini (/v1beta) and OpenAI (/v1) standard formats with configurable Base URL and Model ID.
+- **🔌 Standard API Compatibility**: Supports three provider types: `gemini` (/v1beta), `openai` (/v1/chat/completions multimodal), and `openai-image` (/v1/images/generations) with configurable Base URL and Model ID.
 - **⚡ Custom Protocol (asset://)**: Registered native resource protocol for desktop, bypassing the HTTP stack to increase local image loading speed by 300%.
 - **💾 Smart History Management**: Built-in local database and persistent caching, supporting task recovery and instant opening of large history records.
 - **📸 Precise Image-to-Image**: Supports multiple reference images with fine-grained style and composition control.
@@ -77,7 +79,7 @@
 - **Aspect Ratios**: Preset ratios including 1:1, 16:9, 9:16, 4:3, 2:3.
 - **Quality Settings**: Customizable resolution from 1K to 4K.
 - **Smart Sizing**: Automatically aligns image dimensions to 8-pixel boundaries for optimal model performance.
-- **Interface Switching**: Toggle between `Gemini(/v1beta)` and `OpenAI(/v1)` modes in settings.
+- **Interface Switching**: Toggle between `Gemini(/v1beta)`, `OpenAI(/v1)` multimodal, and `OpenAI Image(/v1/images/generations)` modes in settings.
 
 ### 4. Advanced UX & Management
 - **Immersive Preview**: Full-screen view with free zooming and dragging.
@@ -185,6 +187,8 @@ graph TD
         GoServer[Gin API Server]
         WorkerPool[Worker Pool]
         GeminiSDK[Google GenAI SDK]
+        OpenAIProvider[OpenAI Provider]
+        OpenAIImageProvider[OpenAI Image Provider]
         SQLite[(SQLite Storage)]
     end
 
@@ -194,8 +198,12 @@ graph TD
     TauriBridge <--> GoServer
     GoServer <--> WorkerPool
     WorkerPool <--> GeminiSDK
+    WorkerPool <--> OpenAIProvider
+    WorkerPool <--> OpenAIImageProvider
     WorkerPool <--> SQLite
     GeminiSDK <--> |Imagen 3.0| Cloud[Google AI Cloud]
+    OpenAIProvider <--> |/v1/chat/completions| OpenAI[OpenAI Compatible API]
+    OpenAIImageProvider <--> |/v1/images/generations| OpenAIImg[OpenAI Image API]
     GoServer -.-> |Save Images| FS
     FS -.-> |Map Resource| AssetProtocol
     AssetProtocol -.-> |Fast Display| UI
@@ -204,7 +212,7 @@ graph TD
 The project uses a "three-layer architecture" to balance performance and scalability:
 1. **Frontend (React + Zustand)**: Handles responsive UI and state management.
 2. **Desktop Container (Tauri)**: Acts as a Rust bridge for window control and local resource access.
-3. **Inference Engine (Go Sidecar)**: Communicates with Google GenAI SDK and manages task pools.
+3. **Inference Engine (Go Sidecar)**: Communicates with AI providers (Gemini, OpenAI, OpenAI-Image) and manages task pools.
 
 ### Core Optimizations
 - **IPC Load Optimization**: Only file paths are passed between frontend and backend; large binary data is read directly via the `asset://` protocol.
@@ -269,8 +277,8 @@ npm run dev
 ### 5. Automated Build (GitHub Actions)
 Push a version tag to trigger CI:
 ```bash
-git tag v1.3.0
-git push origin v1.3.0
+git tag v2.8.0
+git push origin v2.8.0
 ```
 
 ### 6. Auto Updater
@@ -285,9 +293,9 @@ Integrated Tauri Updater for one-click updates.
 
 | Item | Description |
 | :--- | :--- |
-| `AI Mode` | `Gemini(/v1beta)` or `OpenAI(/v1)`. |
+| `AI Provider` | `gemini` (/v1beta), `openai` (/v1/chat/completions), or `openai-image` (/v1/images/generations). Each uses its own Base URL and model. |
 | `API Base / Key` | Standard OpenAI format compatibility. |
-| `Image Model` | Primary model for image generation. |
+| `Image Model` | Primary model for image generation (e.g., gemini-2.0-flash-exp, gpt-4o, gpt-image-2-all). |
 | `Vision Model` | Model for reverse prompt extraction. Inherits Image Model's Base URL and API Key by default. |
 | `Chat Model` | Model for prompt optimization. |
 | `Storage Dir` | Default to system `AppData` (Win) or `Application Support` (Mac). |

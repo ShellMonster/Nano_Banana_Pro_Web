@@ -32,6 +32,8 @@
 > - **🤖 プロンプト最適化の強化**: 新しい **JSON モード** ボタンを追加。構造化された JSON 出力を強制し、自動フォーマットとバックフィルをサポートしてプロンプトの質を向上。
 > - **🧵 テンプレートマーケット**: プルダウン操作で全画面のテンプレートマーケットを展開。フィルタリング、プレビュー、ソース追跡、使用のヒントをサポートし、ワンクリックで適用可能。
 > - **🚀 パフォーマンスの最適化**: 履歴記録とテンプレートマーケットを仮想リスト/グリッドに移行し、画像読み込みをよりスムーズに。
+> - **🤖 OpenAI 専用画像生成**: 新しい `openai-image` プロバイダータイプ、`/v1/images/generations` 標準 API をサポート（gpt-image-2-all モデル）。
+> - **🎨 画像カードのリファクタリング**: サムネイル/フルサイズのスマート切り替え、ドラッグ＆ドロップの改善、読み込み体験の向上。
 
 > 💡 **推奨**: 最高の生成体験とコストパフォーマンスを得るために、[Yunwu API](https://yunwu.ai/register?aff=i4hh) の使用をお勧めします。
 >
@@ -47,7 +49,7 @@
 
 - **🚀 究極のパフォーマンス**: **Tauri 2.0** アーキテクチャと、**Go 言語**で記述された高並列 Sidecar バックエンドを採用し、極めて低いリソース消費を実現。
 - **🖼️ 4K 超高画質創作**: Gemini 3.0 モデルを深く最適化し、複数のアスペクト比で 4K UHD 画像生成をサポート。
-- **🔌 標準 API 互換**: Gemini (/v1beta) および OpenAI (/v1) の標準フォーマットをサポートし、Base URL とモデル ID を構成可能。
+- **🔌 標準 API 互換**: Gemini (`/v1beta`)、OpenAI (`/v1` マルチモーダル)、OpenAI Image (`/v1/images/generations`) の 3 種類のプロバイダーをサポートし、Base URL とモデル ID を構成可能。
 - **⚡ カスタムプロトコル (asset://)**: デスクトップ向けにネイティブのリソースプロトコルを登録。HTTP スタックをバイパスし、ローカル画像の読み込み速度を 300% 向上。
 - **💾 スマートな履歴管理**: ローカルデータベースと永続化キャッシュを内蔵。タスクの自動回復と大量の履歴記録の即時表示をサポート。
 - **📸 精密な Image-to-Image**: 複数の参照画像をサポートし、繊細なスタイルと構図のコントロールを提供。
@@ -77,7 +79,7 @@
 - **多彩なアスペクト比**: 1:1, 16:9, 9:16, 4:3, 2:3 などの主要な比率をプリセット。
 - **画質カスタマイズ**: 1K から 4K までの超高解像度設定をサポート。
 - **スマートサイズ適応**: モデルの特性に合わせて画像サイズを最適なピクセル（8の倍数）に自動調整し、生成効果を最適化。
-- **インターフェース切り替え**: 設定で `Gemini(/v1beta)` または `OpenAI(/v1)` を選択し、それぞれの Base URL / API Key / モデル ID を構成可能。
+- **インターフェース切り替え**: 設定で `Gemini(/v1beta)`、`OpenAI(/v1 マルチモーダル)`、`OpenAI Image(/v1/images/generations)` から選択し、それぞれの Base URL / API Key / モデル ID を構成可能。
 
 ### 4. 究極のインタラクションと管理
 - **没入型プレビュー**: 全画面での画像確認、自由なズームとドラッグ機能をサポート。
@@ -185,6 +187,8 @@ graph TD
         GoServer[Gin API サービス]
         WorkerPool[ワーカープール]
         GeminiSDK[Google GenAI SDK]
+        OpenAISDK[OpenAI マルチモーダル]
+        OpenAIImage[OpenAI Image API]
         SQLite[(SQLite ストレージ)]
     end
 
@@ -194,8 +198,12 @@ graph TD
     TauriBridge <--> GoServer
     GoServer <--> WorkerPool
     WorkerPool <--> GeminiSDK
+    WorkerPool <--> OpenAISDK
+    WorkerPool <--> OpenAIImage
     WorkerPool <--> SQLite
     GeminiSDK <--> |Imagen 3.0| Cloud[Google AI Cloud]
+    OpenAISDK <--> |Chat Completions| CloudAI[OpenAI 互換サービス]
+    OpenAIImage <--> |gpt-image-2-all| CloudImg[OpenAI Image API]
     GoServer -.-> |画像を保存| FS
     FS -.-> |リソースマップ| AssetProtocol
     AssetProtocol -.-> |高速表示| UI
@@ -204,7 +212,7 @@ graph TD
 本プロジェクトは、パフォーマンスと拡張性のバランスを確保するために「3層アーキテクチャ」を採用しています：
 1. **フロントエンド (React + Zustand)**: レスポンシブな UI と状態管理を担当。
 2. **デスクトップコンテナ (Tauri)**: Rust ブリッジとしてウィンドウ制御やローカルリソースアクセスを処理。
-3. **推論エンジン (Go Sidecar)**: Google GenAI SDK との通信、タスクプール、ローカルストレージを管理。
+3. **推論エンジン (Go Sidecar)**: Google GenAI SDK、OpenAI 互換インターフェース、OpenAI Image API との通信、タスクプール、ローカルストレージを管理。
 
 ### 主な最適化ポイント
 - **IPC 負荷最適化**: フロントエンドとバックエンド間ではファイルパスのみを渡し、大きなバイナリデータは `asset://` プロトコルを介して直接読み込みます。
@@ -267,10 +275,10 @@ npm run dev
 ```
 
 ### 5. 自動ビルド (GitHub Actions)
-バージョンタグ（例: `v1.3.0`）をプッシュすると自動ビルドがトリガーされます：
+バージョンタグ（例: `v2.8.0`）をプッシュすると自動ビルドがトリガーされます：
 ```bash
-git tag v1.3.0
-git push origin v1.3.0
+git tag v2.8.0
+git push origin v2.8.0
 ```
 
 ### 6. 自動更新 (Updater)
@@ -285,7 +293,7 @@ Tauri 公式の Updater 機能を統合済みです。
 
 | 項目 | 説明 |
 | :--- | :--- |
-| `AI モード` | `Gemini(/v1beta)` または `OpenAI(/v1)`。 |
+| `AI モード` | `Gemini(/v1beta)`、`OpenAI(/v1 マルチモーダル)`、または `OpenAI Image(/v1/images/generations)`。各モードで異なる Base URL とモデルを使用。 |
 | `API Base / Key` | 標準的な OpenAI 形式の互換インターフェース。 |
 | `画像生成モデル` | 画像生成用のメインモデル。 |
 | `視覚モデル` | 逆プロンプト抽出用。デフォルトでは画像モデルの Base URL と API Key を継承。 |
