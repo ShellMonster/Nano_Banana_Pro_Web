@@ -24,17 +24,6 @@ type OpenAIProvider struct {
 	userAgent  string
 }
 
-type openAIImagesGenerationRequest struct {
-	Model          string `json:"model"`
-	Prompt         string `json:"prompt"`
-	Size           string `json:"size,omitempty"`
-	Quality        string `json:"quality,omitempty"`
-	Style          string `json:"style,omitempty"`
-	ResponseFormat string `json:"response_format,omitempty"`
-	User           string `json:"user,omitempty"`
-	N              int    `json:"n,omitempty"`
-}
-
 func NewOpenAIProvider(config *model.ProviderConfig) (*OpenAIProvider, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config 不能为空")
@@ -101,66 +90,6 @@ func (p *OpenAIProvider) Generate(ctx context.Context, params map[string]interfa
 		return nil, fmt.Errorf("缺少 model_id 参数")
 	}
 
-	if isDalle3Model(modelID) {
-		reqBody, promptPreview, err := p.buildImagesGenerationRequestBody(modelID, params)
-		if err != nil {
-			return nil, err
-		}
-
-		diagnostic.Logf(params, "request_prepare",
-			"provider=%s model=%s size=%q quality=%q style=%q prompt_hash=%s prompt_preview=%q",
-			p.Name(),
-			modelID,
-			reqBody.Size,
-			reqBody.Quality,
-			reqBody.Style,
-			diagnostic.PromptHash(promptPreview),
-			diagnostic.Preview(promptPreview, 160),
-		)
-
-		respBytes, headers, err := p.doImagesGenerationRequest(ctx, reqBody, params)
-		if err != nil {
-			return nil, err
-		}
-
-		var raw map[string]interface{}
-		if err := json.Unmarshal(respBytes, &raw); err != nil {
-			return nil, fmt.Errorf("解析响应失败: %w", err)
-		}
-		data, ok := raw["data"].([]interface{})
-		if !ok || len(data) == 0 {
-			return nil, fmt.Errorf("响应中未找到图片数据")
-		}
-		images, err := p.extractImagesFromData(ctx, data)
-		if err != nil {
-			return nil, err
-		}
-		if len(images) == 0 {
-			return nil, fmt.Errorf("未在响应中找到图片数据")
-		}
-
-		requestID := extractRequestIDFromHeaders(headers)
-		diagnostic.Logf(params, "response_summary",
-			"provider=%s model=%s data_count=%d image_count=%d request_id=%s",
-			p.Name(),
-			modelID,
-			len(data),
-			len(images),
-			requestID,
-		)
-
-		return &ProviderResult{
-			Images: images,
-			Metadata: map[string]interface{}{
-				"provider":       "openai",
-				"model":          modelID,
-				"type":           "image",
-				"request_id":     requestID,
-				"oneapi_request": strings.TrimSpace(headers.Get("X-Oneapi-Request-Id")),
-			},
-		}, nil
-	}
-
 	reqBody, refCount, promptPreview, err := p.buildChatRequestBody(modelID, params)
 	if err != nil {
 		return nil, err
@@ -219,76 +148,7 @@ func (p *OpenAIProvider) ValidateParams(params map[string]interface{}) error {
 	if prompt == "" {
 		return fmt.Errorf("prompt 不能为空")
 	}
-	modelID, _ := params["model_id"].(string)
-	if isDalle3Model(modelID) {
-		if raw, ok := params["reference_images"].([]interface{}); ok && len(raw) > 0 {
-			return fmt.Errorf("DALL·E 3 暂不支持参考图")
-		}
-		if count, ok := toInt(params["count"]); ok && (count < 1 || count > 10) {
-			return fmt.Errorf("DALL·E 3 的 count/n 必须介于 1 和 10 之间")
-		}
-	}
 	return nil
-}
-
-func isDalle3Model(modelID string) bool {
-	return strings.EqualFold(strings.TrimSpace(modelID), "dall-e-3")
-}
-
-func (p *OpenAIProvider) buildImagesGenerationRequestBody(modelID string, params map[string]interface{}) (*openAIImagesGenerationRequest, string, error) {
-	prompt, _ := params["prompt"].(string)
-	prompt = strings.TrimSpace(prompt)
-	if prompt == "" {
-		return nil, "", fmt.Errorf("缺少 prompt 参数")
-	}
-
-	body := &openAIImagesGenerationRequest{
-		Model:          modelID,
-		Prompt:         prompt,
-		ResponseFormat: "b64_json",
-		N:              1,
-	}
-
-	if size := resolveDalle3Size(params); size != "" {
-		body.Size = size
-	}
-	if quality, _ := params["quality"].(string); strings.TrimSpace(quality) != "" {
-		body.Quality = strings.TrimSpace(strings.ToLower(quality))
-	}
-	if style, _ := params["style"].(string); strings.TrimSpace(style) != "" {
-		body.Style = strings.TrimSpace(strings.ToLower(style))
-	}
-	if responseFormat, _ := params["response_format"].(string); strings.TrimSpace(responseFormat) != "" {
-		body.ResponseFormat = strings.TrimSpace(responseFormat)
-	}
-	if user, _ := params["user"].(string); strings.TrimSpace(user) != "" {
-		body.User = strings.TrimSpace(user)
-	}
-	if count, ok := toInt(params["count"]); ok && count >= 1 && count <= 10 {
-		body.N = count
-	}
-	if body.Size == "" {
-		body.Size = "1024x1024"
-	}
-	return body, prompt, nil
-}
-
-func resolveDalle3Size(params map[string]interface{}) string {
-	if size, _ := params["size"].(string); strings.TrimSpace(size) != "" {
-		return strings.TrimSpace(size)
-	}
-	ar, _ := params["aspect_ratio"].(string)
-	if ar == "" {
-		ar, _ = params["aspectRatio"].(string)
-	}
-	switch strings.TrimSpace(ar) {
-	case "9:16", "2:3", "3:4", "4:5":
-		return "1024x1792"
-	case "16:9", "3:2", "4:3", "5:4", "21:9":
-		return "1792x1024"
-	default:
-		return "1024x1024"
-	}
 }
 
 func (p *OpenAIProvider) buildChatRequestBody(modelID string, params map[string]interface{}) (map[string]interface{}, int, string, error) {
@@ -352,78 +212,6 @@ func (p *OpenAIProvider) buildChatRequestBody(modelID string, params map[string]
 	applyOpenAIOptions(reqBody, params)
 
 	return reqBody, refCount, promptPreview, nil
-}
-
-func (p *OpenAIProvider) doImagesGenerationRequest(ctx context.Context, body *openAIImagesGenerationRequest, params map[string]interface{}) ([]byte, http.Header, error) {
-	payloadBytes, err := json.Marshal(body)
-	if err != nil {
-		return nil, nil, fmt.Errorf("序列化 OpenAI Images 请求失败: %w", err)
-	}
-
-	requestURL := strings.TrimRight(strings.TrimSpace(p.apiBase), "/") + "/images/generations"
-	diagnostic.Logf(params, "request_payload",
-		"url=%s body=%q",
-		diagnostic.RedactSensitive(requestURL),
-		diagnostic.RedactSensitive(string(payloadBytes)),
-	)
-	maxRetries := providerMaxRetries(p.config)
-	var elapsed time.Duration
-	resp, _, err := doRequestWithRetry(ctx, params, p.Name(), maxRetries, func(attempt int) (*http.Response, error) {
-		req, buildErr := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(payloadBytes))
-		if buildErr != nil {
-			return nil, fmt.Errorf("构建 OpenAI Images 请求失败: %w", buildErr)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Accept", "application/json")
-		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(p.config.APIKey))
-		req.Header.Set("Connection", "close")
-		if strings.TrimSpace(p.userAgent) != "" {
-			req.Header.Set("User-Agent", p.userAgent)
-		}
-
-		startedAt := time.Now()
-		resp, doErr := p.httpClient.Do(req)
-		elapsed = time.Since(startedAt)
-		return resp, doErr
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("doRequest: error sending request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, resp.Header.Clone(), fmt.Errorf("读取 OpenAI Images 响应失败: %w", err)
-	}
-
-	requestID := extractRequestIDFromHeaders(resp.Header)
-	diagnostic.Logf(params, "response_headers",
-		"status=%s elapsed=%s request_id=%s headers=%q",
-		resp.Status,
-		elapsed,
-		requestID,
-		diagnostic.Preview(strings.Join(headerLines(resp.Header), " | "), 1000),
-	)
-	diagnostic.Logf(params, "response_body",
-		"status=%s elapsed=%s request_id=%s body=%q",
-		resp.Status,
-		elapsed,
-		requestID,
-		diagnostic.RedactSensitive(string(respBody)),
-	)
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		bodyPreview := diagnostic.Preview(parseOpenAIError(respBody), 1200)
-		if requestID == "" {
-			requestID = diagnostic.ExtractRequestID(string(respBody))
-		}
-		return nil, resp.Header.Clone(), fmt.Errorf("OpenAI HTTP %d request_id=%s body=%s", resp.StatusCode, requestID, bodyPreview)
-	}
-
-	if len(respBody) == 0 {
-		return nil, resp.Header.Clone(), fmt.Errorf("接口未返回内容")
-	}
-	return respBody, resp.Header.Clone(), nil
 }
 
 func (p *OpenAIProvider) doChatRequest(ctx context.Context, body map[string]interface{}, params map[string]interface{}) ([]byte, http.Header, error) {

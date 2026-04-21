@@ -172,7 +172,6 @@
       "label": "프로바이더",
       "recommended": "추천:",
       "yunwu": "Yunwu API",
-      "openaiImageLimit": "OpenAI 프로바이더는 현재 1K 이미지만 지원합니다",
       "geminiBasePathHint": "Gemini 유형은 Base URL에 도메인만 입력하고 /v1 또는 엔드포인트 경로는 제외하는 것을 권장합니다.",
       "yunwuMissingV1Hint": "Yunwu API Base URL에는 /v1 포함을 권장합니다",
       "yunwuExtraPathHint": "Yunwu API Base URL은 /v1까지만 유지하세요(하위 경로 제거)"

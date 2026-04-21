@@ -101,15 +101,6 @@ func buildConfigSnapshot(providerName, modelID string, params map[string]interfa
 	} else if v, ok := params["image_size"].(string); ok && v != "" {
 		snapshot["imageSize"] = v
 	}
-	if v, ok := params["size"].(string); ok && strings.TrimSpace(v) != "" {
-		snapshot["size"] = strings.TrimSpace(v)
-	}
-	if v, ok := params["quality"].(string); ok && strings.TrimSpace(v) != "" {
-		snapshot["quality"] = strings.TrimSpace(v)
-	}
-	if v, ok := params["style"].(string); ok && strings.TrimSpace(v) != "" {
-		snapshot["style"] = strings.TrimSpace(v)
-	}
 
 	// count 可能是 float64（JSON 解析）或 int（服务内部）
 	if v, ok := params["count"].(int); ok && v > 0 {
@@ -579,10 +570,6 @@ func GenerateWithImagesHandler(c *gin.Context) {
 		RequestModel: req.ModelID,
 		Config:       fetchProviderConfig(req.Provider),
 	}).ID
-	if req.Provider == "openai" && strings.EqualFold(strings.TrimSpace(modelID), "dall-e-3") {
-		Error(c, http.StatusBadRequest, 400, "DALL·E 3 暂不支持参考图，请移除参考图后重试")
-		return
-	}
 	taskParams := map[string]interface{}{
 		"prompt":           req.Prompt,
 		"provider":         req.Provider,
