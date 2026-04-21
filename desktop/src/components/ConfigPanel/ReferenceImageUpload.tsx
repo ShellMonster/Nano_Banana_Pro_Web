@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { ImagePlus, X, Image as ImageIcon, ChevronDown, ChevronUp, Sparkles, Loader2 } from 'lucide-react';
-import { useConfigStore } from '../../store/configStore';
+import { useConfigStore, supportsReferenceImages } from '../../store/configStore';
 import { useInternalDragStore, type InternalDragPayload } from '../../store/internalDragStore';
 import { cn } from '../common/Button';
 import { toast } from '../../store/toastStore';
@@ -105,6 +105,7 @@ const normalizeLocalPathInput = (value: string) => {
 export function ReferenceImageUpload() {
   const { t } = useTranslation();
   const refFiles = useConfigStore((s) => s.refFiles);
+  const imageProvider = useConfigStore((s) => s.imageProvider);
   const addRefFiles = useConfigStore((s) => s.addRefFiles);
   const removeRefFile = useConfigStore((s) => s.removeRefFile);
   const setRefFiles = useConfigStore((s) => s.setRefFiles);
@@ -155,6 +156,8 @@ export function ReferenceImageUpload() {
   // 图片反推提示词相关状态
   const [isExtractingPrompt, setIsExtractingPrompt] = useState(false);
   const [extractingIndex, setExtractingIndex] = useState<number | null>(null);
+  const allowReferenceImages = supportsReferenceImages(imageProvider);
+  const prevAllowReferenceImagesRef = useRef(allowReferenceImages);
 
   // 计算文件 MD5（使用工具函数）
   const calculateMd5Callback = useCallback(calculateMd5, []);
@@ -169,6 +172,16 @@ export function ReferenceImageUpload() {
       objectUrlsRef.current.clear();
     };
   }, []);
+
+  useEffect(() => {
+    const wasAllowed = prevAllowReferenceImagesRef.current;
+    prevAllowReferenceImagesRef.current = allowReferenceImages;
+
+    if (allowReferenceImages || wasAllowed === allowReferenceImages) return;
+    if (refFiles.length === 0 && refImageEntries.length === 0) return;
+
+    toast.info(t('refImage.unsupportedModel'));
+  }, [allowReferenceImages, refFiles.length, refImageEntries.length, t]);
 
   const preloadDialog = useCallback(async () => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -1592,6 +1605,23 @@ export function ReferenceImageUpload() {
 
   const showDragOver = isDraggingOver || (isInternalDragging && isOverDropTarget);
 
+  if (!allowReferenceImages) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-gray-900 font-medium">
+          <ImageIcon className="w-4 h-4 text-blue-500" />
+          <span>{t('refImage.title', { count: 0 })}</span>
+        </div>
+        <div className="w-full py-3 border border-dashed border-amber-200 rounded-2xl flex flex-col items-center justify-center gap-2 bg-amber-50/60">
+          <ImagePlus className="w-6 h-6 text-amber-300" />
+          <div className="flex flex-col items-center">
+            <span className="text-xs font-bold text-amber-700">{t('refImage.unsupportedModel')}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={dropRef}
@@ -1753,7 +1783,7 @@ export function ReferenceImageUpload() {
                         {refFiles.length > 0 ? t('refImage.addMore') : t('refImage.add')}
                     </span>
                     <span className="text-[10px] text-slate-400 mt-0.5">{t('refImage.supportHint')}</span>
-                </div>
+                  </div>
               </button>
           )}
         </>

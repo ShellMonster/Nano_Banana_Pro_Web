@@ -137,6 +137,7 @@
     "add": "Add reference images",
     "addMore": "Add more",
     "supportHint": "(supports multi-select or drag & drop)",
+    "unsupportedModel": "Current model does not support reference images",
     "toast": {
       "full": "Reference images are full",
       "exists": "Image already exists",
@@ -184,7 +185,6 @@
       "label": "Provider",
       "recommended": "Recommended:",
       "yunwu": "Yunwu API",
-      "openaiImageLimit": "OpenAI providers currently support only 1K images",
       "geminiBasePathHint": "For Gemini, use only the host as Base URL (avoid /v1 or endpoint paths).",
       "yunwuMissingV1Hint": "For Yunwu API, Base URL should include /v1",
       "yunwuExtraPathHint": "For Yunwu API, keep Base URL at /v1 only (no deeper path)"
@@ -425,6 +425,8 @@
       "title": "Generation Settings",
       "count": "Count (1-10)",
       "resolution": "Resolution",
+      "nativeSize": "Size",
+      "quality": "Quality",
       "resolution1k": "1K (1024px)",
       "resolution2k": "2K (2048px)",
       "resolution4k": "4K (3840px)",
