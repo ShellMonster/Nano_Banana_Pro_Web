@@ -12,8 +12,9 @@ echo "Previous tag: $PREV_TAG" >&2
 CHANGED_FILES=$(git diff --name-only "$PREV_TAG".."$CURRENT_TAG" 2>/dev/null || true)
 
 SUMMARY=""
+# 检测变更文件是否匹配指定路径模式
 touches() {
-  echo "$CHANGED_FILES" | grep -qE "$1" 2>/dev/null
+  printf "%s\n" "$CHANGED_FILES" | grep -qE "$1"
 }
 
 if touches "backend/internal/provider/"; then
@@ -81,17 +82,20 @@ while IFS= read -r line; do
   [ -z "$line" ] && continue
   [[ $line =~ $NOISE_REGEX ]] && continue
 
-  clean_line=$(echo "$line" | sed 's/\\/\\\\/g; s/`/\\`/g')
+  clean_line=$(printf "%s" "$line" | sed 's/`/\\`/g')
+
+  # 剥离 conventional commit 前缀: feat: / feat(scope): / feat(scope)!: / fix!: 等
+  stripped_line=$(printf "%s" "$clean_line" | sed -E 's/^[a-z]+(\([^)]*\))?!?:[[:space:]]*//')
 
   if [[ $line =~ ^feat ]]; then
     FEATS="$FEATS
-- ${clean_line#feat: }"
+- ${stripped_line}"
   elif [[ $line =~ ^fix ]]; then
     FIXES="$FIXES
-- ${clean_line#fix: }"
+- ${stripped_line}"
   elif [[ $line =~ ^docs ]]; then
     DOCS="$DOCS
-- ${clean_line#docs: }"
+- ${stripped_line}"
   elif [[ $line =~ ^refactor ]] || [[ $line =~ ^perf ]]; then
     FIXES="$FIXES
 - ${clean_line}"
@@ -136,7 +140,7 @@ if [ -n "$REPO_URL" ] && [ "$PREV_TAG" != "$CURRENT_TAG" ]; then
 fi
 
 {
-  echo "body<<EOF"
-  echo -e "$BODY"
-  echo "EOF"
+  printf "%s\n" "body<<EOF"
+  printf "%s\n" "$BODY"
+  printf "%s\n" "EOF"
 }
