@@ -531,6 +531,8 @@ func resolveStandardGPTImageSize(aspectRatio string) string {
 	return "1024x1536"
 }
 
+// 根据用户选择的宽高比和分辨率档位，为 gpt-image-2 代理计算实际 WxH。
+// 计算流程：先确定长边，再按宽高比推导短边，最后做 16 像素对齐和总像素上限保护。
 func computeDynamicOpenAIImageSize(aspectRatio, resolution string) string {
 	wRatio, hRatio, ok := parseAspectRatio(aspectRatio)
 	if !ok {
