@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { ImagePlus, X, Image as ImageIcon, ChevronDown, ChevronUp, Sparkles, Loader2 } from 'lucide-react';
-import { useConfigStore, supportsReferenceImages } from '../../store/configStore';
+import { useConfigStore, isReferenceImageSupported } from '../../store/configStore';
 import { useInternalDragStore, type InternalDragPayload } from '../../store/internalDragStore';
 import { cn } from '../common/Button';
 import { toast } from '../../store/toastStore';
@@ -156,7 +156,7 @@ export function ReferenceImageUpload() {
   // 图片反推提示词相关状态
   const [isExtractingPrompt, setIsExtractingPrompt] = useState(false);
   const [extractingIndex, setExtractingIndex] = useState<number | null>(null);
-  const allowReferenceImages = supportsReferenceImages(imageProvider);
+  const allowReferenceImages = isReferenceImageSupported(imageProvider);
   const prevAllowReferenceImagesRef = useRef(allowReferenceImages);
 
   // 计算文件 MD5（使用工具函数）
