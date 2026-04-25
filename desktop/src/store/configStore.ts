@@ -80,14 +80,14 @@ export const IMAGE_MODEL_CONFIG: Record<string, { aspectRatios: string[] }> = {
   }
 };
 
-export const usesDynamicOpenAIImageSize = (provider: string, model?: string): boolean => (
+export const isUsingDynamicOpenAIImageSize = (provider: string, model?: string): boolean => (
   provider === 'openai-image' && String(model || '').toLowerCase().includes('gpt-image-2')
 );
-export const supportsReferenceImages = (_provider: string): boolean => true;
-export const usesNativeImageSize = (provider: string, model?: string): boolean => (
-  provider === 'openai-image' && !usesDynamicOpenAIImageSize(provider, model)
+export const isReferenceImageSupported = (_provider: string): boolean => true;
+export const isUsingNativeImageSize = (provider: string, model?: string): boolean => (
+  provider === 'openai-image' && !isUsingDynamicOpenAIImageSize(provider, model)
 );
-export const supportsQualityControl = (provider: string): boolean => provider === 'openai-image';
+export const isQualityControlSupported = (provider: string): boolean => provider === 'openai-image';
 
 // Helper function to get supported aspect ratios for a model
 export const getModelAspectRatios = (model: string): string[] => {

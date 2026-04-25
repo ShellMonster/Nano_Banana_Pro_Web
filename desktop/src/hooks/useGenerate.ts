@@ -10,7 +10,7 @@ import { useHistoryStore } from '../store/historyStore';
 import i18n from '../i18n';
 import { getDiagnosticVerbose } from '../utils/diagnosticLogger';
 import { getPromptOptimizeConfigIssue } from '../utils/promptOptimizeConfig';
-import { supportsQualityControl, supportsReferenceImages, usesNativeImageSize } from '../store/configStore';
+import { isQualityControlSupported, isReferenceImageSupported, isUsingNativeImageSize } from '../store/configStore';
 
 // 流式连接建立超时时间（毫秒）- 超过此时间未建立连接则启动轮询
 // 本地后端通常不会推实时进度，过长会导致用户"卡住"的观感
@@ -409,9 +409,9 @@ export function useGenerate() {
       const requestedCount = Math.max(1, Number(config.count) || 1);
       const promptOptimizeMode = config.defaultPromptOptimizeMode || 'off';
       const shouldAutoOptimizePrompt = promptOptimizeMode !== 'off';
-      const useNativeSize = usesNativeImageSize(config.imageProvider, config.imageModel);
-      const useQuality = supportsQualityControl(config.imageProvider);
-      const allowReferenceImages = supportsReferenceImages(config.imageProvider);
+      const useNativeSize = isUsingNativeImageSize(config.imageProvider, config.imageModel);
+      const useQuality = isQualityControlSupported(config.imageProvider);
+      const allowReferenceImages = isReferenceImageSupported(config.imageProvider);
       const qualityParams = useQuality
         ? {
             quality: config.imageQuality,

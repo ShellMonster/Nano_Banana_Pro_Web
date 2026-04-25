@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import {
   useConfigStore,
   getModelAspectRatios,
-  usesNativeImageSize,
-  supportsQualityControl,
+  isUsingNativeImageSize,
+  isQualityControlSupported,
   OPENAI_IMAGE_SIZE_OPTIONS,
   OPENAI_IMAGE_QUALITY_OPTIONS
 } from '../../store/configStore';
@@ -31,8 +31,8 @@ export function BatchSettings() {
   } = useConfigStore();
 
   const supportedRatios = useMemo(() => getModelAspectRatios(imageModel), [imageModel]);
-  const useNativeSize = usesNativeImageSize(imageProvider, imageModel);
-  const useQuality = supportsQualityControl(imageProvider);
+  const useNativeSize = isUsingNativeImageSize(imageProvider, imageModel);
+  const useQuality = isQualityControlSupported(imageProvider);
 
   useEffect(() => {
     if (useNativeSize) {
