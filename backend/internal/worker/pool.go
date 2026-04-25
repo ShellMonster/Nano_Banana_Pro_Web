@@ -480,13 +480,15 @@ func fetchProviderTimeout(providerName string) time.Duration {
 	name := strings.TrimSpace(strings.ToLower(providerName))
 	if strings.HasPrefix(name, "gemini") {
 		name = "gemini"
+	} else if name == "openai-image" {
+		name = "openai-image"
 	} else if strings.HasPrefix(name, "openai") {
 		name = "openai"
 	}
 
 	defaultTimeout := func(p string) time.Duration {
 		switch p {
-		case "gemini", "openai":
+		case "gemini", "openai", "openai-image":
 			return 500 * time.Second
 		default:
 			return 150 * time.Second

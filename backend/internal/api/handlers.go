@@ -582,6 +582,7 @@ func GenerateWithImagesHandler(c *gin.Context) {
 		"model_id":         modelID,
 		"aspect_ratio":     req.AspectRatio,
 		"resolution_level": req.ImageSize,
+		"quality":          req.Quality,
 		"count":            req.Count,
 		"reference_images": refImageBytes, // 传递 interface 列表，方便 Provider 类型断言
 	}

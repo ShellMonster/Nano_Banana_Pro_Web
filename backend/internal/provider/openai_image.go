@@ -6,8 +6,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
 	"image-gen-service/internal/diagnostic"
 	"image-gen-service/internal/model"
+	_ "image/gif"
+	_ "image/jpeg"
+	"image/png"
 	"io"
 	"math"
 	"mime/multipart"
@@ -17,6 +21,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	_ "golang.org/x/image/webp"
 )
 
 type OpenAIImageProvider struct {
@@ -414,18 +420,33 @@ func collectOpenAIImageReferences(raw interface{}) ([]openAIImageReference, erro
 		if len(imgBytes) == 0 {
 			continue
 		}
-		mimeType := http.DetectContentType(imgBytes)
-		if mimeType != "image/png" {
-			return nil, fmt.Errorf("第 %d 张参考图不是有效的 PNG 图片，OpenAI Edit 仅支持 PNG 格式", idx+1)
+		pngBytes, err := normalizeOpenAIReferenceImagePNG(imgBytes)
+		if err != nil {
+			return nil, fmt.Errorf("第 %d 张参考图不是有效图片: %w", idx+1, err)
 		}
 		refs = append(refs, openAIImageReference{
 			Name:    fmt.Sprintf("reference-%d.png", idx+1),
-			Content: imgBytes,
-			MIME:    mimeType,
+			Content: pngBytes,
+			MIME:    "image/png",
 		})
 	}
 
 	return refs, nil
+}
+
+func normalizeOpenAIReferenceImagePNG(imgBytes []byte) ([]byte, error) {
+	if http.DetectContentType(imgBytes) == "image/png" {
+		return imgBytes, nil
+	}
+	img, _, err := image.Decode(bytes.NewReader(imgBytes))
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func escapeMultipartFilename(name string) string {
