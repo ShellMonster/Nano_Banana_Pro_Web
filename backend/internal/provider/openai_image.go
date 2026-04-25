@@ -24,15 +24,11 @@ type OpenAIImageProvider struct {
 }
 
 type openAIImagesGenerationRequest struct {
-	Model         string `json:"model"`
-	Prompt        string `json:"prompt"`
-	Size          string `json:"size"`
-	Quality       string `json:"quality,omitempty"`
-	N             int    `json:"n,omitempty"`
-	InputFidelity string `json:"input_fidelity,omitempty"`
-	Background    string `json:"background,omitempty"`
-	OutputFormat  string `json:"output_format,omitempty"`
-	Moderation    string `json:"moderation,omitempty"`
+	Model   string `json:"model"`
+	Prompt  string `json:"prompt"`
+	Size    string `json:"size"`
+	Quality string `json:"quality,omitempty"`
+	N       int    `json:"n,omitempty"`
 }
 
 type openAIImageReference struct {
@@ -77,13 +73,6 @@ func (p *OpenAIImageProvider) ValidateParams(params map[string]interface{}) erro
 	case "", "auto", "low", "medium", "high":
 	default:
 		return fmt.Errorf("quality 仅支持 auto、low、medium、high")
-	}
-
-	inputFidelity, _ := params["input_fidelity"].(string)
-	switch strings.TrimSpace(strings.ToLower(inputFidelity)) {
-	case "", "low", "high":
-	default:
-		return fmt.Errorf("input_fidelity 仅支持 low、high")
 	}
 
 	return nil
@@ -179,18 +168,6 @@ func (p *OpenAIImageProvider) buildImagesGenerationRequestBody(modelID string, p
 	if quality, _ := params["quality"].(string); strings.TrimSpace(quality) != "" {
 		body.Quality = strings.TrimSpace(strings.ToLower(quality))
 	}
-	if inputFidelity, _ := params["input_fidelity"].(string); strings.TrimSpace(inputFidelity) != "" {
-		body.InputFidelity = strings.TrimSpace(strings.ToLower(inputFidelity))
-	}
-	if background, _ := params["background"].(string); strings.TrimSpace(background) != "" {
-		body.Background = strings.TrimSpace(strings.ToLower(background))
-	}
-	if outputFormat, _ := params["output_format"].(string); strings.TrimSpace(outputFormat) != "" {
-		body.OutputFormat = strings.TrimSpace(strings.ToLower(outputFormat))
-	}
-	if moderation, _ := params["moderation"].(string); strings.TrimSpace(moderation) != "" {
-		body.Moderation = strings.TrimSpace(strings.ToLower(moderation))
-	}
 	if count, ok := toInt(params["count"]); ok && count >= 1 && count <= 10 {
 		body.N = count
 	}
@@ -222,7 +199,6 @@ func (p *OpenAIImageProvider) doImagesGenerationRequest(ctx context.Context, bod
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(p.config.APIKey))
-		req.Header.Set("Connection", "close")
 		if strings.TrimSpace(p.userAgent) != "" {
 			req.Header.Set("User-Agent", p.userAgent)
 		}
@@ -274,75 +250,31 @@ func (p *OpenAIImageProvider) doImagesGenerationRequest(ctx context.Context, bod
 }
 
 func (p *OpenAIImageProvider) doImagesEditRequest(ctx context.Context, body *openAIImagesGenerationRequest, refs []openAIImageReference, params map[string]interface{}) ([]byte, http.Header, error) {
-	var payload bytes.Buffer
-	writer := multipart.NewWriter(&payload)
-
-	fields := map[string]string{
-		"model":  body.Model,
-		"prompt": body.Prompt,
-		"size":   body.Size,
-		"n":      strconv.Itoa(body.N),
-	}
-	if body.Quality != "" {
-		fields["quality"] = body.Quality
-	}
-	if body.InputFidelity != "" {
-		fields["input_fidelity"] = body.InputFidelity
-	}
-	if body.Background != "" {
-		fields["background"] = body.Background
-	}
-	if body.OutputFormat != "" {
-		fields["output_format"] = body.OutputFormat
-	}
-	if body.Moderation != "" {
-		fields["moderation"] = body.Moderation
-	}
-	for key, value := range fields {
-		if err := writer.WriteField(key, value); err != nil {
-			return nil, nil, fmt.Errorf("构建 OpenAI Images Edit 字段失败: %w", err)
-		}
-	}
-
-	for _, ref := range refs {
-		header := make(textproto.MIMEHeader)
-		header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="image"; filename="%s"`, escapeMultipartFilename(ref.Name)))
-		header.Set("Content-Type", ref.MIME)
-		part, err := writer.CreatePart(header)
-		if err != nil {
-			return nil, nil, fmt.Errorf("构建 OpenAI Images Edit 图片字段失败: %w", err)
-		}
-		if _, err := part.Write(ref.Content); err != nil {
-			return nil, nil, fmt.Errorf("写入 OpenAI Images Edit 图片字段失败: %w", err)
-		}
-	}
-
-	if err := writer.Close(); err != nil {
-		return nil, nil, fmt.Errorf("结束 OpenAI Images Edit multipart 失败: %w", err)
-	}
-
 	requestURL := strings.TrimRight(strings.TrimSpace(p.apiBase), "/") + "/images/edits"
+	fields := openAIImageEditFields(body)
+	imageFieldCount := len(refs)
+	if imageFieldCount > 2 {
+		imageFieldCount = 2
+	}
 	diagnostic.Logf(params, "request_payload",
-		"url=%s content_type=%q fields=%d image_count=%d body_bytes=%d",
+		"url=%s fields=%d image_count=%d",
 		diagnostic.RedactSensitive(requestURL),
-		writer.FormDataContentType(),
 		len(fields),
-		len(refs),
-		payload.Len(),
+		imageFieldCount,
 	)
 
 	maxRetries := providerMaxRetries(p.config)
 	var elapsed time.Duration
 	resp, _, err := doRequestWithRetry(ctx, params, p.Name(), maxRetries, func(attempt int) (*http.Response, error) {
-		req, buildErr := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(payload.Bytes()))
+		reader, contentType := openAIImageEditBody(fields, refs)
+		req, buildErr := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, reader)
 		if buildErr != nil {
 			return nil, fmt.Errorf("构建 OpenAI Images Edit 请求失败: %w", buildErr)
 		}
 
-		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req.Header.Set("Content-Type", contentType)
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(p.config.APIKey))
-		req.Header.Set("Connection", "close")
 		if strings.TrimSpace(p.userAgent) != "" {
 			req.Header.Set("User-Agent", p.userAgent)
 		}
@@ -393,6 +325,66 @@ func (p *OpenAIImageProvider) doImagesEditRequest(ctx context.Context, body *ope
 	return respBody, resp.Header.Clone(), nil
 }
 
+func openAIImageEditFields(body *openAIImagesGenerationRequest) map[string]string {
+	fields := map[string]string{
+		"model":  body.Model,
+		"prompt": body.Prompt,
+		"size":   body.Size,
+		"n":      strconv.Itoa(body.N),
+	}
+	// Edits 只发送官方通用字段，避免代理或官方接口因未知字段返回 400。
+	if body.Quality != "" {
+		fields["quality"] = body.Quality
+	}
+	return fields
+}
+
+func openAIImageEditBody(fields map[string]string, refs []openAIImageReference) (io.Reader, string) {
+	reader, writer := io.Pipe()
+	multipartWriter := multipart.NewWriter(writer)
+	contentType := multipartWriter.FormDataContentType()
+
+	go func() {
+		err := writeOpenAIImageEditMultipart(multipartWriter, fields, refs)
+		if closeErr := multipartWriter.Close(); err == nil {
+			err = closeErr
+		}
+		_ = writer.CloseWithError(err)
+	}()
+
+	return reader, contentType
+}
+
+func writeOpenAIImageEditMultipart(writer *multipart.Writer, fields map[string]string, refs []openAIImageReference) error {
+	for key, value := range fields {
+		if err := writer.WriteField(key, value); err != nil {
+			return fmt.Errorf("构建 OpenAI Images Edit 字段失败: %w", err)
+		}
+	}
+
+	for idx, ref := range refs {
+		fieldName := "image"
+		if idx == 1 {
+			fieldName = "mask"
+		} else if idx > 1 {
+			break
+		}
+
+		header := make(textproto.MIMEHeader)
+		header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, escapeMultipartFilename(ref.Name)))
+		header.Set("Content-Type", ref.MIME)
+		part, err := writer.CreatePart(header)
+		if err != nil {
+			return fmt.Errorf("构建 OpenAI Images Edit 图片字段失败: %w", err)
+		}
+		if _, err := part.Write(ref.Content); err != nil {
+			return fmt.Errorf("写入 OpenAI Images Edit 图片字段失败: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func collectOpenAIImageReferences(raw interface{}) ([]openAIImageReference, error) {
 	refImgs, ok := raw.([]interface{})
 	if !ok || len(refImgs) == 0 {
@@ -423,32 +415,17 @@ func collectOpenAIImageReferences(raw interface{}) ([]openAIImageReference, erro
 			continue
 		}
 		mimeType := http.DetectContentType(imgBytes)
-		if !strings.HasPrefix(mimeType, "image/") {
-			return nil, fmt.Errorf("第 %d 张参考图不是有效图片", idx+1)
+		if mimeType != "image/png" {
+			return nil, fmt.Errorf("第 %d 张参考图不是有效的 PNG 图片，OpenAI Edit 仅支持 PNG 格式", idx+1)
 		}
 		refs = append(refs, openAIImageReference{
-			Name:    fmt.Sprintf("reference-%d%s", idx+1, imageExtForMIME(mimeType)),
+			Name:    fmt.Sprintf("reference-%d.png", idx+1),
 			Content: imgBytes,
 			MIME:    mimeType,
 		})
 	}
 
 	return refs, nil
-}
-
-func imageExtForMIME(mimeType string) string {
-	switch strings.ToLower(strings.TrimSpace(mimeType)) {
-	case "image/jpeg", "image/jpg":
-		return ".jpg"
-	case "image/png":
-		return ".png"
-	case "image/webp":
-		return ".webp"
-	case "image/gif":
-		return ".gif"
-	default:
-		return ".png"
-	}
 }
 
 func escapeMultipartFilename(name string) string {
@@ -527,6 +504,8 @@ func computeDynamicOpenAIImageSize(aspectRatio, resolution string) string {
 		return "auto"
 	}
 
+	// gpt-image-2 代理支持更灵活的 WxH。这里用用户选择的分辨率作为长边，
+	// 再按比例计算短边，并统一向下取 16 的倍数，避免上游拒绝非对齐尺寸。
 	longEdge := 2048
 	switch strings.ToUpper(strings.TrimSpace(resolution)) {
 	case "1K":
@@ -547,6 +526,8 @@ func computeDynamicOpenAIImageSize(aspectRatio, resolution string) string {
 	width = roundDownToMultiple(width, 16)
 	height = roundDownToMultiple(height, 16)
 
+	// 按 banana-slides 的经验保留官方/代理常见的像素上限保护：
+	// 超过约 8.29MP 时等比缩小，再次对齐到 16 的倍数。
 	const maxPixels = 8294400
 	if width*height > maxPixels {
 		scale := math.Sqrt(float64(maxPixels) / float64(width*height))

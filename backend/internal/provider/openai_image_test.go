@@ -124,7 +124,8 @@ func TestOpenAIImageProviderGenerateWithReferenceUsesEdits(t *testing.T) {
 
 	var seenPath string
 	var seenFields = map[string]string{}
-	var seenFileCount int
+	var seenImageFileCount int
+	var seenMaskFileCount int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenPath = r.URL.Path
 		if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
@@ -138,7 +139,8 @@ func TestOpenAIImageProviderGenerateWithReferenceUsesEdits(t *testing.T) {
 				seenFields[key] = values[0]
 			}
 		}
-		seenFileCount = len(r.MultipartForm.File["image"])
+		seenImageFileCount = len(r.MultipartForm.File["image"])
+		seenMaskFileCount = len(r.MultipartForm.File["mask"])
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []map[string]string{{"b64_json": tinyPNGBase64}},
 		})
@@ -161,8 +163,7 @@ func TestOpenAIImageProviderGenerateWithReferenceUsesEdits(t *testing.T) {
 		"aspect_ratio":     "1:1",
 		"resolution_level": "1K",
 		"count":            1,
-		"reference_images": []interface{}{refBytes},
-		"input_fidelity":   "high",
+		"reference_images": []interface{}{refBytes, refBytes, refBytes},
 	})
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -173,13 +174,40 @@ func TestOpenAIImageProviderGenerateWithReferenceUsesEdits(t *testing.T) {
 	if seenFields["model"] != "gpt-image-2-all" || seenFields["prompt"] != "edit prompt" || seenFields["size"] != "1280x1280" {
 		t.Fatalf("unexpected fields: %+v", seenFields)
 	}
-	if seenFields["input_fidelity"] != "high" {
-		t.Fatalf("input_fidelity = %q, want high", seenFields["input_fidelity"])
+	if _, ok := seenFields["input_fidelity"]; ok {
+		t.Fatalf("input_fidelity should not be sent to edits: %+v", seenFields)
 	}
-	if seenFileCount != 1 {
-		t.Fatalf("file count = %d, want 1", seenFileCount)
+	if seenImageFileCount != 1 {
+		t.Fatalf("image file count = %d, want 1", seenImageFileCount)
+	}
+	if seenMaskFileCount != 1 {
+		t.Fatalf("mask file count = %d, want 1", seenMaskFileCount)
 	}
 	if len(result.Images) != 1 {
 		t.Fatalf("image count = %d, want 1", len(result.Images))
+	}
+}
+
+func TestOpenAIImageProviderRejectsNonPNGReference(t *testing.T) {
+	p, err := NewOpenAIImageProvider(&model.ProviderConfig{
+		ProviderName:   "openai-image",
+		APIBase:        "http://example.test/v1",
+		APIKey:         "test-key",
+		TimeoutSeconds: 5,
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIImageProvider: %v", err)
+	}
+
+	_, err = p.Generate(t.Context(), map[string]interface{}{
+		"prompt":           "edit prompt",
+		"model_id":         "gpt-image-2-all",
+		"aspect_ratio":     "1:1",
+		"resolution_level": "1K",
+		"count":            1,
+		"reference_images": []interface{}{[]byte("not an image")},
+	})
+	if err == nil || !strings.Contains(err.Error(), "OpenAI Edit 仅支持 PNG 格式") {
+		t.Fatalf("Generate error = %v, want PNG validation error", err)
 	}
 }
