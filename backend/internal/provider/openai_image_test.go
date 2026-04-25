@@ -55,6 +55,32 @@ func TestResolveOpenAIImageSize(t *testing.T) {
 			},
 			want: "1024x1792",
 		},
+		{
+			name:  "dalle 3 normalizes explicit auto",
+			model: "dall-e-3",
+			params: map[string]interface{}{
+				"size":        "auto",
+				"aspectRatio": "16:9",
+			},
+			want: "1792x1024",
+		},
+		{
+			name:  "dalle 2 normalizes unsupported explicit size",
+			model: "dall-e-2",
+			params: map[string]interface{}{
+				"size": "1536x1024",
+			},
+			want: "1024x1024",
+		},
+		{
+			name:  "standard gpt image normalizes unsupported explicit size",
+			model: "gpt-image-1",
+			params: map[string]interface{}{
+				"size":        "2048x1152",
+				"aspectRatio": "16:9",
+			},
+			want: "1536x1024",
+		},
 	}
 
 	for _, tt := range tests {

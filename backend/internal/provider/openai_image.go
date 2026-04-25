@@ -441,13 +441,12 @@ func isValidOpenAIImageSize(size string) bool {
 }
 
 func resolveOpenAIImageSize(modelID string, params map[string]interface{}) string {
-	if size, _ := params["size"].(string); strings.TrimSpace(size) != "" {
-		return strings.TrimSpace(strings.ToLower(size))
-	}
-
 	aspectRatio := firstStringParam(params, "aspect_ratio", "aspectRatio", "aspect")
 	resolution := firstStringParam(params, "resolution_level", "imageSize", "image_size", "resolution")
 	model := strings.ToLower(strings.TrimSpace(modelID))
+	if size, _ := params["size"].(string); strings.TrimSpace(size) != "" {
+		return normalizeExplicitOpenAIImageSize(model, strings.TrimSpace(strings.ToLower(size)), aspectRatio, resolution)
+	}
 
 	if strings.Contains(model, "dall-e-3") {
 		return resolveDalle3Size(aspectRatio)
@@ -459,6 +458,40 @@ func resolveOpenAIImageSize(modelID string, params map[string]interface{}) strin
 		return computeDynamicOpenAIImageSize(aspectRatio, resolution)
 	}
 	return resolveStandardGPTImageSize(aspectRatio)
+}
+
+func normalizeExplicitOpenAIImageSize(model, size, aspectRatio, resolution string) string {
+	if strings.Contains(model, "dall-e-3") {
+		switch size {
+		case "1024x1024", "1792x1024", "1024x1792":
+			return size
+		default:
+			return resolveDalle3Size(aspectRatio)
+		}
+	}
+
+	if strings.Contains(model, "dall-e-2") {
+		switch size {
+		case "256x256", "512x512", "1024x1024":
+			return size
+		default:
+			return "1024x1024"
+		}
+	}
+
+	if strings.Contains(model, "gpt-image-2") {
+		if size == "auto" {
+			return computeDynamicOpenAIImageSize(aspectRatio, resolution)
+		}
+		return size
+	}
+
+	switch size {
+	case "1024x1024", "1536x1024", "1024x1536":
+		return size
+	default:
+		return resolveStandardGPTImageSize(aspectRatio)
+	}
 }
 
 func firstStringParam(params map[string]interface{}, keys ...string) string {
