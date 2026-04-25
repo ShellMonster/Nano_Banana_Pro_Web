@@ -1,9 +1,14 @@
 package provider
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"image"
 	"image-gen-service/internal/model"
+	"image/color"
+	"image/jpeg"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -188,6 +193,7 @@ func TestOpenAIImageProviderGenerateWithReferenceUsesEdits(t *testing.T) {
 		"model_id":         "gpt-image-2-all",
 		"aspect_ratio":     "1:1",
 		"resolution_level": "1K",
+		"quality":          "high",
 		"count":            1,
 		"reference_images": []interface{}{refBytes, refBytes, refBytes},
 	})
@@ -199,6 +205,9 @@ func TestOpenAIImageProviderGenerateWithReferenceUsesEdits(t *testing.T) {
 	}
 	if seenFields["model"] != "gpt-image-2-all" || seenFields["prompt"] != "edit prompt" || seenFields["size"] != "1280x1280" {
 		t.Fatalf("unexpected fields: %+v", seenFields)
+	}
+	if seenFields["quality"] != "high" {
+		t.Fatalf("quality = %q, want high", seenFields["quality"])
 	}
 	if _, ok := seenFields["input_fidelity"]; ok {
 		t.Fatalf("input_fidelity should not be sent to edits: %+v", seenFields)
@@ -214,10 +223,45 @@ func TestOpenAIImageProviderGenerateWithReferenceUsesEdits(t *testing.T) {
 	}
 }
 
-func TestOpenAIImageProviderRejectsNonPNGReference(t *testing.T) {
+func TestOpenAIImageProviderConvertsJPEGReferenceToPNG(t *testing.T) {
+	var jpegRef bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, color.White)
+	if err := jpeg.Encode(&jpegRef, img, nil); err != nil {
+		t.Fatalf("encode jpeg: %v", err)
+	}
+
+	var seenImageContentType string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(2 << 20); err != nil {
+			t.Fatalf("ParseMultipartForm: %v", err)
+		}
+		files := r.MultipartForm.File["image"]
+		if len(files) != 1 {
+			t.Fatalf("image files = %d, want 1", len(files))
+		}
+		seenImageContentType = files[0].Header.Get("Content-Type")
+		file, err := files[0].Open()
+		if err != nil {
+			t.Fatalf("open image part: %v", err)
+		}
+		defer file.Close()
+		content, err := io.ReadAll(file)
+		if err != nil {
+			t.Fatalf("read image part: %v", err)
+		}
+		if http.DetectContentType(content) != "image/png" {
+			t.Fatalf("uploaded content type = %q, want image/png", http.DetectContentType(content))
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": []map[string]string{{"b64_json": tinyPNGBase64}},
+		})
+	}))
+	defer server.Close()
+
 	p, err := NewOpenAIImageProvider(&model.ProviderConfig{
 		ProviderName:   "openai-image",
-		APIBase:        "http://example.test/v1",
+		APIBase:        server.URL,
 		APIKey:         "test-key",
 		TimeoutSeconds: 5,
 	})
@@ -231,9 +275,19 @@ func TestOpenAIImageProviderRejectsNonPNGReference(t *testing.T) {
 		"aspect_ratio":     "1:1",
 		"resolution_level": "1K",
 		"count":            1,
-		"reference_images": []interface{}{[]byte("not an image")},
+		"reference_images": []interface{}{jpegRef.Bytes()},
 	})
-	if err == nil || !strings.Contains(err.Error(), "OpenAI Edit 仅支持 PNG 格式") {
-		t.Fatalf("Generate error = %v, want PNG validation error", err)
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if seenImageContentType != "image/png" {
+		t.Fatalf("image part Content-Type = %q, want image/png", seenImageContentType)
+	}
+}
+
+func TestOpenAIImageProviderRejectsInvalidReference(t *testing.T) {
+	_, err := collectOpenAIImageReferences([]interface{}{[]byte("not an image")})
+	if err == nil || !strings.Contains(err.Error(), "不是有效图片") {
+		t.Fatalf("collectOpenAIImageReferences error = %v, want invalid image error", err)
 	}
 }

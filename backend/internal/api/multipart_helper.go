@@ -25,6 +25,7 @@ type MultipartRequest struct {
 	Prompt                 string
 	AspectRatio            string
 	ImageSize              string
+	Quality                string
 	Count                  int
 	Verbose                bool
 	PromptOptimizeMode     string
@@ -84,6 +85,14 @@ func ParseGenerateRequestFromMultipart(c *gin.Context) (*MultipartRequest, error
 			return err
 		}
 		req.ImageSize = string(data)
+		return nil
+	})
+	p.Parser.Register("quality", func(reader io.Reader, header formstream.Header) error {
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return err
+		}
+		req.Quality = string(data)
 		return nil
 	})
 	p.Parser.Register("count", func(reader io.Reader, header formstream.Header) error {
@@ -172,6 +181,7 @@ func parseWithStandardLibrary(c *gin.Context) (*MultipartRequest, error) {
 		Prompt:      c.PostForm("prompt"),
 		AspectRatio: c.PostForm("aspectRatio"),
 		ImageSize:   c.PostForm("imageSize"),
+		Quality:     c.PostForm("quality"),
 		Count:       1,
 	}
 
