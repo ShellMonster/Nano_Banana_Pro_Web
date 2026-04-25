@@ -10,7 +10,7 @@ import { useHistoryStore } from '../store/historyStore';
 import i18n from '../i18n';
 import { getDiagnosticVerbose } from '../utils/diagnosticLogger';
 import { getPromptOptimizeConfigIssue } from '../utils/promptOptimizeConfig';
-import { supportsReferenceImages, usesNativeImageSize } from '../store/configStore';
+import { supportsQualityControl, supportsReferenceImages, usesNativeImageSize } from '../store/configStore';
 
 // 流式连接建立超时时间（毫秒）- 超过此时间未建立连接则启动轮询
 // 本地后端通常不会推实时进度，过长会导致用户"卡住"的观感
@@ -409,27 +409,34 @@ export function useGenerate() {
       const requestedCount = Math.max(1, Number(config.count) || 1);
       const promptOptimizeMode = config.defaultPromptOptimizeMode || 'off';
       const shouldAutoOptimizePrompt = promptOptimizeMode !== 'off';
-      const useNativeSize = usesNativeImageSize(config.imageProvider);
+      const useNativeSize = usesNativeImageSize(config.imageProvider, config.imageModel);
+      const useQuality = supportsQualityControl(config.imageProvider);
       const allowReferenceImages = supportsReferenceImages(config.imageProvider);
+      const qualityParams = useQuality
+        ? {
+            quality: config.imageQuality,
+          }
+        : {};
       const taskOptions = useNativeSize
         ? {
             size: config.imageNativeSize,
-            quality: config.imageQuality,
+            ...qualityParams,
           }
         : {
             aspectRatio: config.aspectRatio,
             imageSize: config.imageSize,
+            ...qualityParams,
           };
       const buildImageParams = (count: number) => ({
         prompt: config.prompt,
         count,
         ...(useNativeSize ? {
           size: config.imageNativeSize,
-          quality: config.imageQuality,
         } : {
           aspectRatio: config.aspectRatio,
           imageSize: config.imageSize,
         }),
+        ...qualityParams,
         verbose_logging: verboseLogging,
         ...(shouldAutoOptimizePrompt ? {
           prompt_optimize_mode: promptOptimizeMode,
@@ -446,10 +453,12 @@ export function useGenerate() {
           formData.append('model_id', config.imageModel);
           if (useNativeSize) {
             formData.append('size', config.imageNativeSize);
-            formData.append('quality', config.imageQuality);
           } else {
             formData.append('aspectRatio', config.aspectRatio);
             formData.append('imageSize', config.imageSize);
+          }
+          if (useQuality) {
+            formData.append('quality', config.imageQuality);
           }
           formData.append('count', '1');
           formData.append('verbose_logging', String(verboseLogging));
@@ -618,10 +627,12 @@ export function useGenerate() {
         formData.append('model_id', config.imageModel);
         if (useNativeSize) {
           formData.append('size', config.imageNativeSize);
-          formData.append('quality', config.imageQuality);
         } else {
           formData.append('aspectRatio', config.aspectRatio);
           formData.append('imageSize', config.imageSize);
+        }
+        if (useQuality) {
+          formData.append('quality', config.imageQuality);
         }
         formData.append('count', requestedCount.toString());
         formData.append('verbose_logging', String(verboseLogging));

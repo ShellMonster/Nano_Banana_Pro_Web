@@ -41,6 +41,8 @@ func normalizeProviderForTimeout(providerName string) string {
 	switch {
 	case strings.HasPrefix(name, "gemini"):
 		return "gemini"
+	case name == "openai-image":
+		return "openai-image"
 	case strings.HasPrefix(name, "openai"):
 		return "openai"
 	default:

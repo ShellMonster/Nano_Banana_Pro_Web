@@ -31,7 +31,7 @@ export function BatchSettings() {
   } = useConfigStore();
 
   const supportedRatios = useMemo(() => getModelAspectRatios(imageModel), [imageModel]);
-  const useNativeSize = usesNativeImageSize(imageProvider);
+  const useNativeSize = usesNativeImageSize(imageProvider, imageModel);
   const useQuality = supportsQualityControl(imageProvider);
 
   useEffect(() => {
@@ -87,18 +87,18 @@ export function BatchSettings() {
             </div>
         </div>
 
-        {useNativeSize ? (
-          useQuality ? (
-            <div className="space-y-1">
-              <label className="text-xs text-gray-500">{t('config.batch.quality')}</label>
-              <Select value={imageQuality} onChange={(e) => setImageQuality(e.target.value)} className="h-9 text-sm">
-                {OPENAI_IMAGE_QUALITY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </Select>
-            </div>
-          ) : null
-        ) : (
+        {useQuality ? (
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500">{t('config.batch.quality')}</label>
+            <Select value={imageQuality} onChange={(e) => setImageQuality(e.target.value)} className="h-9 text-sm">
+              {OPENAI_IMAGE_QUALITY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+          </div>
+        ) : null}
+
+        {!useNativeSize ? (
           <div className="space-y-1">
               <label className="text-xs text-gray-500">{t('config.batch.aspectRatio')}</label>
                <Select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="h-9 text-sm">
@@ -114,7 +114,7 @@ export function BatchSettings() {
                   })}
               </Select>
           </div>
-        )}
+        ) : null}
     </div>
   );
 }

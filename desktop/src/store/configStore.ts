@@ -9,6 +9,7 @@ const IMAGE_MODELS = {
 
 const OPENAI_IMAGE_MODELS = {
   GPT_IMAGE_1: { value: 'gpt-image-2-all', label: 'GPT Image 2 All' },
+  GPT_IMAGE_2: { value: 'gpt-image-2', label: 'GPT Image 2' },
 } as const;
 
 export const OPENAI_IMAGE_SIZE_OPTIONS = [
@@ -33,6 +34,7 @@ export const GEMINI_IMAGE_MODEL_OPTIONS = [
 
 export const OPENAI_IMAGE_MODEL_OPTIONS = [
   { value: OPENAI_IMAGE_MODELS.GPT_IMAGE_1.value, label: `${OPENAI_IMAGE_MODELS.GPT_IMAGE_1.label} (${OPENAI_IMAGE_MODELS.GPT_IMAGE_1.value})` },
+  { value: OPENAI_IMAGE_MODELS.GPT_IMAGE_2.value, label: `${OPENAI_IMAGE_MODELS.GPT_IMAGE_2.label} (${OPENAI_IMAGE_MODELS.GPT_IMAGE_2.value})` },
 ] as const;
 
 export const IMAGE_MODEL_OPTIONS = GEMINI_IMAGE_MODEL_OPTIONS;
@@ -69,11 +71,22 @@ export const IMAGE_MODEL_CONFIG: Record<string, { aspectRatios: string[] }> = {
   },
   [IMAGE_MODELS.PRO.value]: {
     aspectRatios: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']
+  },
+  [OPENAI_IMAGE_MODELS.GPT_IMAGE_1.value]: {
+    aspectRatios: ['1:1', '1:4', '1:8', '2:3', '3:2', '3:4', '4:1', '4:3', '4:5', '5:4', '8:1', '9:16', '16:9', '21:9']
+  },
+  [OPENAI_IMAGE_MODELS.GPT_IMAGE_2.value]: {
+    aspectRatios: ['1:1', '1:4', '1:8', '2:3', '3:2', '3:4', '4:1', '4:3', '4:5', '5:4', '8:1', '9:16', '16:9', '21:9']
   }
 };
 
-export const supportsReferenceImages = (provider: string): boolean => provider !== 'openai-image';
-export const usesNativeImageSize = (provider: string): boolean => provider === 'openai-image';
+export const usesDynamicOpenAIImageSize = (provider: string, model?: string): boolean => (
+  provider === 'openai-image' && String(model || '').toLowerCase().includes('gpt-image-2')
+);
+export const supportsReferenceImages = (_provider: string): boolean => true;
+export const usesNativeImageSize = (provider: string, model?: string): boolean => (
+  provider === 'openai-image' && !usesDynamicOpenAIImageSize(provider, model)
+);
 export const supportsQualityControl = (provider: string): boolean => provider === 'openai-image';
 
 // Helper function to get supported aspect ratios for a model
