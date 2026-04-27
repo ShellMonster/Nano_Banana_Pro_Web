@@ -274,7 +274,7 @@ func (p *OpenAIImageProvider) doImagesEditRequest(ctx context.Context, body *ope
 	maxRetries := providerMaxRetries(p.config)
 	var elapsed time.Duration
 	resp, _, err := doRequestWithRetry(ctx, params, p.Name(), maxRetries, func(attempt int) (*http.Response, error) {
-		reader, contentType := openAIImageEditBody(fields, refs)
+		reader, contentType := openAIImageEditBody(ctx, fields, refs)
 		req, buildErr := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, reader)
 		if buildErr != nil {
 			return nil, fmt.Errorf("构建 OpenAI Images Edit 请求失败: %w", buildErr)
@@ -349,10 +349,15 @@ func openAIImageEditFields(body *openAIImagesGenerationRequest) map[string]strin
 	return fields
 }
 
-func openAIImageEditBody(fields map[string]string, refs []openAIImageReference) (io.Reader, string) {
+func openAIImageEditBody(ctx context.Context, fields map[string]string, refs []openAIImageReference) (io.Reader, string) {
 	reader, writer := io.Pipe()
 	multipartWriter := multipart.NewWriter(writer)
 	contentType := multipartWriter.FormDataContentType()
+
+	go func() {
+		<-ctx.Done()
+		_ = writer.CloseWithError(ctx.Err())
+	}()
 
 	go func() {
 		err := writeOpenAIImageEditMultipart(multipartWriter, fields, refs)

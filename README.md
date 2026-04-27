@@ -276,6 +276,8 @@ curl http://localhost:8080/api/v1/health
 
 后端 HTTP Server 默认启用连接级保护：请求头读取超时 5 秒、完整请求读取超时 30 秒、空闲连接超时 120 秒。任务状态流接口（`/api/v1/tasks/:task_id/stream`）使用 SSE 长连接持续推送生成状态，因此全局写超时保持关闭，避免长时间生成任务的状态连接被服务器主动截断。
 
+Worker 会按 provider 配置为每个生成任务创建任务级 context，并在 worker goroutine 内直接执行 provider `Generate`。Provider 必须把这个 context 继续传递给 HTTP 请求或其他长耗时操作；如 OpenAI Image edits 这类 multipart 流式请求内部使用 `io.Pipe`，也会在 context 取消时主动关闭管道，避免后台写入 goroutine 滞留。如果调用结束时 context 已超时，任务会记录为 `生成超时(...)`，如果 provider 内部 panic，会被转换为任务失败而不会导致 worker 崩溃。
+
 或者使用 Makefile 快捷命令：
 ```bash
 make build    # 编译后端
