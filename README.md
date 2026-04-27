@@ -298,6 +298,7 @@ git push origin v2.8.0
 ```
 
 > **注意**：v2.8.0 支持通过推送 Tag 自动生成 Release 并上传多平台二进制文件。
+> CI 中的 Go 版本统一跟随 `backend/go.mod` 的 `go` 指令，更新 Go 版本时请先修改该文件，不要在 GitHub Actions workflow 中写死版本号。
 
 ### 6. 自动更新 (Updater)
 项目已集成 Tauri 官方 Updater 插件，发布新版本后用户启动应用会收到更新提示，可一键下载安装。

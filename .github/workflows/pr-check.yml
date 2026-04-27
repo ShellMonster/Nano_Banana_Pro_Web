@@ -33,7 +33,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version-file: './backend/go.mod'
           cache-dependency-path: './backend/go.sum'
 
       # Go 代码格式检查
@@ -142,7 +142,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version-file: './backend/go.mod'
 
       # 启动后端并验证健康检查
       - name: Start backend and health check
