@@ -109,7 +109,7 @@ frontend/                  # 独立 Web 前端 (v2.5.2, 非 Tauri)
 3. **Worker 池**：6 workers + 100-slot 队列，per-provider 超时，provider 调用在 worker goroutine 内执行并带 panic 自动恢复
 4. **IPC 优化**：前后端只传文件路径，二进制数据通过 asset:// 协议直读
 5. **Prompt 优化**：singleflight 去重 + 10min 缓存，支持 text/json 两种输出模式
-6. **模板市场**：内嵌 JSON + 远程 GitHub Raw + 本地缓存三层策略，24h 自动刷新
+6. **模板市场**：内嵌 JSON + 远程 GitHub Raw + 本地缓存三层策略，24h 自动刷新；桌面端模板网格使用 `react-window` 虚拟化渲染，避免 935+ 模板一次性挂载
 7. **服务端连接超时**：Go HTTP Server 使用 5s ReadHeaderTimeout、30s ReadTimeout、120s IdleTimeout；WriteTimeout 保持 0，避免截断任务状态 SSE 长连接
 
 ## 代码风格
@@ -146,6 +146,7 @@ frontend/                  # 独立 Web 前端 (v2.5.2, 非 Tauri)
 9. **Provider 诊断日志**：OpenAI、Gemini、OpenAI Image 的响应日志和错误返回默认只能记录状态、耗时、请求 ID、响应长度和有界脱敏预览，禁止输出完整响应体、未脱敏错误体或完整 base64 图片数据
 10. **HTTP Server 超时**：新增或修改后端 server 构造时必须保留 `ReadHeaderTimeout=5s`、`ReadTimeout=30s`、`IdleTimeout=120s`；不要给全局 `WriteTimeout` 设置短超时，因为 `/api/v1/tasks/:task_id/stream` 依赖 SSE 长连接保活
 11. **Worker Provider 超时**：新增或修改 provider 时必须把传入的 `context.Context` 继续传递给 HTTP 请求/长耗时操作并及时返回；Worker 不再为 `Generate` 额外派生 goroutine，超时后会在 provider 返回时记录 `生成超时(...)`，provider panic 会转换为任务失败；provider 内部如需 `io.Pipe`/multipart writer goroutine，也必须监听同一个 context 并在取消时关闭管道
+12. **模板市场渲染**：`desktop/src/components/TemplateMarket/TemplateMarketDrawer.tsx` 的模板列表必须保持响应式虚拟网格（2/3/4 列），只渲染可见 `TemplateCard`；修改搜索、筛选、预览或应用逻辑时不得回退为 `filteredTemplates.map(...)` 全量渲染
 
 ## 测试
 

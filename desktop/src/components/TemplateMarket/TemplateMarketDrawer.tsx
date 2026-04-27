@@ -1,6 +1,8 @@
 import React, { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
+import { AutoSizer } from 'react-virtualized-auto-sizer';
+import { Grid, type CellComponentProps, type GridImperativeAPI } from 'react-window';
 import {
   ArrowLeft,
   AtSign,
@@ -73,6 +75,26 @@ const mimeToExtension = (mime: string) => {
   return 'jpg';
 };
 const ALL_VALUE = TEMPLATE_ALL_VALUE;
+const TEMPLATE_GRID_GAP = 20;
+const TEMPLATE_GRID_MIN_CARD_WIDTH = 180;
+const TEMPLATE_GRID_CARD_HEIGHT = 320;
+
+const getTemplateColumnCount = (containerWidth: number, viewportWidth: number | undefined) => {
+  const basis = viewportWidth ?? containerWidth;
+  let count = 2;
+  if (basis >= 1280) {
+    count = 4;
+  } else if (basis >= 768) {
+    count = 3;
+  }
+
+  while (count > 2) {
+    const requiredWidth = count * TEMPLATE_GRID_MIN_CARD_WIDTH + (count - 1) * TEMPLATE_GRID_GAP;
+    if (containerWidth >= requiredWidth) break;
+    count -= 1;
+  }
+  return count;
+};
 
 const buildDefaultTemplateImage = (label: string) => `data:image/svg+xml;utf8,${encodeURIComponent(
   `<?xml version="1.0" encoding="UTF-8"?>
@@ -1049,6 +1071,159 @@ const TemplateCard = React.memo(function TemplateCard({
   );
 });
 
+type TemplateGridCellData = {
+  templates: TemplateItem[];
+  columnCount: number;
+  itemWidth: number;
+  itemHeight: number;
+  gap: number;
+  applyingId: string | null;
+  onPreview: (item: TemplateItem) => void;
+  onApply: (item: TemplateItem) => void;
+};
+
+const VirtualTemplateGrid = ({
+  templates,
+  applyingId,
+  onPreview,
+  onApply,
+  isFiltering,
+  scrollTopRef
+}: {
+  templates: TemplateItem[];
+  applyingId: string | null;
+  onPreview: (item: TemplateItem) => void;
+  onApply: (item: TemplateItem) => void;
+  isFiltering: boolean;
+  scrollTopRef: React.MutableRefObject<number>;
+}) => {
+  const gridRef = useRef<GridImperativeAPI | null>(null);
+  const gridMetricsRef = useRef({ innerHeight: 0, rowHeight: 0, rowCount: 0 });
+  const prevTemplatesLengthRef = useRef(templates.length);
+
+  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    scrollTopRef.current = event.currentTarget.scrollTop;
+  }, [scrollTopRef]);
+
+  useLayoutEffect(() => {
+    const prevLength = prevTemplatesLengthRef.current;
+    prevTemplatesLengthRef.current = templates.length;
+    const grid = gridRef.current?.element;
+    if (!grid) return;
+
+    const { innerHeight, rowHeight, rowCount } = gridMetricsRef.current;
+    if (innerHeight && rowHeight && rowCount) {
+      const maxScrollTop = Math.max(0, rowCount * rowHeight - innerHeight);
+      if (templates.length < prevLength || scrollTopRef.current > maxScrollTop) {
+        scrollTopRef.current = Math.min(scrollTopRef.current, maxScrollTop);
+      }
+    }
+
+    requestAnimationFrame(() => {
+      grid.scrollTo({ left: 0, top: scrollTopRef.current });
+    });
+  }, [templates.length, scrollTopRef]);
+
+  const Cell = useCallback(
+    ({
+      columnIndex,
+      rowIndex,
+      style,
+      ariaAttributes,
+      templates,
+      columnCount,
+      itemWidth,
+      itemHeight,
+      gap,
+      applyingId,
+      onPreview,
+      onApply
+    }: CellComponentProps<TemplateGridCellData>) => {
+      const index = rowIndex * columnCount + columnIndex;
+      const cellStyle: React.CSSProperties = {
+        ...style,
+        width: itemWidth + gap,
+        height: itemHeight + gap,
+        paddingRight: gap,
+        paddingBottom: gap,
+        boxSizing: 'border-box'
+      };
+
+      if (index >= templates.length) {
+        return <div {...ariaAttributes} style={cellStyle} />;
+      }
+
+      const item = templates[index];
+      return (
+        <div {...ariaAttributes} style={cellStyle}>
+          <div style={{ width: itemWidth, height: itemHeight }}>
+            <TemplateCard
+              item={item}
+              applyingId={applyingId}
+              onPreview={onPreview}
+              onApply={onApply}
+            />
+          </div>
+        </div>
+      );
+    },
+    []
+  );
+
+  return (
+    <div className={`h-full min-h-0 transition-opacity duration-200 ${isFiltering ? 'opacity-70' : 'opacity-100'}`}>
+      <AutoSizer
+        className="h-full w-full"
+        renderProp={({ width, height }) => {
+          if (!width || !height) return null;
+          const innerWidth = Math.max(0, width);
+          const innerHeight = Math.max(0, height);
+          if (innerWidth <= 0 || innerHeight <= 0) return null;
+
+          const viewportWidth =
+            typeof window !== 'undefined'
+              ? window.innerWidth || document.documentElement.clientWidth
+              : innerWidth;
+          const columnCount = getTemplateColumnCount(innerWidth, viewportWidth);
+          const columnWidth = Math.floor((innerWidth - TEMPLATE_GRID_GAP * columnCount) / columnCount);
+          const rowCount = Math.ceil(templates.length / columnCount);
+          gridMetricsRef.current = {
+            innerHeight,
+            rowHeight: TEMPLATE_GRID_CARD_HEIGHT + TEMPLATE_GRID_GAP,
+            rowCount
+          };
+
+          const cellProps: TemplateGridCellData = {
+            templates,
+            columnCount,
+            itemWidth: columnWidth,
+            itemHeight: TEMPLATE_GRID_CARD_HEIGHT,
+            gap: TEMPLATE_GRID_GAP,
+            applyingId,
+            onPreview,
+            onApply
+          };
+
+          return (
+            <Grid
+              gridRef={gridRef}
+              columnCount={columnCount}
+              columnWidth={columnWidth + TEMPLATE_GRID_GAP}
+              rowCount={rowCount}
+              rowHeight={TEMPLATE_GRID_CARD_HEIGHT + TEMPLATE_GRID_GAP}
+              cellComponent={Cell}
+              cellProps={cellProps}
+              overscanCount={2}
+              style={{ height: innerHeight, width: innerWidth }}
+              onScroll={handleScroll}
+            />
+          );
+        }}
+      />
+    </div>
+  );
+};
+
 export function TemplateMarketDrawer({
   onOpenChange
 }: {
@@ -1089,10 +1264,10 @@ export function TemplateMarketDrawer({
   const previousOverflowRef = useRef<string | null>(null);
   const previousOverscrollRef = useRef<string | null>(null);
   const requestIdRef = useRef(0);
-  const listRef = useRef<HTMLDivElement | null>(null);
   const templateDataRef = useRef(templateData);
   const templateSourceRef = useRef(templateSource);
   const scrollTopRef = useRef(0);
+  const filteringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousTabRef = useRef<'generate' | 'history'>('generate');
   const deferredSearch = useDeferredValue(search);
 
@@ -1217,10 +1392,25 @@ export function TemplateMarketDrawer({
   }, [fetchTemplates]);
 
   useEffect(() => {
-    if (isDormant || isFiltering) return;
+    if (filteringTimerRef.current) {
+      clearTimeout(filteringTimerRef.current);
+      filteringTimerRef.current = null;
+    }
+    if (isDormant) {
+      setIsFiltering(false);
+      return;
+    }
     setIsFiltering(true);
-    const timer = setTimeout(() => setIsFiltering(false), 180);
-    return () => clearTimeout(timer);
+    filteringTimerRef.current = setTimeout(() => {
+      setIsFiltering(false);
+      filteringTimerRef.current = null;
+    }, 180);
+    return () => {
+      if (filteringTimerRef.current) {
+        clearTimeout(filteringTimerRef.current);
+        filteringTimerRef.current = null;
+      }
+    };
   }, [isDormant, deferredSearch, channel, material, industry, ratio, templateData.items]);
 
 
@@ -1238,17 +1428,6 @@ export function TemplateMarketDrawer({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, previewTemplate]);
-
-  useLayoutEffect(() => {
-    if (!isOpen || isDormant) return;
-    const container = listRef.current;
-    if (!container) return;
-    const top = scrollTopRef.current;
-    if (top <= 0) return;
-    requestAnimationFrame(() => {
-      container.scrollTop = top;
-    });
-  }, [isOpen, isDormant, filteredTemplates.length]);
 
   useEffect(() => {
     const element = document.documentElement;
@@ -1294,7 +1473,6 @@ export function TemplateMarketDrawer({
     nextTab: 'generate' | 'history',
     options?: { deferClose?: boolean }
   ) => {
-    scrollTopRef.current = listRef.current?.scrollTop ?? 0;
     setTab(nextTab);
     const doClose = () => setIsOpen(false);
     if (options?.deferClose) {
@@ -1428,8 +1606,8 @@ export function TemplateMarketDrawer({
           </div>
         )}
 
-        <div ref={listRef} className="flex-1 min-h-0 flex flex-col px-6 pb-6 overflow-y-auto">
-          <div className="pt-6 space-y-6">
+        <div className="flex-1 min-h-0 flex flex-col px-6 pb-6">
+          <div className="pt-6 space-y-6 shrink-0">
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
               <Input
@@ -1531,7 +1709,7 @@ export function TemplateMarketDrawer({
             </div>
           </div>
 
-          <div className="mt-6">
+          <div className="mt-6 flex-1 min-h-0">
             {isDormant ? (
               <div
                 className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5"
@@ -1567,21 +1745,15 @@ export function TemplateMarketDrawer({
                 )}
               </div>
             ) : (
-              <div className={`${isFiltering ? 'opacity-70' : 'opacity-100'}`}>
-                <div
-                  className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5 pr-1"
-                  onContextMenu={(event) => event.preventDefault()}
-                >
-                  {filteredTemplates.map((item) => (
-                    <TemplateCard
-                      key={item.id}
-                      item={item}
-                      applyingId={applyingId}
-                      onPreview={setPreviewTemplate}
-                      onApply={applyTemplate}
-                    />
-                  ))}
-                </div>
+              <div className="h-full pr-1" onContextMenu={(event) => event.preventDefault()}>
+                <VirtualTemplateGrid
+                  templates={filteredTemplates}
+                  applyingId={applyingId}
+                  onPreview={setPreviewTemplate}
+                  onApply={applyTemplate}
+                  isFiltering={isFiltering}
+                  scrollTopRef={scrollTopRef}
+                />
               </div>
             )}
           </div>
