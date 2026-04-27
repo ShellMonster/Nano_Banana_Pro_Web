@@ -110,6 +110,7 @@ frontend/                  # 独立 Web 前端 (v2.5.2, 非 Tauri)
 4. **IPC 优化**：前后端只传文件路径，二进制数据通过 asset:// 协议直读
 5. **Prompt 优化**：singleflight 去重 + 10min 缓存，支持 text/json 两种输出模式
 6. **模板市场**：内嵌 JSON + 远程 GitHub Raw + 本地缓存三层策略，24h 自动刷新
+7. **服务端连接超时**：Go HTTP Server 使用 5s ReadHeaderTimeout、30s ReadTimeout、120s IdleTimeout；WriteTimeout 保持 0，避免截断任务状态 SSE 长连接
 
 ## 代码风格
 
@@ -143,6 +144,7 @@ frontend/                  # 独立 Web 前端 (v2.5.2, 非 Tauri)
 7. **图片存储路径**：桌面端默认 `~/Library/Application Support/com.banana.pro/` (macOS)，`%APPDATA%/com.banana.pro/` (Windows)
 8. **参考图边界**：后端必须同时限制 multipart `refImages` 与桌面端本地 `refPaths`，最多 10 张、单张最多 20MB、总计最多 80MB；本地路径读取必须先 `os.Open`，对已打开文件执行 `file.Stat` 并校验普通文件/大小/总量，再通过有界读取与关闭 helper 读取，禁止回退到裸 `os.ReadFile`
 9. **Provider 诊断日志**：OpenAI、Gemini、OpenAI Image 的响应日志和错误返回默认只能记录状态、耗时、请求 ID、响应长度和有界脱敏预览，禁止输出完整响应体、未脱敏错误体或完整 base64 图片数据
+10. **HTTP Server 超时**：新增或修改后端 server 构造时必须保留 `ReadHeaderTimeout=5s`、`ReadTimeout=30s`、`IdleTimeout=120s`；不要给全局 `WriteTimeout` 设置短超时，因为 `/api/v1/tasks/:task_id/stream` 依赖 SSE 长连接保活
 
 ## 测试
 

@@ -274,6 +274,8 @@ curl http://localhost:8080/api/v1/health
 
 后端 Provider verbose 诊断日志与错误返回默认只记录响应状态、耗时、请求 ID、响应长度和脱敏后的有界预览；Gemini / OpenAI / OpenAI Image 返回的完整响应体、未脱敏错误体与完整 base64 图片数据不会写入日志，便于排查问题的同时避免日志膨胀和敏感内容泄露。
 
+后端 HTTP Server 默认启用连接级保护：请求头读取超时 5 秒、完整请求读取超时 30 秒、空闲连接超时 120 秒。任务状态流接口（`/api/v1/tasks/:task_id/stream`）使用 SSE 长连接持续推送生成状态，因此全局写超时保持关闭，避免长时间生成任务的状态连接被服务器主动截断。
+
 或者使用 Makefile 快捷命令：
 ```bash
 make build    # 编译后端

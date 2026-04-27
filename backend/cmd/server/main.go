@@ -163,6 +163,18 @@ func getDefaultHost(configuredHost string) string {
 	return "127.0.0.1"
 }
 
+func newHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		// SSE 任务流需要在长时间生成期间持续保活，不能用全局写超时截断连接。
+		WriteTimeout: 0,
+		IdleTimeout:  120 * time.Second,
+	}
+}
+
 func main() {
 	workDir := getWorkDir()
 	log.Printf("Working directory: %s", workDir)
@@ -352,10 +364,7 @@ func main() {
 		log.Println("标准输入监听已禁用（Docker/生产模式）")
 	}
 
-	srv := &http.Server{
-		Addr:    net.JoinHostPort(host, strconv.Itoa(port)),
-		Handler: r,
-	}
+	srv := newHTTPServer(net.JoinHostPort(host, strconv.Itoa(port)), r)
 
 	go func() {
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
