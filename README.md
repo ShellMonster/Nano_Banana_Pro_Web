@@ -382,7 +382,7 @@ cat ~/.tauri/banana-updater.key
 
 Docker Web 镜像构建的是 `frontend/` 独立前端，其 package 版本跟随 `desktop/package.json` 的当前应用版本，避免发布说明、镜像元数据与桌面端版本不一致。
 
-Docker 运行时由 Nginx 代理 `/api/` 到后端，并使用标准 `$connection_upgrade` 映射处理 `Upgrade` / `Connection` 头：普通 API 请求不会被强制标记为 upgrade，WebSocket 或 SSE 等长连接场景仍保留 HTTP/1.1、Upgrade 头和 300 秒代理读写超时，避免生成任务状态连接被中途截断。
+Docker 运行时由 Nginx 代理 `/api/` 到后端，并使用标准 `$connection_upgrade` 映射处理 `Upgrade` / `Connection` 头：普通 API 请求不会被强制标记为 upgrade，WebSocket 或 SSE 等长连接场景仍保留 HTTP/1.1、Upgrade 头和 300 秒代理读写超时，避免生成任务状态连接被中途截断。主容器健康检查也通过 Nginx 同时探测 `/` 前端入口和 `/api/v1/health` 后端 API，避免只检查直连后端而漏掉 Nginx 或静态前端不可用的问题。
 
 项目提供完整的 Docker 部署方案，支持一键启动、国内镜像源加速、数据持久化等功能。
 
@@ -421,7 +421,7 @@ GO_PROXY=https://goproxy.cn,direct
 - 🚀 **环境自动检测**：后端自动识别 Docker 环境，监听 `0.0.0.0`（Tauri 监听 `127.0.0.1`）
 - 💾 **数据持久化**：图片存储和数据库自动挂载到 `./data/storage`
 - 🔌 **长连接代理**：Nginx API 代理使用 upgrade-safe 头部映射，兼容普通 HTTP、WebSocket 与 SSE 状态流
-- 🔄 **健康检查**：内置 `GET /api/v1/health` 健康检查接口，自动重启异常容器
+- 🔄 **健康检查**：Dockerfile 与 Compose 均通过 Nginx 同时检查 `/` 前端入口和 `GET /api/v1/health` 后端 API，自动重启异常容器
 - 🇨🇳 **镜像源支持**：通过 Build Args 配置国内镜像源，保持 Dockerfile 通用性
 
 ---
