@@ -35,6 +35,8 @@ docker compose -p banana-pro up -d
 
 # 发布流程
 git tag v2.8.0 && git push origin v2.8.0   # 触发 GitHub Actions 自动构建
+# Release CI
+cd desktop && npm ci                       # 发布构建使用 lockfile 严格安装依赖
 ```
 
 ## 项目结构
@@ -152,4 +154,5 @@ frontend/                  # 独立 Web 前端 (v2.5.2, 非 Tauri)
 - **release.yml**: 推送 `v*` tag 触发，构建 macOS ARM/Universal + Windows x64，生成 latest.json + .sig 签名
 - **pr-check.yml**: PR 触发，运行后端 `go vet` + 前端 `npm run build` 检查
 - CI 的 Go 版本统一通过 `backend/go.mod` 的 `go` 指令读取，不在 workflow 中写死版本号
+- Release 构建在 `desktop/package-lock.json` 存在时使用 `npm ci`，保证依赖安装严格跟随 lockfile
 - GitHub Secrets 需配置：`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`

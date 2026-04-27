@@ -148,7 +148,7 @@ jobs:
           fi
 
       - name: 安装前端依赖
-        run: npm install
+        run: npm ci
         working-directory: ./desktop
 
       - name: 导入 Apple 签名证书 (macOS)
