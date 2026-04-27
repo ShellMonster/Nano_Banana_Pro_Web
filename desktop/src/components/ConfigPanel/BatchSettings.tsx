@@ -1,5 +1,5 @@
 import { useMemo, useEffect } from 'react';
-import { Settings2 } from 'lucide-react';
+import { Info, Settings2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   useConfigStore,
@@ -27,12 +27,14 @@ export function BatchSettings() {
     aspectRatio,
     setAspectRatio,
     imageModel,
-    imageProvider
+    imageProvider,
+    refFiles
   } = useConfigStore();
 
   const supportedRatios = useMemo(() => getModelAspectRatios(imageModel), [imageModel]);
   const useNativeSize = isUsingNativeImageSize(imageProvider, imageModel);
   const useQuality = isQualityControlSupported(imageProvider);
+  const showAutoReferenceHint = !useNativeSize && aspectRatio === 'auto' && refFiles.length > 0;
 
   useEffect(() => {
     if (useNativeSize) {
@@ -100,7 +102,22 @@ export function BatchSettings() {
 
         {!useNativeSize ? (
           <div className="space-y-1">
-              <label className="text-xs text-gray-500">{t('config.batch.aspectRatio')}</label>
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-gray-500">{t('config.batch.aspectRatio')}</label>
+                {showAutoReferenceHint ? (
+                  <span
+                    className="group relative inline-flex h-4 w-4 items-center justify-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                    tabIndex={0}
+                    title={t('config.batch.autoRatioReferenceHint')}
+                    aria-label={t('config.batch.autoRatioReferenceHint')}
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                    <span className="pointer-events-none absolute left-0 top-full z-20 mt-1 hidden w-56 rounded-md bg-gray-900 px-2 py-1.5 text-xs leading-4 text-white shadow-lg group-hover:block group-focus:block">
+                      {t('config.batch.autoRatioReferenceHint')}
+                    </span>
+                  </span>
+                ) : null}
+              </div>
                <Select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="h-9 text-sm">
                   {supportedRatios.map((ratio) => {
                     const key = ratio.replace(':', '_');

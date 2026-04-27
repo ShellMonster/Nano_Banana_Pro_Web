@@ -95,11 +95,11 @@ func (p *OpenAIImageProvider) Generate(ctx context.Context, params map[string]in
 		return nil, fmt.Errorf("缺少 model_id 参数")
 	}
 
-	reqBody, promptPreview, err := p.buildImagesGenerationRequestBody(modelID, params)
+	refImages, err := collectOpenAIImageReferences(params["reference_images"])
 	if err != nil {
 		return nil, err
 	}
-	refImages, err := collectOpenAIImageReferences(params["reference_images"])
+	reqBody, promptPreview, err := p.buildImagesGenerationRequestBody(modelID, params, refImages)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func (p *OpenAIImageProvider) Generate(ctx context.Context, params map[string]in
 	}, nil
 }
 
-func (p *OpenAIImageProvider) buildImagesGenerationRequestBody(modelID string, params map[string]interface{}) (*openAIImagesGenerationRequest, string, error) {
+func (p *OpenAIImageProvider) buildImagesGenerationRequestBody(modelID string, params map[string]interface{}, refs []openAIImageReference) (*openAIImagesGenerationRequest, string, error) {
 	prompt, _ := params["prompt"].(string)
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
@@ -168,7 +168,7 @@ func (p *OpenAIImageProvider) buildImagesGenerationRequestBody(modelID string, p
 	body := &openAIImagesGenerationRequest{
 		Model:  modelID,
 		Prompt: prompt,
-		Size:   resolveOpenAIImageSize(modelID, params),
+		Size:   resolveOpenAIImageSize(modelID, params, refs),
 		N:      1,
 	}
 	if quality, _ := params["quality"].(string); strings.TrimSpace(quality) != "" {
@@ -461,12 +461,13 @@ func isValidOpenAIImageSize(size string) bool {
 	return regexp.MustCompile(`^[1-9][0-9]{1,4}x[1-9][0-9]{1,4}$`).MatchString(size)
 }
 
-func resolveOpenAIImageSize(modelID string, params map[string]interface{}) string {
+func resolveOpenAIImageSize(modelID string, params map[string]interface{}, refs ...[]openAIImageReference) string {
 	aspectRatio := firstStringParam(params, "aspect_ratio", "aspectRatio", "aspect")
 	resolution := firstStringParam(params, "resolution_level", "imageSize", "image_size", "resolution")
+	refImages := firstOpenAIImageReferenceSlice(refs)
 	model := strings.ToLower(strings.TrimSpace(modelID))
 	if size, _ := params["size"].(string); strings.TrimSpace(size) != "" {
-		return normalizeExplicitOpenAIImageSize(model, strings.TrimSpace(strings.ToLower(size)), aspectRatio, resolution)
+		return normalizeExplicitOpenAIImageSize(model, strings.TrimSpace(strings.ToLower(size)), aspectRatio, resolution, refImages)
 	}
 
 	if strings.Contains(model, "dall-e-3") {
@@ -476,12 +477,15 @@ func resolveOpenAIImageSize(modelID string, params map[string]interface{}) strin
 		return "1024x1024"
 	}
 	if strings.Contains(model, "gpt-image-2") {
+		if isAutoAspectRatio(aspectRatio) {
+			return computeDynamicOpenAIImageSizeFromReference(refImages, resolution)
+		}
 		return computeDynamicOpenAIImageSize(aspectRatio, resolution)
 	}
 	return resolveStandardGPTImageSize(aspectRatio)
 }
 
-func normalizeExplicitOpenAIImageSize(model, size, aspectRatio, resolution string) string {
+func normalizeExplicitOpenAIImageSize(model, size, aspectRatio, resolution string, refs []openAIImageReference) string {
 	if strings.Contains(model, "dall-e-3") {
 		switch size {
 		case "1024x1024", "1792x1024", "1024x1792":
@@ -502,6 +506,9 @@ func normalizeExplicitOpenAIImageSize(model, size, aspectRatio, resolution strin
 
 	if strings.Contains(model, "gpt-image-2") {
 		if size == "auto" {
+			if isAutoAspectRatio(aspectRatio) {
+				return computeDynamicOpenAIImageSizeFromReference(refs, resolution)
+			}
 			return computeDynamicOpenAIImageSize(aspectRatio, resolution)
 		}
 		return size
@@ -513,6 +520,17 @@ func normalizeExplicitOpenAIImageSize(model, size, aspectRatio, resolution strin
 	default:
 		return resolveStandardGPTImageSize(aspectRatio)
 	}
+}
+
+func firstOpenAIImageReferenceSlice(refs [][]openAIImageReference) []openAIImageReference {
+	if len(refs) == 0 {
+		return nil
+	}
+	return refs[0]
+}
+
+func isAutoAspectRatio(aspectRatio string) bool {
+	return strings.EqualFold(strings.TrimSpace(aspectRatio), "auto")
 }
 
 func firstStringParam(params map[string]interface{}, keys ...string) string {
@@ -555,11 +573,29 @@ func resolveStandardGPTImageSize(aspectRatio string) string {
 // 根据用户选择的宽高比和分辨率档位，为 gpt-image-2 代理计算实际 WxH。
 // 计算流程：先确定长边，再按宽高比推导短边，最后做 16 像素对齐和总像素上限保护。
 func computeDynamicOpenAIImageSize(aspectRatio, resolution string) string {
+	if isAutoAspectRatio(aspectRatio) {
+		return "auto"
+	}
+
 	wRatio, hRatio, ok := parseAspectRatio(aspectRatio)
 	if !ok {
 		return "auto"
 	}
+	return computeDynamicOpenAIImageSizeFromRatio(wRatio, hRatio, resolution)
+}
 
+func computeDynamicOpenAIImageSizeFromReference(refs []openAIImageReference, resolution string) string {
+	if len(refs) == 0 || len(refs[0].Content) == 0 {
+		return "auto"
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(refs[0].Content))
+	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 {
+		return "auto"
+	}
+	return computeDynamicOpenAIImageSizeFromRatio(cfg.Width, cfg.Height, resolution)
+}
+
+func computeDynamicOpenAIImageSizeFromRatio(wRatio, hRatio int, resolution string) string {
 	// gpt-image-2 代理支持更灵活的 WxH。这里用用户选择的分辨率作为长边，
 	// 再按比例计算短边，并统一向下取 16 的倍数，避免上游拒绝非对齐尺寸。
 	longEdge := 2048

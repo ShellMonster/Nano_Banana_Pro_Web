@@ -416,7 +416,9 @@
       "resolution2k": "2K (2048px)",
       "resolution4k": "4K (3840px)",
       "aspectRatio": "アスペクト比",
+      "autoRatioReferenceHint": "Auto は最初の参考画像のアスペクト比を使用し、選択した解像度で生成します。",
       "ratio": {
+        "auto": "Auto（自動）",
         "1_1": "1:1（正方形）",
         "1_4": "1:4（縦長）",
         "1_8": "1:8（超縦長）",

@@ -416,7 +416,9 @@
       "resolution2k": "2K (2048px)",
       "resolution4k": "4K (3840px)",
       "aspectRatio": "종횡비",
+      "autoRatioReferenceHint": "Auto는 첫 번째 참고 이미지의 종횡비와 선택한 해상도를 사용합니다.",
       "ratio": {
+        "auto": "Auto (자동)",
         "1_1": "1:1 (정사각형)",
         "1_4": "1:4 (세로 파노라마)",
         "1_8": "1:8 (초세로 파노라마)",

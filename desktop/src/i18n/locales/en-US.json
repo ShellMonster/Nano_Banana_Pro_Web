@@ -431,7 +431,9 @@
       "resolution2k": "2K (2048px)",
       "resolution4k": "4K (3840px)",
       "aspectRatio": "Aspect Ratio",
+      "autoRatioReferenceHint": "Auto uses the first reference image's aspect ratio and the selected resolution.",
       "ratio": {
+        "auto": "Auto",
         "1_1": "1:1 (Square)",
         "1_4": "1:4 (Tall Portrait)",
         "1_8": "1:8 (Ultra-tall Portrait)",

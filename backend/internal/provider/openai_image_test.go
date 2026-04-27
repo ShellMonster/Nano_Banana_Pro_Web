@@ -8,6 +8,7 @@ import (
 	"image-gen-service/internal/model"
 	"image/color"
 	"image/jpeg"
+	"image/png"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -42,6 +43,15 @@ func TestResolveOpenAIImageSize(t *testing.T) {
 				"imageSize":   "2K",
 			},
 			want: "2048x1152",
+		},
+		{
+			name:  "gpt image 2 supports auto aspect ratio",
+			model: "gpt-image-2",
+			params: map[string]interface{}{
+				"aspectRatio": "auto",
+				"imageSize":   "4K",
+			},
+			want: "auto",
 		},
 		{
 			name:  "standard gpt image uses supported landscape size",
@@ -220,6 +230,56 @@ func TestOpenAIImageProviderGenerateWithReferenceUsesEdits(t *testing.T) {
 	}
 	if len(result.Images) != 1 {
 		t.Fatalf("image count = %d, want 1", len(result.Images))
+	}
+}
+
+func TestOpenAIImageProviderAutoAspectRatioUsesReferenceDimensions(t *testing.T) {
+	var ref bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 100, 200))
+	img.Set(0, 0, color.White)
+	if err := png.Encode(&ref, img); err != nil {
+		t.Fatalf("encode png: %v", err)
+	}
+
+	seenFields := map[string]string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(2 << 20); err != nil {
+			t.Fatalf("ParseMultipartForm: %v", err)
+		}
+		for key, values := range r.MultipartForm.Value {
+			if len(values) > 0 {
+				seenFields[key] = values[0]
+			}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": []map[string]string{{"b64_json": tinyPNGBase64}},
+		})
+	}))
+	defer server.Close()
+
+	p, err := NewOpenAIImageProvider(&model.ProviderConfig{
+		ProviderName:   "openai-image",
+		APIBase:        server.URL,
+		APIKey:         "test-key",
+		TimeoutSeconds: 5,
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIImageProvider: %v", err)
+	}
+
+	_, err = p.Generate(t.Context(), map[string]interface{}{
+		"prompt":           "edit prompt",
+		"model_id":         "gpt-image-2",
+		"aspect_ratio":     "auto",
+		"resolution_level": "2K",
+		"count":            1,
+		"reference_images": []interface{}{ref.Bytes()},
+	})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if seenFields["size"] != "1024x2048" {
+		t.Fatalf("size = %q, want 1024x2048; fields=%+v", seenFields["size"], seenFields)
 	}
 }
 

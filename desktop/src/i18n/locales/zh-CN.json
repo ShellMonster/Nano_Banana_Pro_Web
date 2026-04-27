@@ -431,7 +431,9 @@
       "resolution2k": "2K (2048px)",
       "resolution4k": "4K (3840px)",
       "aspectRatio": "宽高比",
+      "autoRatioReferenceHint": "Auto 会按第一张参考图的宽高比处理，并结合当前分辨率生成。",
       "ratio": {
+        "auto": "Auto (自动)",
         "1_1": "1:1 (正方形)",
         "1_4": "1:4 (超高竖图)",
         "1_8": "1:8 (极高竖图)",
