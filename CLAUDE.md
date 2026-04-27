@@ -141,6 +141,7 @@ frontend/                  # 独立 Web 前端 (v2.5.2, 非 Tauri)
 5. **Docker vs Desktop**：后端通过 `platform/runtime.go` 检测运行环境，Docker 监听 `0.0.0.0`，Tauri 监听 `127.0.0.1`
 6. **configStore 迁移**：前端配置存储在 localStorage，版本迁移在 `configStore.ts` 的 `migrations` 中处理，当前版本 v19
 7. **图片存储路径**：桌面端默认 `~/Library/Application Support/com.banana.pro/` (macOS)，`%APPDATA%/com.banana.pro/` (Windows)
+8. **参考图边界**：后端必须同时限制 multipart `refImages` 与桌面端本地 `refPaths`，最多 10 张、单张最多 20MB、总计最多 80MB；本地路径读取必须先 `os.Open`，对已打开文件执行 `file.Stat` 并校验普通文件/大小/总量，再通过有界读取与关闭 helper 读取，禁止回退到裸 `os.ReadFile`
 
 ## 测试
 

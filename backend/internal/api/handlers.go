@@ -207,13 +207,25 @@ func validateRefPathForTauri(raw string) (string, error) {
 	if normalizedStorage := normalizeStoragePath(trimmed); normalizedStorage != "" {
 		if configDir, err := os.UserConfigDir(); err == nil && strings.TrimSpace(configDir) != "" {
 			candidate := filepath.Join(configDir, "com.dztool.banana", strings.TrimPrefix(normalizedStorage, "/"))
-			if _, err := os.Stat(candidate); err == nil {
+			if info, err := os.Stat(candidate); err == nil {
+				if err := validateReferenceImageRegularFile(filepath.Base(candidate), info.Mode().IsRegular()); err != nil {
+					return "", err
+				}
+				if err := validateReferenceImageSize(filepath.Base(candidate), info.Size()); err != nil {
+					return "", err
+				}
 				return filepath.Clean(candidate), nil
 			}
 		}
 		if cacheDir, err := os.UserCacheDir(); err == nil && strings.TrimSpace(cacheDir) != "" {
 			candidate := filepath.Join(cacheDir, "com.dztool.banana", strings.TrimPrefix(normalizedStorage, "/"))
-			if _, err := os.Stat(candidate); err == nil {
+			if info, err := os.Stat(candidate); err == nil {
+				if err := validateReferenceImageRegularFile(filepath.Base(candidate), info.Mode().IsRegular()); err != nil {
+					return "", err
+				}
+				if err := validateReferenceImageSize(filepath.Base(candidate), info.Size()); err != nil {
+					return "", err
+				}
 				return filepath.Clean(candidate), nil
 			}
 		}
@@ -233,6 +245,16 @@ func validateRefPathForTauri(raw string) (string, error) {
 	}
 	for _, root := range allowedRefPathRoots() {
 		if pathWithinRoot(real, root) {
+			info, err := os.Stat(real)
+			if err != nil {
+				return "", fmt.Errorf("读取本地参考图失败: %w", err)
+			}
+			if err := validateReferenceImageRegularFile(filepath.Base(real), info.Mode().IsRegular()); err != nil {
+				return "", err
+			}
+			if err := validateReferenceImageSize(filepath.Base(real), info.Size()); err != nil {
+				return "", err
+			}
 			return real, nil
 		}
 	}
@@ -541,6 +563,18 @@ func GenerateWithImagesHandler(c *gin.Context) {
 	var refImageBytes []interface{}
 	for _, file := range req.RefImages {
 		if len(file.Content) > 0 {
+			if err := validateReferenceImageCount(len(refImageBytes) + 1); err != nil {
+				Error(c, http.StatusBadRequest, 400, err.Error())
+				return
+			}
+			if err := validateReferenceImageSize(file.Name, int64(len(file.Content))); err != nil {
+				Error(c, http.StatusBadRequest, 400, err.Error())
+				return
+			}
+			if err := validateReferenceImagesTotalBytes(totalReferenceImageBytes(refImageBytes) + int64(len(file.Content))); err != nil {
+				Error(c, http.StatusBadRequest, 400, err.Error())
+				return
+			}
 			refImageBytes = append(refImageBytes, file.Content)
 		}
 	}
@@ -556,14 +590,59 @@ func GenerateWithImagesHandler(c *gin.Context) {
 			validatedPath, validateErr := validateRefPathForTauri(path)
 			if validateErr != nil {
 				log.Printf("[API] 非法本地参考图路径: %s, err: %v\n", path, validateErr)
-				Error(c, http.StatusBadRequest, 400, "参考图路径不在允许目录内")
+				if strings.Contains(validateErr.Error(), "参考图") {
+					Error(c, http.StatusBadRequest, 400, validateErr.Error())
+				} else {
+					Error(c, http.StatusBadRequest, 400, "参考图路径不在允许目录内")
+				}
 				return
 			}
 			targetPath = validatedPath
-			content, err := os.ReadFile(targetPath)
+			file, err := os.Open(targetPath)
+			if err != nil {
+				log.Printf("[API] 打开本地参考图失败: %s, err: %v\n", targetPath, err)
+				Error(c, http.StatusBadRequest, 400, "读取本地参考图失败")
+				return
+			}
+			info, err := file.Stat()
+			if err != nil {
+				file.Close()
+				log.Printf("[API] 检查本地参考图失败: %s, err: %v\n", targetPath, err)
+				Error(c, http.StatusBadRequest, 400, "读取本地参考图失败")
+				return
+			}
+			if err := validateReferenceImageRegularFile(filepath.Base(targetPath), info.Mode().IsRegular()); err != nil {
+				file.Close()
+				Error(c, http.StatusBadRequest, 400, err.Error())
+				return
+			}
+			if err := validateReferenceImageCount(len(refImageBytes) + 1); err != nil {
+				file.Close()
+				Error(c, http.StatusBadRequest, 400, err.Error())
+				return
+			}
+			if err := validateReferenceImageSize(filepath.Base(targetPath), info.Size()); err != nil {
+				file.Close()
+				Error(c, http.StatusBadRequest, 400, err.Error())
+				return
+			}
+			if err := validateReferenceImagesTotalBytes(totalReferenceImageBytes(refImageBytes) + info.Size()); err != nil {
+				file.Close()
+				Error(c, http.StatusBadRequest, 400, err.Error())
+				return
+			}
+			content, err := readAndCloseReferenceImage(file, filepath.Base(targetPath))
 			if err != nil {
 				log.Printf("[API] 读取本地参考图失败: %s, err: %v\n", targetPath, err)
-				Error(c, http.StatusBadRequest, 400, "读取本地参考图失败")
+				if strings.Contains(err.Error(), "参考图") {
+					Error(c, http.StatusBadRequest, 400, err.Error())
+				} else {
+					Error(c, http.StatusBadRequest, 400, "读取本地参考图失败")
+				}
+				return
+			}
+			if err := validateReferenceImagesTotalBytes(totalReferenceImageBytes(refImageBytes) + int64(len(content))); err != nil {
+				Error(c, http.StatusBadRequest, 400, err.Error())
 				return
 			}
 			refImageBytes = append(refImageBytes, content)
