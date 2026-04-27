@@ -299,6 +299,8 @@ npm run tauri dev
 
 桌面端历史记录由本地数据库保存完整数据，`history-cache` localStorage 仅作为启动期轻量快照：最多保留最近 20 条列表项、`total/page/hasMore/lastLoadedAt` 等分页元信息，并在写入和旧缓存迁移时剥离图片 `url` / `thumbnailUrl` 派生字段。修改 `desktop/src/store/historyStore.ts` 时请保持缓存有界，避免把完整历史、base64、预览 URL 或其他可重新计算的展示字段写入 localStorage。
 
+桌面端 Provider 配置 API 的权威入口是 `desktop/src/services/providerApi.ts`：`ProviderConfig` 类型、`getProviders` 和 `/providers/config` 更新逻辑都从这里维护。`desktop/src/services/configApi.ts` 仅保留兼容旧调用的重导出或旧 GET 包装，新增调用请直接从 `providerApi.ts` 导入，避免两份 provider 配置类型或更新方法再次分叉。
+
 ### 4. Web 前端开发
 ```bash
 cd frontend
