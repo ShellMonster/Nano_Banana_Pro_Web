@@ -10,6 +10,7 @@ import { calculateMd5, compressImage, fetchFileWithMd5 } from '../../utils/image
 import { getImageUrl } from '../../services/api';
 import { useTranslation } from 'react-i18next';
 import { imageToPrompt } from '../../services/promptApi';
+import { useReferenceImagePaste } from './useReferenceImagePaste';
 
 const REF_IMAGE_DIR = 'ref_images';
 const REORDER_DRAG_THRESHOLD = 6;
@@ -849,176 +850,18 @@ export function ReferenceImageUpload() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5]);
 
-  const extractImageFilesFromClipboard = useCallback((clipboardData: DataTransfer | null): File[] => {
-    if (!clipboardData) return [];
-    const files: File[] = [];
-
-    // 1) items（最常见：截图/复制图片）
-    const items = clipboardData.items;
-    if (items && items.length > 0) {
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.type && item.type.startsWith('image/')) {
-          const file = item.getAsFile();
-          if (file) files.push(file);
-        }
-      }
-    }
-
-    // 2) files（部分平台会把图片放在 files 里）
-    if (clipboardData.files && clipboardData.files.length > 0) {
-      Array.from(clipboardData.files).forEach((f) => {
-        if (f.type && f.type.startsWith('image/')) files.push(f);
-      });
-    }
-
-    return files;
-  }, []);
-
-  const processPastedFiles = useCallback(async (files: File[]) => {
-    if (files.length === 0) return;
-
-    // 收起状态也允许粘贴：自动展开，避免“无提示/无响应”的体验
-    if (!isExpanded) {
-      setIsExpanded(true);
-    }
-
-    await withProcessingLock(async () => {
-      const remainingSlots = 10 - refFiles.length;
-      if (remainingSlots <= 0) {
-        toast.error(t('refImage.toast.full'));
-        return;
-      }
-
-      const clipped = files.slice(0, remainingSlots);
-      if (files.length > remainingSlots) {
-        toast.error(t('refImage.toast.remainingSlots', { count: remainingSlots }));
-      }
-
-      const uniqueFiles = await processFilesWithMd5(clipped);
-      if (uniqueFiles.length > 0) {
-        addRefFiles(uniqueFiles);
-        const compressedFiles = uniqueFiles.filter(f => (f as ExtendedFile).__compressed);
-        if (compressedFiles.length > 0) {
-          toast.success(t('refImage.toast.addedCompressed', { count: uniqueFiles.length, compressed: compressedFiles.length }));
-        } else {
-          toast.success(t('refImage.toast.addedCount', { count: uniqueFiles.length }));
-        }
-      } else {
-        toast.info(t('refImage.toast.exists'));
-      }
-    });
-  }, [isExpanded, refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5]);
-
-  const tryPasteFromTauriClipboard = useCallback(async () => {
-    const remainingSlots = 10 - refFiles.length;
-    if (remainingSlots <= 0) {
-      toast.error(t('refImage.toast.full'));
-      return;
-    }
-
-    // 收起状态也允许粘贴：自动展开
-    if (!isExpanded) {
-      setIsExpanded(true);
-    }
-
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const path = await invoke<string | null>('read_image_from_clipboard');
-      const imagePath = (path || '').trim();
-      if (!imagePath) return; // 剪贴板里没有图片：静默忽略
-
-      const md5Key = buildPathMd5(imagePath);
-      if (fileMd5SetRef.current.has(md5Key)) {
-        toast.info(t('refImage.toast.exists'));
-        return;
-      }
-
-      const name = imagePath.split(/[/\\]/).pop() || `clipboard-${Date.now()}.png`;
-      const file = new File([], name, { type: 'image/png' }) as ExtendedFile;
-      file.__path = imagePath;
-      file.__md5 = md5Key;
-
-      addRefFiles([file]);
-      toast.success(t('refImage.toast.addedOne'));
-    } catch (err) {
-      // 原生读取失败：静默忽略，避免影响正常文本粘贴体验
-      console.warn('[ReferenceImageUpload] read_image_from_clipboard failed:', err);
-    }
-  }, [isExpanded, refFiles.length, addRefFiles]);
-
-  // 处理粘贴上传（React 事件）
-  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
-    const files = extractImageFilesFromClipboard(e.clipboardData || null);
-    if (files.length > 0) {
-      e.preventDefault();
-      e.stopPropagation();
-      try {
-        await processPastedFiles(files);
-      } catch (error) {
-        if (error instanceof Error && error.message === BUSY_ERROR_MESSAGE) {
-          toast.info(t('refImage.toast.busy'));
-        } else {
-          console.error('Paste image failed:', error);
-          const message = error instanceof Error ? error.message : t('refImage.toast.unknown');
-          toast.error(t('refImage.toast.pasteFailed', { message }));
-        }
-      }
-      return;
-    }
-
-    const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
-    if (!isTauri) return;
-
-    // 如果用户在粘贴纯文本（且当前在输入框内），不要触发原生读取，避免拖慢输入体验
-    const plain = (e.clipboardData?.getData('text/plain') || '').trim();
-    const target = e.target as HTMLElement | null;
-    const isTextInputTarget = Boolean(
-      target &&
-      ((target as any).isContentEditable ||
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA')
-    );
-    if (plain && isTextInputTarget) return;
-
-    // 兜底：Tauri 打包环境下 Web ClipboardData 可能拿不到图片数据，尝试原生读取
-    void tryPasteFromTauriClipboard();
-  }, [extractImageFilesFromClipboard, processPastedFiles, tryPasteFromTauriClipboard]);
-
-  // 全局 paste 捕获：不要求用户必须聚焦参考图区域
-  useEffect(() => {
-    const onPaste = (e: ClipboardEvent) => {
-      if (!e.clipboardData) return;
-
-      const files = extractImageFilesFromClipboard(e.clipboardData);
-      if (files.length > 0) {
-        e.preventDefault();
-        e.stopPropagation();
-        void processPastedFiles(files);
-        return;
-      }
-
-      const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
-      if (!isTauri) return;
-
-      const plain = (e.clipboardData.getData('text/plain') || '').trim();
-      const target = e.target as HTMLElement | null;
-      const isTextInputTarget = Boolean(
-        target &&
-        ((target as any).isContentEditable ||
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA')
-      );
-      if (plain && isTextInputTarget) return;
-
-      void tryPasteFromTauriClipboard();
-    };
-
-    window.addEventListener('paste', onPaste, true);
-    return () => {
-      window.removeEventListener('paste', onPaste, true);
-    };
-  }, [extractImageFilesFromClipboard, processPastedFiles, tryPasteFromTauriClipboard]);
+  const { handlePaste } = useReferenceImagePaste({
+    isExpanded,
+    setIsExpanded,
+    refFilesLength: refFiles.length,
+    addRefFiles,
+    withProcessingLock,
+    processFilesWithMd5,
+    fileMd5SetRef,
+    buildPathMd5,
+    busyErrorMessage: BUSY_ERROR_MESSAGE,
+    t,
+  });
 
   // 处理拖拽开始 - 添加视觉反馈
   const handleDragEnter = useCallback((e: React.DragEvent) => {
