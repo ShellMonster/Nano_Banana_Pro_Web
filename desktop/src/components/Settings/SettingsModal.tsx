@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, FileText, FolderOpen, Copy, RefreshCw, Languages, MessageSquare, Github, ScanEye, HelpCircle, Image as ImageIcon, Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useShallow } from 'zustand/react/shallow';
 import { useConfigStore } from '../../store/configStore';
 import { Input } from '../common/Input';
 import { Select } from '../common/Select';
@@ -183,7 +184,63 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setLanguage,
     setLanguageResolved,
     setShowOnboarding
-  } = useConfigStore();
+  } = useConfigStore(
+    useShallow((s) => ({
+      imageProvider: s.imageProvider,
+      setImageProvider: s.setImageProvider,
+      imageApiKey: s.imageApiKey,
+      setImageApiKey: s.setImageApiKey,
+      imageApiBaseUrl: s.imageApiBaseUrl,
+      setImageApiBaseUrl: s.setImageApiBaseUrl,
+      imageModel: s.imageModel,
+      setImageModel: s.setImageModel,
+      imageTimeoutSeconds: s.imageTimeoutSeconds,
+      setImageTimeoutSeconds: s.setImageTimeoutSeconds,
+      imageMaxRetries: s.imageMaxRetries,
+      setImageMaxRetries: s.setImageMaxRetries,
+      enableRefImageCompression: s.enableRefImageCompression,
+      setEnableRefImageCompression: s.setEnableRefImageCompression,
+      visionProvider: s.visionProvider,
+      setVisionProvider: s.setVisionProvider,
+      visionApiBaseUrl: s.visionApiBaseUrl,
+      setVisionApiBaseUrl: s.setVisionApiBaseUrl,
+      visionApiKey: s.visionApiKey,
+      setVisionApiKey: s.setVisionApiKey,
+      visionModel: s.visionModel,
+      setVisionModel: s.setVisionModel,
+      visionTimeoutSeconds: s.visionTimeoutSeconds,
+      setVisionTimeoutSeconds: s.setVisionTimeoutSeconds,
+      visionMaxRetries: s.visionMaxRetries,
+      setVisionMaxRetries: s.setVisionMaxRetries,
+      setVisionSyncedConfig: s.setVisionSyncedConfig,
+      chatProvider: s.chatProvider,
+      setChatProvider: s.setChatProvider,
+      chatApiBaseUrl: s.chatApiBaseUrl,
+      setChatApiBaseUrl: s.setChatApiBaseUrl,
+      chatApiKey: s.chatApiKey,
+      setChatApiKey: s.setChatApiKey,
+      chatModel: s.chatModel,
+      setChatModel: s.setChatModel,
+      chatTimeoutSeconds: s.chatTimeoutSeconds,
+      setChatTimeoutSeconds: s.setChatTimeoutSeconds,
+      chatMaxRetries: s.chatMaxRetries,
+      setChatMaxRetries: s.setChatMaxRetries,
+      setChatSyncedConfig: s.setChatSyncedConfig,
+      defaultPromptOptimizeMode: s.defaultPromptOptimizeMode,
+      setDefaultPromptOptimizeMode: s.setDefaultPromptOptimizeMode,
+      enableSystemNotifications: s.enableSystemNotifications,
+      setEnableSystemNotifications: s.setEnableSystemNotifications,
+      notifyOnlyWhenBackground: s.notifyOnlyWhenBackground,
+      setNotifyOnlyWhenBackground: s.setNotifyOnlyWhenBackground,
+      notifyOnFailure: s.notifyOnFailure,
+      setNotifyOnFailure: s.setNotifyOnFailure,
+      language: s.language,
+      languageResolved: s.languageResolved,
+      setLanguage: s.setLanguage,
+      setLanguageResolved: s.setLanguageResolved,
+      setShowOnboarding: s.setShowOnboarding
+    }))
+  );
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('image');
   const [showImageKey, setShowImageKey] = useState(false);

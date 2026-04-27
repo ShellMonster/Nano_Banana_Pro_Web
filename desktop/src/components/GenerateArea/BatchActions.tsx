@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { CheckSquare, Square, Download, Trash2, Loader2 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useGenerateStore } from '../../store/generateStore';
 import { useGenerateDisplayImages } from '../../hooks/useGenerateDisplayImages';
 import { Button } from '../common/Button';
@@ -10,7 +11,14 @@ import { useTranslation } from 'react-i18next';
 export function BatchActions() {
   const { t } = useTranslation();
   const images = useGenerateDisplayImages();
-  const { selectedIds, selectAll, clearSelection, clearImages } = useGenerateStore();
+  const { selectedIds, selectAll, clearSelection, clearImages } = useGenerateStore(
+    useShallow((s) => ({
+      selectedIds: s.selectedIds,
+      selectAll: s.selectAll,
+      clearSelection: s.clearSelection,
+      clearImages: s.clearImages
+    }))
+  );
   const [isExporting, setIsExporting] = useState(false);
   const objectUrlRef = useRef<string | null>(null);  // 记录 ObjectURL
 

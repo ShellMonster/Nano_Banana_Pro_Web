@@ -148,6 +148,7 @@ frontend/                  # 独立 Web 前端 (v2.5.2, 非 Tauri)
 11. **Worker Provider 超时**：新增或修改 provider 时必须把传入的 `context.Context` 继续传递给 HTTP 请求/长耗时操作并及时返回；Worker 不再为 `Generate` 额外派生 goroutine，超时后会在 provider 返回时记录 `生成超时(...)`，provider panic 会转换为任务失败；provider 内部如需 `io.Pipe`/multipart writer goroutine，也必须监听同一个 context 并在取消时关闭管道
 12. **模板市场渲染**：`desktop/src/components/TemplateMarket/TemplateMarketDrawer.tsx` 的模板列表必须保持响应式虚拟网格（2/3/4 列），只渲染可见 `TemplateCard`；修改搜索、筛选、预览或应用逻辑时不得回退为 `filteredTemplates.map(...)` 全量渲染
 13. **图片 URL 诊断日志**：`desktop/src/services/api.ts` 的 `getImageUrl` 属于批量图片渲染热路径，URL 转换/回退日志必须通过 `getDiagnosticVerbose()` 或等价诊断开关门控；默认不得在控制台输出每张图片的 URL 生成日志
+14. **Zustand 订阅范围**：桌面端组件不得直接调用 `useConfigStore()`、`useGenerateStore()`、`useToastStore()` 等整仓订阅；只读取单字段时使用 selector，读取多个字段/action 时使用 `useShallow` 包裹对象 selector，避免无关状态变化触发重渲染，同时不得改变 store state shape 或 persistence 行为
 
 ## 测试
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { useShallow } from 'zustand/react/shallow';
 import { useToastStore, ToastType } from '../../store/toastStore';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from 'lucide-react';
 import { cn } from './Button';
@@ -19,7 +20,12 @@ const bgMap: Record<ToastType, string> = {
 };
 
 export function ToastContainer() {
-  const { toasts, removeToast } = useToastStore();
+  const { toasts, removeToast } = useToastStore(
+    useShallow((s) => ({
+      toasts: s.toasts,
+      removeToast: s.removeToast
+    }))
+  );
 
   // 使用 createPortal 渲染到 body，确保 Toast 始终在最顶层
   // z-index 使用 2147483647（32位有符号整数最大值），确保不会被任何元素遮挡

@@ -294,6 +294,8 @@ npm run tauri dev
 
 桌面端图片 URL 生成位于批量渲染热路径，默认不会为每张图片输出 `getImageUrl` 转换/回退日志，避免历史记录或模板大量渲染时刷屏。需要排查 asset/http URL 生成问题时，可在开发者工具中执行 `localStorage.setItem('diagnostic.verbose', '1')` 后刷新应用启用诊断日志；关闭时执行 `localStorage.setItem('diagnostic.verbose', '0')` 或清理该键。
 
+桌面端组件读取 Zustand 状态时应使用精确 selector，避免 `useConfigStore()` / `useGenerateStore()` / `useToastStore()` 这类整仓订阅；同一组件需要多个字段或 action 时，请使用 `useShallow` 包裹对象 selector，以减少无关状态变化带来的重渲染，并保持现有 store 持久化结构不变。
+
 ### 4. Web 前端开发
 ```bash
 cd frontend
