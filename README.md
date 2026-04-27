@@ -301,6 +301,8 @@ npm run tauri dev
 
 桌面端 Provider 配置 API 的权威入口是 `desktop/src/services/providerApi.ts`：`ProviderConfig` 类型、`getProviders` 和 `/providers/config` 更新逻辑都从这里维护。`desktop/src/services/configApi.ts` 仅保留兼容旧调用的重导出或旧 GET 包装，新增调用请直接从 `providerApi.ts` 导入，避免两份 provider 配置类型或更新方法再次分叉。
 
+桌面端模板市场已按职责拆分：`TemplateMarketDrawer.tsx` 继续负责抽屉开合、模板数据加载、过滤状态、虚拟网格、预览与应用模板；搜索框、已选筛选 chip、分类筛选按钮、结果数量和刷新按钮由 `desktop/src/components/TemplateMarket/TemplateMarketFilters.tsx` 维护。调整模板市场时请保持这个边界，避免把筛选 UI、虚拟化网格和预览/应用逻辑重新混在同一个组件里。
+
 ### 4. Web 前端开发
 ```bash
 cd frontend

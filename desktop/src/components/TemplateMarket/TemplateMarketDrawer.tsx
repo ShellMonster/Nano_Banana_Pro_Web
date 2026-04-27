@@ -19,8 +19,6 @@ import {
   Maximize2,
   MessageCircle,
   Printer,
-  RefreshCw,
-  Search,
   ShoppingBag,
   Smile,
   Sparkles,
@@ -30,7 +28,6 @@ import {
   ZoomIn,
   ZoomOut
 } from 'lucide-react';
-import { Input } from '../common/Input';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { useConfigStore } from '../../store/configStore';
@@ -49,6 +46,7 @@ import {
   templateLabelKeys,
   TEMPLATE_ALL_VALUE
 } from '../../data/templateMarket';
+import { TemplateMarketFilters, type ActiveTemplateFilter } from './TemplateMarketFilters';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const hashString = async (value: string) => {
@@ -211,45 +209,6 @@ const openExternalUrl = async (url: string) => {
   }
   window.open(url, '_blank', 'noopener,noreferrer');
 };
-
-const ActiveFilterChip = ({
-  label,
-  onClear
-}: {
-  label: string;
-  onClear: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={onClear}
-    className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/80 border border-white/60 px-3 py-1 text-xs text-slate-600 hover:bg-white"
-  >
-    <span>{label}</span>
-    <X className="w-3 h-3" />
-  </button>
-);
-
-const FilterChip = ({
-  label,
-  active,
-  onClick
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-      active
-        ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-        : 'bg-white/70 text-slate-600 hover:bg-white'
-    }`}
-  >
-    {label}
-  </button>
-);
 
 const buildSearchText = (item: TemplateItem) => {
   const tags = item.tags ? item.tags.join(' ') : '';
@@ -1312,7 +1271,7 @@ export function TemplateMarketDrawer({
   }, [isDormant, deferredSearch, channel, material, industry, ratio, templateData.items, searchIndex]);
 
   const activeFilters = useMemo(() => {
-    const filters: { label: string; onClear: () => void }[] = [];
+    const filters: ActiveTemplateFilter[] = [];
     if (search.trim()) {
       filters.push({ label: t('templateMarket.active.search', { keyword: search.trim() }), onClear: () => setSearch('') });
     }
@@ -1607,107 +1566,25 @@ export function TemplateMarketDrawer({
         )}
 
         <div className="flex-1 min-h-0 flex flex-col px-6 pb-6">
-          <div className="pt-6 space-y-6 shrink-0">
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={t('templateMarket.searchPlaceholder')}
-                className="pl-10 bg-white/80"
-              />
-            </div>
-            <div className="flex items-center gap-2 overflow-x-auto flex-nowrap min-h-[34px] pb-1">
-              <span className="text-xs text-slate-400 shrink-0">{t('templateMarket.activeFilters.title')}</span>
-              {hasActiveFilters ? (
-                <>
-                  {activeFilters.map((filter) => (
-                    <ActiveFilterChip key={filter.label} label={filter.label} onClear={filter.onClear} />
-                  ))}
-                  <button
-                    type="button"
-                    onClick={clearAllFilters}
-                    className="text-xs text-blue-600 hover:underline shrink-0"
-                  >
-                    {t('templateMarket.actions.clearFilters')}
-                  </button>
-                </>
-              ) : (
-                <span className="text-xs text-slate-400 shrink-0">{t('templateMarket.activeFilters.empty')}</span>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">{t('templateMarket.filters.channel')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {normalizedMeta.channels.map((item) => (
-                    <FilterChip
-                      key={item}
-                      label={formatFilterLabel(item)}
-                      active={channel === item}
-                      onClick={() => setChannel(item)}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">{t('templateMarket.filters.material')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {normalizedMeta.materials.map((item) => (
-                    <FilterChip
-                      key={item}
-                      label={formatFilterLabel(item)}
-                      active={material === item}
-                      onClick={() => setMaterial(item)}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">{t('templateMarket.filters.industry')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {normalizedMeta.industries.map((item) => (
-                    <FilterChip
-                      key={item}
-                      label={formatFilterLabel(item)}
-                      active={industry === item}
-                      onClick={() => setIndustry(item)}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">{t('templateMarket.filters.ratio')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {normalizedMeta.ratios.map((item) => (
-                    <FilterChip
-                      key={item}
-                      label={formatFilterLabel(item)}
-                      active={ratio === item}
-                      onClick={() => setRatio(item)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">
-                  {isLoading ? t('templateMarket.list.loading') : t('templateMarket.list.count', { count: filteredTemplates.length })}
-                </p>
-              </div>
-                <button
-                type="button"
-                onClick={() => fetchTemplates(true)}
-                disabled={isLoading}
-                className="w-8 h-8 rounded-full bg-white/70 border border-white/60 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-          </div>
+          <TemplateMarketFilters
+            search={search}
+            onSearchChange={setSearch}
+            activeFilters={activeFilters}
+            onClearAllFilters={clearAllFilters}
+            meta={normalizedMeta}
+            channel={channel}
+            material={material}
+            industry={industry}
+            ratio={ratio}
+            onChannelChange={setChannel}
+            onMaterialChange={setMaterial}
+            onIndustryChange={setIndustry}
+            onRatioChange={setRatio}
+            formatFilterLabel={formatFilterLabel}
+            isLoading={isLoading}
+            resultCount={filteredTemplates.length}
+            onRefresh={() => fetchTemplates(true)}
+          />
 
           <div className="mt-6 flex-1 min-h-0">
             {isDormant ? (
