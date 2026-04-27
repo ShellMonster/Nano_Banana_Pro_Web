@@ -33,6 +33,10 @@ interface HistoryState {
 let latestHistoryRequestId = 0;
 
 type HistoryTaskUpdate = Partial<HistoryItem> & { id: string };
+type PersistedHistoryState = Pick<HistoryState, 'items' | 'hasMore' | 'page' | 'total' | 'lastLoadedAt'>;
+
+const HISTORY_PAGE_SIZE = 10;
+const HISTORY_CACHE_MAX_ITEMS = 20;
 
 const stripDerivedImageUrls = (images: GeneratedImage[] = []) =>
   images.map((img) => ({
@@ -45,6 +49,37 @@ const stripDerivedTaskUrls = (task: HistoryItem): HistoryItem => ({
   ...task,
   images: stripDerivedImageUrls(task.images || []),
 });
+
+const getBoundedHistoryCacheItems = (items: HistoryItem[] = []) =>
+  items.slice(0, HISTORY_CACHE_MAX_ITEMS).map(stripDerivedTaskUrls);
+
+const getCachePageFromItems = (items: HistoryItem[]) => Math.max(1, Math.ceil(items.length / HISTORY_PAGE_SIZE));
+
+const normalizePersistedHistoryState = (
+  persistedState: unknown,
+  fallbackState: PersistedHistoryState
+): PersistedHistoryState => {
+  const incoming = persistedState as Partial<PersistedHistoryState> | undefined;
+  if (!incoming || typeof incoming !== 'object') {
+    return fallbackState;
+  }
+
+  const items = getBoundedHistoryCacheItems(Array.isArray(incoming.items) ? incoming.items : fallbackState.items);
+  const total = typeof incoming.total === 'number' ? incoming.total : fallbackState.total;
+  const pageFromItems = getCachePageFromItems(items);
+  const incomingPage = typeof incoming.page === 'number' && incoming.page > 0 ? incoming.page : fallbackState.page;
+  const page = Math.min(incomingPage, pageFromItems);
+  const lastLoadedAt = typeof incoming.lastLoadedAt === 'number' ? incoming.lastLoadedAt : fallbackState.lastLoadedAt;
+  const hasMore = typeof incoming.hasMore === 'boolean' ? items.length < total || incoming.hasMore : items.length < total;
+
+  return {
+    items,
+    total,
+    page,
+    hasMore,
+    lastLoadedAt
+  };
+};
 
 const mergeImages = (existing: GeneratedImage[] = [], incoming: GeneratedImage[] = []) => {
   if (!incoming.length) return existing;
@@ -140,12 +175,12 @@ export const useHistoryStore = create<HistoryState>()(
             const response = searchKeyword
                 ? await searchHistory({
                     page: currentPage,
-                    pageSize: 10,
+                    pageSize: HISTORY_PAGE_SIZE,
                     keyword: searchKeyword
                   })
                 : await getHistory({
                     page: currentPage,
-                    pageSize: 10
+                    pageSize: HISTORY_PAGE_SIZE
                   });
 
             // 如果已经有更新的请求在进行/完成，忽略当前结果
@@ -212,7 +247,7 @@ export const useHistoryStore = create<HistoryState>()(
 
       reconcileHistoryPage: async () => {
         const { searchKeyword, page } = get();
-        const pageSize = 10;
+        const pageSize = HISTORY_PAGE_SIZE;
 
         try {
           const response = searchKeyword
@@ -401,30 +436,20 @@ export const useHistoryStore = create<HistoryState>()(
     {
       name: 'history-cache',
       storage: createJSONStorage(() => localStorage),
-      version: 1,
-      partialize: (state) => ({
-        items: state.items,
-        total: state.total,
-        page: state.page,
-        lastLoadedAt: state.lastLoadedAt
+      version: 2,
+      partialize: (state) => normalizePersistedHistoryState(state, state),
+      migrate: (persistedState) => normalizePersistedHistoryState(persistedState, {
+        items: [],
+        hasMore: true,
+        page: 1,
+        total: 0,
+        lastLoadedAt: null
       }),
       merge: (persistedState, currentState) => {
-        const incoming = persistedState as Partial<HistoryState> | undefined;
-        if (!incoming || typeof incoming !== 'object') {
-          return currentState;
-        }
-        const items = Array.isArray(incoming.items) ? incoming.items : currentState.items;
-        const total = typeof incoming.total === 'number' ? incoming.total : currentState.total;
-        const page = typeof incoming.page === 'number' ? incoming.page : currentState.page;
-        const lastLoadedAt =
-          typeof incoming.lastLoadedAt === 'number' ? incoming.lastLoadedAt : currentState.lastLoadedAt;
-          return {
-            ...currentState,
-          items: items.map(stripDerivedTaskUrls),
-          total,
-          page,
-          lastLoadedAt,
-          hasMore: items.length < total,
+        const normalized = normalizePersistedHistoryState(persistedState, currentState);
+        return {
+          ...currentState,
+          ...normalized,
           loading: false
         };
       }

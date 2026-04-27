@@ -79,6 +79,7 @@
 
 ### 5. 任务与历史记录
 - **全自动持久化**：所有生成记录实时保存至本地数据库，重启软件也不丢失。
+- **轻量历史缓存**：桌面端 localStorage 只缓存最近一小段历史列表快照与分页元信息，不保存 `asset://`/HTTP 派生展示 URL；完整历史仍按需从本地数据库加载，继续支持“加载更多”。
 - **智能搜索**：支持通过关键字快速找回历史任务。
 - **稳定连接保障**：自动切换 WebSocket 与 HTTP 轮询模式，确保在复杂网络环境下生成任务不中断。
 
@@ -295,6 +296,8 @@ npm run tauri dev
 桌面端图片 URL 生成位于批量渲染热路径，默认不会为每张图片输出 `getImageUrl` 转换/回退日志，避免历史记录或模板大量渲染时刷屏。需要排查 asset/http URL 生成问题时，可在开发者工具中执行 `localStorage.setItem('diagnostic.verbose', '1')` 后刷新应用启用诊断日志；关闭时执行 `localStorage.setItem('diagnostic.verbose', '0')` 或清理该键。
 
 桌面端组件读取 Zustand 状态时应使用精确 selector，避免 `useConfigStore()` / `useGenerateStore()` / `useToastStore()` 这类整仓订阅；同一组件需要多个字段或 action 时，请使用 `useShallow` 包裹对象 selector，以减少无关状态变化带来的重渲染，并保持现有 store 持久化结构不变。
+
+桌面端历史记录由本地数据库保存完整数据，`history-cache` localStorage 仅作为启动期轻量快照：最多保留最近 20 条列表项、`total/page/hasMore/lastLoadedAt` 等分页元信息，并在写入和旧缓存迁移时剥离图片 `url` / `thumbnailUrl` 派生字段。修改 `desktop/src/store/historyStore.ts` 时请保持缓存有界，避免把完整历史、base64、预览 URL 或其他可重新计算的展示字段写入 localStorage。
 
 ### 4. Web 前端开发
 ```bash
