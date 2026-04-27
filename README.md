@@ -303,6 +303,8 @@ npm run tauri dev
 
 桌面端当前不使用 React Query，也不挂载 `QueryClientProvider`。数据请求统一从 `desktop/src/services/` 的显式 API helper 发起，结果根据业务需要进入 Zustand store 或组件本地 state；如果后续要迁移到 React Query，应先选择单个 service 调用作为起点，并同时定义 query key、缓存失效策略以及与 Zustand 的职责分工。
 
+桌面端 i18n 默认只随启动加载 `zh-CN` 语言包，`en-US`、`ja-JP`、`ko-KR` 会在用户首次切换到对应语言前按需动态加载。语言资源加载完成后才调用 i18next 切换，因此加载期间会继续显示当前语言，减少切换闪烁并避免启动时一次性打包解析所有 locale JSON。
+
 桌面端模板市场已按职责拆分：`TemplateMarketDrawer.tsx` 继续负责抽屉开合、模板数据加载、过滤状态、虚拟网格、预览与应用模板；搜索框、已选筛选 chip、分类筛选按钮、结果数量和刷新按钮由 `desktop/src/components/TemplateMarket/TemplateMarketFilters.tsx` 维护。调整模板市场时请保持这个边界，避免把筛选 UI、虚拟化网格和预览/应用逻辑重新混在同一个组件里。
 
 桌面端参考图上传已将粘贴逻辑拆到 `desktop/src/components/ConfigPanel/useReferenceImagePaste.ts`：该 hook 负责剪贴板图片提取、Tauri 原生剪贴板兜底和全局 paste 捕获；`ReferenceImageUpload.tsx` 继续负责区域 UI、点击/拖拽添加、压缩、持久化、预览与排序。调整参考图粘贴行为时请优先修改该 hook，并保持添加、删除、拖拽、粘贴和现有样式不变。

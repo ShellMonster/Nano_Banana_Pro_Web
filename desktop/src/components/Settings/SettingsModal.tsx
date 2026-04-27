@@ -12,7 +12,7 @@ import { getProviders, updateProviderConfig, ProviderConfig } from '../../servic
 import { toast } from '../../store/toastStore';
 import { getDiagnosticVerbose, setDiagnosticVerbose } from '../../utils/diagnosticLogger';
 import { useUpdaterStore } from '../../store/updaterStore';
-import i18n, { DEFAULT_LANGUAGE } from '../../i18n';
+import i18n, { changeAppLanguage, DEFAULT_LANGUAGE } from '../../i18n';
 import { getSystemLocale } from '../../i18n/systemLocale';
 import appIcon from '../../assets/app-icon.png';
 import { getDefaultImageModelForProvider, getImageModelOptions, VISION_MODEL_OPTIONS, CUSTOM_MODEL_VALUE } from '../../store/configStore';
@@ -663,7 +663,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const resolved = resolveSystemLanguage(systemLocale);
       setLanguageResolved(resolved);
       if (i18n.language !== resolved) {
-        void i18n.changeLanguage(resolved);
+        void changeAppLanguage(resolved);
       }
       return;
     }
@@ -673,7 +673,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setLanguageResolved(null);
     }
     if (i18n.language !== nextLanguage) {
-      void i18n.changeLanguage(nextLanguage);
+      void changeAppLanguage(nextLanguage);
     }
   };
 
