@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { ApiResponse } from '../types';
+import { getDiagnosticVerbose } from '../utils/diagnosticLogger';
 
 export interface ApiRequestConfig extends AxiosRequestConfig {
   __returnResponse?: boolean;
@@ -19,6 +20,12 @@ const isStorageRelativePath = (p: string) => {
 };
 const isPosixAbsolutePath = (p: string) => p.startsWith('/') && !isStorageRelativePath(p);
 const looksLikeAbsolutePath = (p: string) => isPosixAbsolutePath(p) || isWindowsAbsolutePath(p);
+
+const logImageUrlDiagnostic = (...args: unknown[]) => {
+  if (getDiagnosticVerbose()) {
+    console.log(...args);
+  }
+};
 
 const normalizeAssetAbsolutePath = (rawPath: string) => {
   let normalized = normalizeSlashes(rawPath);
@@ -348,7 +355,7 @@ export const getImageUrl = (path: string) => {
     try {
       const absolutePath = normalizeAssetAbsolutePath(fileUrlPath || trimmed);
       const url = convertFileSrcSync!(absolutePath);
-      console.log('[getImageUrl] Converted absolute path to asset URL:', url, 'from:', absolutePath);
+      logImageUrlDiagnostic('[getImageUrl] Converted absolute path to asset URL:', url, 'from:', absolutePath);
       return url;
     } catch (err) {
       console.error('[getImageUrl] Failed to convert absolute path to asset URL:', err);
@@ -369,7 +376,7 @@ export const getImageUrl = (path: string) => {
 
       // 使用 Tauri 提供的 convertFileSrc 将绝对路径转为 asset:// 协议 URL
       const url = convertFileSrcSync!(absolutePath);
-      console.log('[getImageUrl] Converted to asset URL:', url, 'from:', absolutePath);
+      logImageUrlDiagnostic('[getImageUrl] Converted to asset URL:', url, 'from:', absolutePath);
       return url;
     } catch (err) {
       console.error('[getImageUrl] Failed to convert local path to asset URL:', err);
@@ -385,7 +392,7 @@ export const getImageUrl = (path: string) => {
   const normalizedPath = normalizedInputPath.startsWith('/') ? normalizedInputPath : `/${normalizedInputPath}`;
   
   const url = `${baseHost}${normalizedPath}`;
-  console.log('[getImageUrl] HTTP Fallback URL:', url);
+  logImageUrlDiagnostic('[getImageUrl] HTTP Fallback URL:', url);
   return url;
 };
 

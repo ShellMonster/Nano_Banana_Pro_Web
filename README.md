@@ -292,6 +292,8 @@ npm install
 npm run tauri dev
 ```
 
+桌面端图片 URL 生成位于批量渲染热路径，默认不会为每张图片输出 `getImageUrl` 转换/回退日志，避免历史记录或模板大量渲染时刷屏。需要排查 asset/http URL 生成问题时，可在开发者工具中执行 `localStorage.setItem('diagnostic.verbose', '1')` 后刷新应用启用诊断日志；关闭时执行 `localStorage.setItem('diagnostic.verbose', '0')` 或清理该键。
+
 ### 4. Web 前端开发
 ```bash
 cd frontend
