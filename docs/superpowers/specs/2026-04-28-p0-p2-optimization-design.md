@@ -160,13 +160,29 @@
 - 文档更新点：说明 Provider API 类型维护入口。
 - commit 示例：`refactor: consolidate provider config api`
 
-#### P2-06：超大组件轻量拆分
+#### P2-06A：拆分模板市场超大组件
 
-- 改动范围：模板市场、参考图上传、设置弹窗中当前正在触碰的文件，及 `CLAUDE.md`、`README.md`。
-- 验收标准：每次只拆一个明确职责；UI 行为不变；不做整文件重写。
+- 改动范围：`desktop/src/components/TemplateMarket/TemplateMarketDrawer.tsx`、新增的模板市场子组件或 hooks、`CLAUDE.md`、`README.md`。
+- 验收标准：至少抽出一个明确职责的模板市场子组件或 hook；搜索、筛选、预览、应用模板行为不变；不做整文件重写。
 - 必跑验证：`cd desktop && npm run type-check && npm run build`。
-- 文档更新点：说明大组件拆分原则。
+- 文档更新点：说明模板市场组件拆分边界。
 - commit 示例：`refactor: split template market components`
+
+#### P2-06B：拆分参考图上传超大组件
+
+- 改动范围：`desktop/src/components/ConfigPanel/ReferenceImageUpload.tsx`、新增的参考图上传子组件或 hooks、`CLAUDE.md`、`README.md`。
+- 验收标准：至少抽出一个明确职责的上传、拖拽、压缩或持久化 hook/子组件；参考图添加、删除、拖拽、粘贴行为不变；不做整文件重写。
+- 必跑验证：`cd desktop && npm run type-check && npm run build`。
+- 文档更新点：说明参考图上传逻辑拆分边界。
+- commit 示例：`refactor: split reference image upload logic`
+
+#### P2-06C：拆分设置弹窗超大组件
+
+- 改动范围：`desktop/src/components/Settings/SettingsModal.tsx`、新增的设置表单子组件或 hooks、`CLAUDE.md`、`README.md`。
+- 验收标准：至少抽出一个明确职责的 provider 设置表单、通用字段组或设置 hook；保存、测试连接、切换 provider 行为不变；不做整文件重写。
+- 必跑验证：`cd desktop && npm run type-check && npm run build`。
+- 文档更新点：说明设置弹窗拆分边界。
+- commit 示例：`refactor: split settings modal sections`
 
 #### P2-07：清理或明确 React Query 策略
 
