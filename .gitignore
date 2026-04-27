@@ -37,6 +37,38 @@ frontend/npm-debug.log*
 frontend/yarn-debug.log*
 frontend/yarn-error.log*
 
+# Env & Secrets (全局)
+.env
+.env.local
+.env.*.local
+!.env.example
+!desktop/.env.development
+!desktop/.env.production
+!frontend/.env.development
+!frontend/.env.production
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+credentials*
+secrets*
+service-account*.json
+firebase-*.json
+google-services.json
+GoogleService-Info.plist
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Tauri updater temp keys
+desktop/.tmp-updater.key
+desktop/.tmp-updater.key.pub
+
 # General
 *.log
 *.dmg
