@@ -17,6 +17,7 @@
 ```bash
 # 后端
 cd backend && go run cmd/server/main.go    # 启动后端 (默认 :8080)
+curl http://localhost:8080/api/v1/health   # 标准健康检查接口
 make build                                  # 编译
 make run                                    # 运行
 
@@ -131,7 +132,7 @@ frontend/                  # 独立 Web 前端 (v2.5.2, 非 Tauri)
 
 ## 注意事项 & 易错点
 
-1. **端口冲突**：Go sidecar 监听 `127.0.0.1:8080`，确保无其他进程占用。调试时检查 `lsof -i :8080`
+1. **端口冲突**：Go sidecar 监听 `127.0.0.1:8080`，标准健康检查接口为 `GET /api/v1/health`；确保无其他进程占用。调试时检查 `lsof -i :8080`
 2. **模型名称**：`openai-image` provider 默认模型是 `gpt-image-2`（v2.8.0 更新），不支持 `quality` 参数
 3. **版本同步**：发布前确保 5 个文件的版本号一致（见上方「通用」部分）
 4. **Tauri 权限**：新功能涉及文件系统/网络访问时需更新 `capabilities/default.json`
@@ -143,7 +144,7 @@ frontend/                  # 独立 Web 前端 (v2.5.2, 非 Tauri)
 
 项目当前无自动化测试套件。验证方式：
 - `cd desktop && npm run tauri dev` 启动桌面端手动测试
-- `cd backend && go run cmd/server/main.go` 启动后端，用 curl 测试 API
+- `cd backend && go run cmd/server/main.go` 启动后端，用 `curl http://localhost:8080/api/v1/health` 测试健康检查
 - Docker: `docker compose up -d` 后访问 `http://localhost:8090`
 
 ## CI/CD

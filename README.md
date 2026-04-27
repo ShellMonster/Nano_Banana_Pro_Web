@@ -268,6 +268,8 @@ sudo xattr -r -d com.apple.quarantine "/Applications/大香蕉 AI.app"
 cd backend
 # 复制并配置 config.yaml 填入您的 API Key
 go run cmd/server/main.go
+# 标准健康检查接口
+curl http://localhost:8080/api/v1/health
 ```
 
 或者使用 Makefile 快捷命令：
@@ -351,6 +353,8 @@ cat ~/.tauri/banana-updater.key
 | `Templates Remote URL` | 远程模板 JSON 地址（默认 GitHub Raw），启动时会拉取并缓存。 |
 | `asset://` | 自定义资源协议，用于安全、快速地访问本地生成的图片。 |
 
+后端标准健康检查接口为 `GET /api/v1/health`，GitHub Actions 与 Docker/本地 smoke test 均应使用该路径。
+
 > **提示**：OpenAI 类型接口通常要求生图模型（model_id）必填；Gemini 类型需使用 `/v1beta` 路径。`OpenAI Image` 类型默认使用 `gpt-image-2` 模型，不支持 `quality` 参数。
 
 ---
@@ -395,7 +399,7 @@ GO_PROXY=https://goproxy.cn,direct
 - 🐳 **多阶段构建**：前端（Node.js）+ 后端（Go）+ 运行时（Alpine + Nginx）
 - 🚀 **环境自动检测**：后端自动识别 Docker 环境，监听 `0.0.0.0`（Tauri 监听 `127.0.0.1`）
 - 💾 **数据持久化**：图片存储和数据库自动挂载到 `./data/storage`
-- 🔄 **健康检查**：内置健康检查接口，自动重启异常容器
+- 🔄 **健康检查**：内置 `GET /api/v1/health` 健康检查接口，自动重启异常容器
 - 🇨🇳 **镜像源支持**：通过 Build Args 配置国内镜像源，保持 Dockerfile 通用性
 
 ---
