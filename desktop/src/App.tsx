@@ -1,5 +1,4 @@
-import React, { useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import MainLayout from './components/Layout/MainLayout';
 import { ToastContainer } from './components/common/Toast';
 import { UpdaterModal } from './components/common/UpdaterModal';
@@ -8,8 +7,6 @@ import i18n from './i18n';
 import { useGenerationNotifications } from './hooks/useGenerationNotifications';
 import { useConfigStore } from './store/configStore';
 import { useGenerateStore } from './store/generateStore';
-
-const queryClient = new QueryClient();
 
 function App() {
   const language = useConfigStore((s) => s.language);
@@ -40,12 +37,12 @@ function App() {
   }, [generateStatus, isSubmitting]);
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <>
       <MainLayout />
       <OnboardingTour />
       <UpdaterModal />
       <ToastContainer />
-    </QueryClientProvider>
+    </>
   );
 }
 
