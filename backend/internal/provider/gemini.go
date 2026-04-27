@@ -367,25 +367,27 @@ func (p *GeminiProvider) doGenerateContent(ctx context.Context, modelID string, 
 		requestID,
 		diagnostic.Preview(strings.Join(headerLines(resp.Header), " | "), 1000),
 	)
+	bodySummary := diagnostic.ResponseBodySummary(body, 1200)
 	diagnostic.Logf(params, "response_body",
-		"status=%s elapsed=%s request_id=%s body=%q",
+		"status=%s elapsed=%s request_id=%s body_length=%d body_preview=%q",
 		resp.Status,
 		elapsed,
 		requestID,
-		diagnostic.RedactSensitive(string(body)),
+		bodySummary.Length,
+		bodySummary.Preview,
 	)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		bodyPreview := diagnostic.Preview(string(body), 1200)
+		bodyPreview := diagnostic.ResponseBodyErrorPreview(body, 1200)
 		if requestID == "" {
 			requestID = diagnostic.ExtractRequestID(string(body))
 		}
-		return nil, resp.Header.Clone(), fmt.Errorf("Gemini HTTP %d request_id=%s body=%s", resp.StatusCode, requestID, bodyPreview)
+		return nil, resp.Header.Clone(), fmt.Errorf("Gemini HTTP %d request_id=%s %s", resp.StatusCode, requestID, bodyPreview)
 	}
 
 	var parsed geminiGenerateResponse
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		return nil, resp.Header.Clone(), fmt.Errorf("解析 Gemini 响应 JSON 失败: %w body=%s", err, diagnostic.Preview(string(body), 1200))
+		return nil, resp.Header.Clone(), fmt.Errorf("解析 Gemini 响应 JSON 失败: %w %s", err, diagnostic.ResponseBodyErrorPreview(body, 1200))
 	}
 	return &parsed, resp.Header.Clone(), nil
 }

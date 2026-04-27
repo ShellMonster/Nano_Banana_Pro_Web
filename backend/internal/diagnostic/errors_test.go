@@ -1,6 +1,45 @@
 package diagnostic
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestResponseBodySummary_BoundsPreviewAndKeepsLength(t *testing.T) {
+	longBase64 := "iVBORw0KGgo" + strings.Repeat("A", 600)
+	body := []byte(`{"data":[{"b64_json":"` + longBase64 + `"}],"request_id":"req-123"}`)
+
+	summary := ResponseBodySummary(body, 80)
+
+	if summary.Length != len(body) {
+		t.Fatalf("Length = %d, want %d", summary.Length, len(body))
+	}
+	if summary.Preview == "" {
+		t.Fatalf("Preview is empty")
+	}
+	if len([]rune(summary.Preview)) > 95 {
+		t.Fatalf("Preview length = %d, want bounded preview", len([]rune(summary.Preview)))
+	}
+	if strings.Contains(summary.Preview, longBase64) {
+		t.Fatalf("Preview contains full base64 payload")
+	}
+	if !strings.Contains(summary.Preview, "...(truncated)") {
+		t.Fatalf("Preview = %q, want truncation marker", summary.Preview)
+	}
+}
+
+func TestResponseBodySummary_RedactsSensitiveFields(t *testing.T) {
+	body := []byte(`{"api_key":"secret-key","authorization":"Bearer secret-token","ok":true}`)
+
+	summary := ResponseBodySummary(body, 200)
+
+	if strings.Contains(summary.Preview, "secret-key") || strings.Contains(summary.Preview, "secret-token") {
+		t.Fatalf("Preview = %q, want sensitive values redacted", summary.Preview)
+	}
+	if !strings.Contains(summary.Preview, "***REDACTED***") {
+		t.Fatalf("Preview = %q, want redaction marker", summary.Preview)
+	}
+}
 
 func TestSummarizeErrorMessage_ExtractsHTTPStatusFromProviderErrors(t *testing.T) {
 	tests := []struct {

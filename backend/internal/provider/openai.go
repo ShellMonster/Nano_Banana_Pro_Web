@@ -265,20 +265,22 @@ func (p *OpenAIProvider) doChatRequest(ctx context.Context, body map[string]inte
 		requestID,
 		diagnostic.Preview(strings.Join(headerLines(resp.Header), " | "), 1000),
 	)
+	bodySummary := diagnostic.ResponseBodySummary(respBody, 1200)
 	diagnostic.Logf(params, "response_body",
-		"status=%s elapsed=%s request_id=%s body=%q",
+		"status=%s elapsed=%s request_id=%s body_length=%d body_preview=%q",
 		resp.Status,
 		elapsed,
 		requestID,
-		diagnostic.RedactSensitive(string(respBody)),
+		bodySummary.Length,
+		bodySummary.Preview,
 	)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		bodyPreview := diagnostic.Preview(parseOpenAIError(respBody), 1200)
+		bodyPreview := openAIErrorBodyPreview(respBody, 1200)
 		if requestID == "" {
 			requestID = diagnostic.ExtractRequestID(string(respBody))
 		}
-		return nil, resp.Header.Clone(), fmt.Errorf("OpenAI HTTP %d request_id=%s body=%s", resp.StatusCode, requestID, bodyPreview)
+		return nil, resp.Header.Clone(), fmt.Errorf("OpenAI HTTP %d request_id=%s %s", resp.StatusCode, requestID, bodyPreview)
 	}
 
 	if len(respBody) == 0 {
@@ -596,6 +598,15 @@ func parseOpenAIError(resp []byte) string {
 		return msg
 	}
 	return string(resp)
+}
+
+func openAIErrorBodyPreview(resp []byte, maxPreviewRunes int) string {
+	parsed := strings.TrimSpace(parseOpenAIError(resp))
+	if parsed == "" || parsed == strings.TrimSpace(string(resp)) {
+		return diagnostic.ResponseBodyErrorPreview(resp, maxPreviewRunes)
+	}
+	preview := diagnostic.Preview(diagnostic.RedactSensitive(parsed), maxPreviewRunes)
+	return fmt.Sprintf("body_length=%d body_preview=%s", len(resp), preview)
 }
 
 func decodeDataURL(dataURL string) ([]byte, error) {

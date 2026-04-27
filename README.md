@@ -272,6 +272,8 @@ go run cmd/server/main.go
 curl http://localhost:8080/api/v1/health
 ```
 
+后端 Provider verbose 诊断日志与错误返回默认只记录响应状态、耗时、请求 ID、响应长度和脱敏后的有界预览；Gemini / OpenAI / OpenAI Image 返回的完整响应体、未脱敏错误体与完整 base64 图片数据不会写入日志，便于排查问题的同时避免日志膨胀和敏感内容泄露。
+
 或者使用 Makefile 快捷命令：
 ```bash
 make build    # 编译后端
