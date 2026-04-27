@@ -75,7 +75,7 @@ desktop/                   # Tauri 桌面端
 │   └── capabilities/      # Tauri 权限声明
 └── package.json
 
-frontend/                  # 独立 Web 前端 (v2.5.2, 非 Tauri)
+frontend/                  # 独立 Web 前端 (非 Tauri，Docker 构建入口；版本跟随 desktop/package.json)
 ```
 
 ## 技术栈
@@ -131,13 +131,14 @@ frontend/                  # 独立 Web 前端 (v2.5.2, 非 Tauri)
 ### 通用
 - 中文注释解释「为什么」而非「做什么」
 - 提交信息格式：`feat:`, `fix:`, `chore:`, `docs:`
-- 版本号统一在 `Cargo.toml`, `tauri.conf.json`, `package.json`, `Cargo.lock`, `package-lock.json`
+- 桌面发布版本号统一在 `Cargo.toml`, `tauri.conf.json`, `desktop/package.json`, `Cargo.lock`, `desktop/package-lock.json`
+- Docker Web 版仍构建 `frontend/`，`frontend/package.json` 与 `frontend/package-lock.json` 的根版本必须跟随 `desktop/package.json`，避免 Web 镜像与当前应用版本元数据脱节
 
 ## 注意事项 & 易错点
 
 1. **端口冲突**：Go sidecar 监听 `127.0.0.1:8080`，标准健康检查接口为 `GET /api/v1/health`；确保无其他进程占用。调试时检查 `lsof -i :8080`
 2. **模型名称**：`openai-image` provider 默认模型是 `gpt-image-2`（v2.8.0 更新），不支持 `quality` 参数
-3. **版本同步**：发布前确保 5 个文件的版本号一致（见上方「通用」部分）
+3. **版本同步**：发布前确保桌面版本文件一致，并同步 `frontend/package.json` / `frontend/package-lock.json` 根版本；Dockerfile 当前构建的是 `frontend/`，不要让 Web 镜像保留旧版本号
 4. **Tauri 权限**：新功能涉及文件系统/网络访问时需更新 `capabilities/default.json`
 5. **Docker vs Desktop**：后端通过 `platform/runtime.go` 检测运行环境，Docker 监听 `0.0.0.0`，Tauri 监听 `127.0.0.1`
 6. **configStore 迁移**：前端配置存储在 localStorage，版本迁移在 `configStore.ts` 的 `migrations` 中处理，当前版本 v19

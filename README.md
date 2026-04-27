@@ -242,7 +242,7 @@ graph TD
 ├── desktop/            # Tauri 桌面端项目 (React + Rust)
 │   ├── src/            # 前端组件与业务逻辑
 │   └── src-tauri/      # Rust 容器配置与系统权限定义
-├── frontend/           # 独立 Web 版前端 (保留参考)
+├── frontend/           # 独立 Web 版前端（Docker 构建入口，版本跟随 desktop/package.json）
 └── assets/             # 项目展示资源 (预览图等)
 ```
 
@@ -305,6 +305,8 @@ cd frontend
 npm install
 npm run dev
 ```
+
+独立 Web 前端继续保留在 `frontend/`，Dockerfile 也从该目录执行 `npm ci` 与 `npm run build`。因此 Web 包的 `frontend/package.json` 与 `frontend/package-lock.json` 根版本必须跟随当前桌面端 `desktop/package.json`，保持 Docker Web 镜像和桌面发布使用同一应用版本号；这只是版本元数据同步，不代表 Docker 构建迁移到 `desktop/`。
 
 ### 5. 自动化构建 (GitHub Actions)
 只需推送带有版本号的标签（如 `v2.8.0`），即可触发自动化构建：
@@ -377,6 +379,8 @@ cat ~/.tauri/banana-updater.key
 ## 🐳 Docker 部署（Web 版）
 
 桌面版不适合 Docker 运行，以下仅用于 **后端 + Web 前端** 的部署。
+
+Docker Web 镜像构建的是 `frontend/` 独立前端，其 package 版本跟随 `desktop/package.json` 的当前应用版本，避免发布说明、镜像元数据与桌面端版本不一致。
 
 项目提供完整的 Docker 部署方案，支持一键启动、国内镜像源加速、数据持久化等功能。
 
