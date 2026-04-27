@@ -20,12 +20,26 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": {
+        "default-src": "'self' asset:",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' asset: http://asset.localhost https://asset.localhost blob: data: http: https: tauri: ipc:",
+        "connect-src": "'self' ipc: http://ipc.localhost http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* http: https:",
+        "font-src": "'self' data:",
+        "worker-src": "'self' blob:",
+        "media-src": "'self' asset: blob: data:",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "frame-ancestors": "'none'"
+      },
       "assetProtocol": {
         "enable": true,
         "scope": [
           "$APPDATA/**",
-          "$HOME/**"
+          "$APPCONFIG/**",
+          "$APPCACHE/**",
+          "$TEMP/**"
         ]
       },
       "capabilities": [

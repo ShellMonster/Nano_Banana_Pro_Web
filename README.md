@@ -380,9 +380,11 @@ cat ~/.tauri/banana-updater.key
 | `对话模型` | 用于提示词优化功能。 |
 | `Storage Dir` | 应用默认将图片保存在系统的 `AppData` (Win) 或 `Application Support` (Mac) 目录下。 |
 | `Templates Remote URL` | 远程模板 JSON 地址（默认 GitHub Raw），启动时会拉取并缓存。 |
-| `asset://` | 自定义资源协议，用于安全、快速地访问本地生成的图片。 |
+| `asset://` | 自定义资源协议，仅允许读取应用数据、应用配置、应用缓存和临时目录内的本地图片，不再开放整个用户主目录。 |
 
 后端标准健康检查接口为 `GET /api/v1/health`，GitHub Actions 与 Docker/本地 smoke test 均应使用该路径。
+
+桌面端 Tauri 安全边界默认开启最小 CSP：页面脚本仅来自应用自身，启动页内联样式因防白屏保留，图片允许 `asset:`、`blob:`、`data:` 以及模板/代理所需的 `http(s)` 来源，API/SSE 连接限制在 localhost 动态端口并兼容必要的 `http(s)` 模板图片读取。开发时如果新增图片来源、Web Worker 或网络请求，请同步收紧更新 `desktop/src-tauri/tauri.conf.json`，不要把 `csp` 设回 `null` 或把 `assetProtocol.scope` 放宽到 `$HOME/**`。
 
 > **提示**：OpenAI 类型接口通常要求生图模型（model_id）必填；Gemini 类型需使用 `/v1beta` 路径。`OpenAI Image` 类型默认使用 `gpt-image-2` 模型，不支持 `quality` 参数。
 
