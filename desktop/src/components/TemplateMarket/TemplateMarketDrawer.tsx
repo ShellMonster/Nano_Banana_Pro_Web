@@ -1075,7 +1075,9 @@ const VirtualTemplateGrid = ({
 
     const observer = new ResizeObserver(updateWidth);
     observer.observe(element);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+    };
   }, []);
 
   const viewportWidth =
@@ -1102,13 +1104,10 @@ const VirtualTemplateGrid = ({
 
   if (width > 0 && rowCount > 0 && endRow >= startRow) {
     for (let rowIndex = startRow; rowIndex <= endRow; rowIndex += 1) {
-      for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
-        const index = rowIndex * columnCount + columnIndex;
-        const item = templates[index];
-        if (item) {
-          visibleCells.push({ item, index, rowIndex, columnIndex });
-        }
-      }
+      const rowStartIndex = rowIndex * columnCount;
+      templates.slice(rowStartIndex, rowStartIndex + columnCount).forEach((item, columnIndex) => {
+        visibleCells.push({ item, index: rowStartIndex + columnIndex, rowIndex, columnIndex });
+      });
     }
   }
 
@@ -1317,17 +1316,23 @@ export function TemplateMarketDrawer({
     const container = listRef.current;
     if (!container) return;
 
-    const updateViewport = () => setListViewportHeight(container.clientHeight);
+    const updateViewport = () => {
+      setListViewportHeight(container.clientHeight);
+    };
     updateViewport();
 
     if (typeof ResizeObserver === 'undefined') {
       window.addEventListener('resize', updateViewport);
-      return () => window.removeEventListener('resize', updateViewport);
+      return () => {
+        window.removeEventListener('resize', updateViewport);
+      };
     }
 
     const observer = new ResizeObserver(updateViewport);
     observer.observe(container);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+    };
   }, [isOpen]);
 
   useLayoutEffect(() => {
@@ -1583,7 +1588,9 @@ export function TemplateMarketDrawer({
             formatFilterLabel={formatFilterLabel}
             isLoading={isLoading}
             resultCount={filteredTemplates.length}
-            onRefresh={() => fetchTemplates(true)}
+            onRefresh={() => {
+              void fetchTemplates(true);
+            }}
           />
 
           <div className="mt-6 shrink-0">
