@@ -590,7 +590,7 @@ func GenerateWithImagesHandler(c *gin.Context) {
 				}
 				return
 			}
-			targetPath = validatedPath
+			targetPath = filepath.Clean(validatedPath)
 			// #nosec G304 -- validateRefPathForTauri resolves symlinks, restricts paths to app config/cache/temp roots, and checks regular file + size before open.
 			file, err := os.Open(targetPath)
 			if err != nil {
