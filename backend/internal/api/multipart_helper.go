@@ -92,6 +92,23 @@ func validateReferenceImagesTotalBytes(nextTotal int64) error {
 	return nil
 }
 
+func validateReferenceImageBytesAppend(currentImages []interface{}, name string, content []byte) error {
+	if err := validateReferenceImageCount(len(currentImages) + 1); err != nil {
+		return err
+	}
+	if err := validateReferenceImageSize(name, int64(len(content))); err != nil {
+		return err
+	}
+	return validateReferenceImagesTotalBytes(totalReferenceImageBytes(currentImages) + int64(len(content)))
+}
+
+func appendReferenceImageBytes(currentImages []interface{}, name string, content []byte) ([]interface{}, error) {
+	if err := validateReferenceImageBytesAppend(currentImages, name, content); err != nil {
+		return currentImages, err
+	}
+	return append(currentImages, content), nil
+}
+
 func readReferenceImageWithLimit(reader io.Reader, name string) ([]byte, error) {
 	content, err := io.ReadAll(io.LimitReader(reader, maxReferenceImageSizeBytes+1))
 	if err != nil {

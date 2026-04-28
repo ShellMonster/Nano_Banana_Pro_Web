@@ -563,19 +563,12 @@ func GenerateWithImagesHandler(c *gin.Context) {
 	var refImageBytes []interface{}
 	for _, file := range req.RefImages {
 		if len(file.Content) > 0 {
-			if err := validateReferenceImageCount(len(refImageBytes) + 1); err != nil {
+			nextRefImageBytes, err := appendReferenceImageBytes(refImageBytes, file.Name, file.Content)
+			if err != nil {
 				Error(c, http.StatusBadRequest, 400, err.Error())
 				return
 			}
-			if err := validateReferenceImageSize(file.Name, int64(len(file.Content))); err != nil {
-				Error(c, http.StatusBadRequest, 400, err.Error())
-				return
-			}
-			if err := validateReferenceImagesTotalBytes(totalReferenceImageBytes(refImageBytes) + int64(len(file.Content))); err != nil {
-				Error(c, http.StatusBadRequest, 400, err.Error())
-				return
-			}
-			refImageBytes = append(refImageBytes, file.Content)
+			refImageBytes = nextRefImageBytes
 		}
 	}
 
@@ -598,6 +591,7 @@ func GenerateWithImagesHandler(c *gin.Context) {
 				return
 			}
 			targetPath = validatedPath
+			// #nosec G304 -- validateRefPathForTauri resolves symlinks, restricts paths to app config/cache/temp roots, and checks regular file + size before open.
 			file, err := os.Open(targetPath)
 			if err != nil {
 				log.Printf("[API] 打开本地参考图失败: %s, err: %v\n", targetPath, err)
@@ -641,11 +635,12 @@ func GenerateWithImagesHandler(c *gin.Context) {
 				}
 				return
 			}
-			if err := validateReferenceImagesTotalBytes(totalReferenceImageBytes(refImageBytes) + int64(len(content))); err != nil {
+			nextRefImageBytes, err := appendReferenceImageBytes(refImageBytes, filepath.Base(targetPath), content)
+			if err != nil {
 				Error(c, http.StatusBadRequest, 400, err.Error())
 				return
 			}
-			refImageBytes = append(refImageBytes, content)
+			refImageBytes = nextRefImageBytes
 		}
 	}
 
