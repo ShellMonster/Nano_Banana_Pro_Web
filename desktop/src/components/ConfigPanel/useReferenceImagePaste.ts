@@ -152,9 +152,9 @@ export function useReferenceImagePaste({
     const target = event.target;
     if (
       plain &&
-      (target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLElement && target.isContentEditable))
+      target instanceof Element &&
+      (target.matches('input, textarea, [contenteditable="true"], [contenteditable=""]') ||
+        Boolean(target.closest('[contenteditable="true"], [contenteditable=""]')))
     ) return;
 
     // 兜底：Tauri 打包环境下 Web ClipboardData 可能拿不到图片数据，尝试原生读取
@@ -181,9 +181,9 @@ export function useReferenceImagePaste({
       const target = event.target;
       if (
         plain &&
-        (target instanceof HTMLInputElement ||
-          target instanceof HTMLTextAreaElement ||
-          (target instanceof HTMLElement && target.isContentEditable))
+        target instanceof Element &&
+        (target.matches('input, textarea, [contenteditable="true"], [contenteditable=""]') ||
+          Boolean(target.closest('[contenteditable="true"], [contenteditable=""]')))
       ) return;
 
       void tryPasteFromTauriClipboard();
