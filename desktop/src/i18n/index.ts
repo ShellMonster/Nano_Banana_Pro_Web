@@ -26,11 +26,17 @@ type StoredLanguageState = {
 
 type TranslationResource = Record<string, unknown>;
 
-const localeLoaders: Record<SupportedLanguage, () => Promise<TranslationResource>> = {
-  'zh-CN': () => Promise.resolve(zhCN),
-  'en-US': () => import('./locales/en-US.json').then((module) => module.default),
-  'ja-JP': () => import('./locales/ja-JP.json').then((module) => module.default),
-  'ko-KR': () => import('./locales/ko-KR.json').then((module) => module.default)
+const loadLanguageResource = (lang: SupportedLanguage): Promise<TranslationResource> => {
+  switch (lang) {
+    case 'zh-CN':
+      return Promise.resolve(zhCN);
+    case 'en-US':
+      return import('./locales/en-US.json').then((module) => module.default);
+    case 'ja-JP':
+      return import('./locales/ja-JP.json').then((module) => module.default);
+    case 'ko-KR':
+      return import('./locales/ko-KR.json').then((module) => module.default);
+  }
 };
 
 const loadedLanguages = new Set<SupportedLanguage>([DEFAULT_LANGUAGE]);
@@ -57,7 +63,7 @@ const resources = {
 const ensureLanguageResource = async (lang: SupportedLanguage): Promise<void> => {
   if (loadedLanguages.has(lang)) return;
 
-  const translation = await localeLoaders[lang]();
+  const translation = await loadLanguageResource(lang);
   i18n.addResourceBundle(lang, 'translation', translation, true, true);
   loadedLanguages.add(lang);
 };
@@ -75,7 +81,7 @@ const updateDocumentLanguage = (lang: string) => {
     document.title = i18n.t('app.title');
   }
 
-  if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+  if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
     import('@tauri-apps/api/window')
       .then(({ getCurrentWindow }) => getCurrentWindow().setTitle(i18n.t('app.title')))
       .catch(() => undefined);
