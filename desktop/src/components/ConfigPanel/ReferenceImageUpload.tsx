@@ -10,6 +10,29 @@ import { calculateMd5, compressImage, fetchFileWithMd5 } from '../../utils/image
 import { getImageUrl } from '../../services/api';
 import { useTranslation } from 'react-i18next';
 import { imageToPrompt } from '../../services/promptApi';
+import { useReferenceImagePaste } from './useReferenceImagePaste';
+
+type PersistMiddlewareApi = {
+  hasHydrated?: () => boolean;
+  onFinishHydration?: (callback: () => void) => (() => void) | undefined;
+};
+
+type StoreWithPersist = typeof useConfigStore & {
+  persist?: PersistMiddlewareApi;
+};
+
+type CachedDragImageData = {
+  blob?: Blob | null;
+  blobPromise?: Promise<Blob | null>;
+  createdAt?: number;
+  path?: string;
+  url?: string;
+  name?: string;
+};
+
+type DragSafeStyle = React.CSSProperties & {
+  WebkitAppRegion?: string;
+};
 
 const REF_IMAGE_DIR = 'ref_images';
 const REORDER_DRAG_THRESHOLD = 6;
@@ -49,6 +72,16 @@ const hashString = (value: string) => SparkMD5.hash(value);
 
 const isUrlLike = (value: string) =>
   /^https?:|^asset:|^blob:|^data:|^tauri:|^ipc:|^file:/i.test(value);
+
+const noDragStyle: DragSafeStyle = { WebkitAppRegion: 'no-drag' };
+
+const isCachedDragImageData = (value: unknown): value is CachedDragImageData => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  const hasBlob = candidate.blob instanceof Blob || candidate.blob === null || typeof candidate.blob === 'undefined';
+  const hasCreatedAt = typeof candidate.createdAt === 'number' || typeof candidate.createdAt === 'undefined';
+  return hasBlob && hasCreatedAt;
+};
 
 const normalizePathFromUri = (raw: string): string => {
   const trimmed = (raw || '').trim();
@@ -164,12 +197,13 @@ export function ReferenceImageUpload() {
 
   // 清理 ObjectURL 防止内存泄漏
   useEffect(() => {
+    const objectUrls = objectUrlsRef.current;
     return () => {
       // 组件卸载时清理所有 ObjectURL
-      objectUrlsRef.current.forEach((url) => {
+      objectUrls.forEach((url) => {
         URL.revokeObjectURL(url);
       });
-      objectUrlsRef.current.clear();
+      objectUrls.clear();
     };
   }, []);
 
@@ -372,7 +406,7 @@ export function ReferenceImageUpload() {
   }, [refFiles, calculateMd5Callback]);
 
   useEffect(() => {
-    const persistApi = (useConfigStore as any).persist;
+    const persistApi = (useConfigStore as StoreWithPersist).persist;
     if (!persistApi?.hasHydrated || persistApi.hasHydrated()) {
       void restorePersistedRefFiles();
       return;
@@ -558,7 +592,7 @@ export function ReferenceImageUpload() {
         void syncPersistedRefFiles();
       }
     }
-  }, [calculateMd5Callback, getAppDataDir, refFiles, setRefImageEntries]);
+  }, [calculateMd5Callback, getAppDataDir, persistExternalRefImage, refFiles, setRefImageEntries]);
 
   useEffect(() => {
     void syncPersistedRefFiles();
@@ -572,7 +606,7 @@ export function ReferenceImageUpload() {
   }, [setDropTarget]);
 
   // 带并发保护的包装函数（添加超时机制）
-  const withProcessingLock = useCallback(async (fn: () => Promise<any>, timeoutMs: number = 60000) => {
+  const withProcessingLock = useCallback(async <T,>(fn: () => Promise<T>, timeoutMs: number = 60000): Promise<T> => {
     if (isProcessingRef.current) {
       throw new Error(BUSY_ERROR_MESSAGE);
     }
@@ -644,14 +678,11 @@ export function ReferenceImageUpload() {
       // 智能压缩判断：综合考虑文件大小和图片尺寸
       const sizeMB = file.size / 1024 / 1024;
       let shouldCompress = false;
-      let compressReason = '';
-
       // 判断是否需要压缩（仅在开启压缩时）
       if (enableRefImageCompression) {
         if (sizeMB > 2) {
           // 文件超过 2MB，必须压缩
           shouldCompress = true;
-          compressReason = t('refImage.compressReason.fileTooLarge', { size: sizeMB.toFixed(2) });
         } else if (sizeMB > 1) {
           // 文件在 1-2MB 之间，检查图片尺寸
           let objectUrl = '';
@@ -668,9 +699,8 @@ export function ReferenceImageUpload() {
             if (maxDimension > 2048) {
               // 图片尺寸超过 2048px，建议压缩
               shouldCompress = true;
-              compressReason = t('refImage.compressReason.dimensions', { width: dimensions.width, height: dimensions.height });
             }
-          } catch (error) {
+          } catch {
             // 尺寸检查失败，跳过压缩
           } finally {
             // 确保在所有情况下都清理 ObjectURL
@@ -699,7 +729,7 @@ export function ReferenceImageUpload() {
           finalFile = compressedFile;
           finalMd5 = compressedMd5;
           (compressedFile as ExtendedFile).__md5 = compressedMd5;
-        } catch (error) {
+        } catch {
           // 压缩失败，使用原始文件
           if (md5Set.has(md5)) {
             continue;
@@ -792,7 +822,7 @@ export function ReferenceImageUpload() {
         toast.error(t('refImage.toast.addFailed', { message }));
       }
     }
-  }, [addRefFiles, createImageFileFromUrl, isExpanded, processFilesWithMd5, refFiles.length, withProcessingLock]);
+  }, [addRefFiles, createImageFileFromUrl, isExpanded, processFilesWithMd5, refFiles.length, t, withProcessingLock]);
 
   useEffect(() => {
     if (!dropPayload) return;
@@ -847,178 +877,20 @@ export function ReferenceImageUpload() {
 
     // 重置 input 值，允许重复选择同一张图
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5]);
+  }, [refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5, t]);
 
-  const extractImageFilesFromClipboard = useCallback((clipboardData: DataTransfer | null): File[] => {
-    if (!clipboardData) return [];
-    const files: File[] = [];
-
-    // 1) items（最常见：截图/复制图片）
-    const items = clipboardData.items;
-    if (items && items.length > 0) {
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.type && item.type.startsWith('image/')) {
-          const file = item.getAsFile();
-          if (file) files.push(file);
-        }
-      }
-    }
-
-    // 2) files（部分平台会把图片放在 files 里）
-    if (clipboardData.files && clipboardData.files.length > 0) {
-      Array.from(clipboardData.files).forEach((f) => {
-        if (f.type && f.type.startsWith('image/')) files.push(f);
-      });
-    }
-
-    return files;
-  }, []);
-
-  const processPastedFiles = useCallback(async (files: File[]) => {
-    if (files.length === 0) return;
-
-    // 收起状态也允许粘贴：自动展开，避免“无提示/无响应”的体验
-    if (!isExpanded) {
-      setIsExpanded(true);
-    }
-
-    await withProcessingLock(async () => {
-      const remainingSlots = 10 - refFiles.length;
-      if (remainingSlots <= 0) {
-        toast.error(t('refImage.toast.full'));
-        return;
-      }
-
-      const clipped = files.slice(0, remainingSlots);
-      if (files.length > remainingSlots) {
-        toast.error(t('refImage.toast.remainingSlots', { count: remainingSlots }));
-      }
-
-      const uniqueFiles = await processFilesWithMd5(clipped);
-      if (uniqueFiles.length > 0) {
-        addRefFiles(uniqueFiles);
-        const compressedFiles = uniqueFiles.filter(f => (f as ExtendedFile).__compressed);
-        if (compressedFiles.length > 0) {
-          toast.success(t('refImage.toast.addedCompressed', { count: uniqueFiles.length, compressed: compressedFiles.length }));
-        } else {
-          toast.success(t('refImage.toast.addedCount', { count: uniqueFiles.length }));
-        }
-      } else {
-        toast.info(t('refImage.toast.exists'));
-      }
-    });
-  }, [isExpanded, refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5]);
-
-  const tryPasteFromTauriClipboard = useCallback(async () => {
-    const remainingSlots = 10 - refFiles.length;
-    if (remainingSlots <= 0) {
-      toast.error(t('refImage.toast.full'));
-      return;
-    }
-
-    // 收起状态也允许粘贴：自动展开
-    if (!isExpanded) {
-      setIsExpanded(true);
-    }
-
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const path = await invoke<string | null>('read_image_from_clipboard');
-      const imagePath = (path || '').trim();
-      if (!imagePath) return; // 剪贴板里没有图片：静默忽略
-
-      const md5Key = buildPathMd5(imagePath);
-      if (fileMd5SetRef.current.has(md5Key)) {
-        toast.info(t('refImage.toast.exists'));
-        return;
-      }
-
-      const name = imagePath.split(/[/\\]/).pop() || `clipboard-${Date.now()}.png`;
-      const file = new File([], name, { type: 'image/png' }) as ExtendedFile;
-      file.__path = imagePath;
-      file.__md5 = md5Key;
-
-      addRefFiles([file]);
-      toast.success(t('refImage.toast.addedOne'));
-    } catch (err) {
-      // 原生读取失败：静默忽略，避免影响正常文本粘贴体验
-      console.warn('[ReferenceImageUpload] read_image_from_clipboard failed:', err);
-    }
-  }, [isExpanded, refFiles.length, addRefFiles]);
-
-  // 处理粘贴上传（React 事件）
-  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
-    const files = extractImageFilesFromClipboard(e.clipboardData || null);
-    if (files.length > 0) {
-      e.preventDefault();
-      e.stopPropagation();
-      try {
-        await processPastedFiles(files);
-      } catch (error) {
-        if (error instanceof Error && error.message === BUSY_ERROR_MESSAGE) {
-          toast.info(t('refImage.toast.busy'));
-        } else {
-          console.error('Paste image failed:', error);
-          const message = error instanceof Error ? error.message : t('refImage.toast.unknown');
-          toast.error(t('refImage.toast.pasteFailed', { message }));
-        }
-      }
-      return;
-    }
-
-    const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
-    if (!isTauri) return;
-
-    // 如果用户在粘贴纯文本（且当前在输入框内），不要触发原生读取，避免拖慢输入体验
-    const plain = (e.clipboardData?.getData('text/plain') || '').trim();
-    const target = e.target as HTMLElement | null;
-    const isTextInputTarget = Boolean(
-      target &&
-      ((target as any).isContentEditable ||
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA')
-    );
-    if (plain && isTextInputTarget) return;
-
-    // 兜底：Tauri 打包环境下 Web ClipboardData 可能拿不到图片数据，尝试原生读取
-    void tryPasteFromTauriClipboard();
-  }, [extractImageFilesFromClipboard, processPastedFiles, tryPasteFromTauriClipboard]);
-
-  // 全局 paste 捕获：不要求用户必须聚焦参考图区域
-  useEffect(() => {
-    const onPaste = (e: ClipboardEvent) => {
-      if (!e.clipboardData) return;
-
-      const files = extractImageFilesFromClipboard(e.clipboardData);
-      if (files.length > 0) {
-        e.preventDefault();
-        e.stopPropagation();
-        void processPastedFiles(files);
-        return;
-      }
-
-      const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
-      if (!isTauri) return;
-
-      const plain = (e.clipboardData.getData('text/plain') || '').trim();
-      const target = e.target as HTMLElement | null;
-      const isTextInputTarget = Boolean(
-        target &&
-        ((target as any).isContentEditable ||
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA')
-      );
-      if (plain && isTextInputTarget) return;
-
-      void tryPasteFromTauriClipboard();
-    };
-
-    window.addEventListener('paste', onPaste, true);
-    return () => {
-      window.removeEventListener('paste', onPaste, true);
-    };
-  }, [extractImageFilesFromClipboard, processPastedFiles, tryPasteFromTauriClipboard]);
+  const { handlePaste } = useReferenceImagePaste({
+    isExpanded,
+    setIsExpanded,
+    refFilesLength: refFiles.length,
+    addRefFiles,
+    withProcessingLock,
+    processFilesWithMd5,
+    fileMd5SetRef,
+    buildPathMd5,
+    busyErrorMessage: BUSY_ERROR_MESSAGE,
+    t,
+  });
 
   // 处理拖拽开始 - 添加视觉反馈
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -1072,9 +944,9 @@ export function ReferenceImageUpload() {
           return;
         }
 
-        const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
-        const dragBlobSymbol = Symbol.for('__dragImageBlob');
-        const cachedData = (window as any)[dragBlobSymbol];
+        const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
+        const cachedDragValue = window.__BANANA_DRAG_IMAGE_DATA__;
+        const cachedData = isCachedDragImageData(cachedDragValue) ? cachedDragValue : null;
         const cachedCreatedAt = typeof cachedData?.createdAt === 'number' ? cachedData.createdAt : 0;
         const isCachedFresh = cachedCreatedAt > 0 && Date.now() - cachedCreatedAt < 60_000;
 
@@ -1132,7 +1004,7 @@ export function ReferenceImageUpload() {
         // 调试日志
 
         // 优先处理缓存的 Blob 数据（避免 CORS / asset:// 导致 URL fetch 失败）
-        // 使用 Symbol 避免全局变量污染（拖拽源会写入 window[Symbol.for('__dragImageBlob')]）
+        // 使用固定 window 字段缓存拖拽 Blob，避免 WebView 丢失二进制数据
         const hasBlobFlag = (e.dataTransfer.getData('application/x-has-blob') || '').trim();
         const canUseCachedBlob =
           cachedData &&
@@ -1159,7 +1031,7 @@ export function ReferenceImageUpload() {
                     toast.error(t('refImage.toast.tooLarge'));
                   }
                 }
-              } catch (err) {
+              } catch {
                 // 忽略：继续走 URL / 文件兜底
               }
             }
@@ -1231,7 +1103,6 @@ export function ReferenceImageUpload() {
             if (file) {
               // createImageFileFromUrl 已处理MD5，直接加入已验证列表
               validatedFiles.push(file);
-            } else {
             }
           }
         } catch (error) {
@@ -1288,7 +1159,7 @@ export function ReferenceImageUpload() {
         toast.error(t('refImage.toast.addFailed', { message }));
       }
     }
-  }, [isExpanded, refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5, createImageFileFromUrl, normalizePathFromUri]);
+  }, [isExpanded, refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5, createImageFileFromUrl, t]);
 
   // 处理删除文件（同时清理MD5和ObjectURL）
   // 使用 useConfigStore.getState() 避免依赖 refFiles 数组
@@ -1631,7 +1502,7 @@ export function ReferenceImageUpload() {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      style={{ WebkitAppRegion: 'no-drag' } as any}
+      style={noDragStyle}
     >
       {/* 标题行 + 折叠按钮 */}
       <div

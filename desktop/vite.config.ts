@@ -15,8 +15,8 @@ export default defineConfig({
         manualChunks: {
           // React 核心
           'vendor-react': ['react', 'react-dom'],
-          // 状态管理和数据请求
-          'vendor-data': ['zustand', '@tanstack/react-query'],
+          // 状态管理
+          'vendor-data': ['zustand'],
           // 国际化
           'vendor-i18n': ['i18next', 'react-i18next'],
           // 工具库

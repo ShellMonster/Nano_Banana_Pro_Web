@@ -2,6 +2,7 @@ package provider
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"image"
@@ -14,6 +15,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 const tinyPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
@@ -349,5 +351,33 @@ func TestOpenAIImageProviderRejectsInvalidReference(t *testing.T) {
 	_, err := collectOpenAIImageReferences([]interface{}{[]byte("not an image")})
 	if err == nil || !strings.Contains(err.Error(), "不是有效图片") {
 		t.Fatalf("collectOpenAIImageReferences error = %v, want invalid image error", err)
+	}
+}
+
+func TestOpenAIImageEditBodyStopsWriterWhenContextIsCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	reader, _ := openAIImageEditBody(ctx, map[string]string{"prompt": "edit prompt"}, []openAIImageReference{
+		{
+			Name:    "large-reference.png",
+			Content: bytes.Repeat([]byte("x"), 4<<20),
+			MIME:    "image/png",
+		},
+	})
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := io.Copy(io.Discard, reader)
+		done <- err
+	}()
+
+	cancel()
+
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), context.Canceled.Error()) {
+			t.Fatalf("reader error = %v, want context canceled", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("multipart body reader did not stop after context cancellation")
 	}
 }

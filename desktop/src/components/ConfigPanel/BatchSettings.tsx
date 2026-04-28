@@ -1,6 +1,7 @@
 import { useMemo, useEffect } from 'react';
 import { Info, Settings2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useShallow } from 'zustand/react/shallow';
 import {
   useConfigStore,
   getModelAspectRatios,
@@ -29,7 +30,23 @@ export function BatchSettings() {
     imageModel,
     imageProvider,
     refFiles
-  } = useConfigStore();
+  } = useConfigStore(
+    useShallow((s) => ({
+      count: s.count,
+      setCount: s.setCount,
+      imageSize: s.imageSize,
+      setImageSize: s.setImageSize,
+      imageNativeSize: s.imageNativeSize,
+      setImageNativeSize: s.setImageNativeSize,
+      imageQuality: s.imageQuality,
+      setImageQuality: s.setImageQuality,
+      aspectRatio: s.aspectRatio,
+      setAspectRatio: s.setAspectRatio,
+      imageModel: s.imageModel,
+      imageProvider: s.imageProvider,
+      refFiles: s.refFiles
+    }))
+  );
 
   const supportedRatios = useMemo(() => getModelAspectRatios(imageModel), [imageModel]);
   const useNativeSize = isUsingNativeImageSize(imageProvider, imageModel);

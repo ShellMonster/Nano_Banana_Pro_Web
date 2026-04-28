@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"strconv"
 	"strings"
 
@@ -33,6 +34,133 @@ type MultipartRequest struct {
 	PromptOptimizeModel    string
 	RefImages              []MultipartFile
 	RefPaths               []string
+}
+
+const (
+	maxReferenceImageCount      = 10
+	maxReferenceImageSizeBytes  = 20 * 1024 * 1024
+	maxReferenceImagesTotalByte = 80 * 1024 * 1024
+)
+
+func referenceImageLimitMB(limit int64) int64 {
+	return limit / 1024 / 1024
+}
+
+func referenceImagesTotalBytes(files []MultipartFile) int64 {
+	var total int64
+	for _, file := range files {
+		total += int64(len(file.Content))
+	}
+	return total
+}
+
+func totalReferenceImageBytes(images []interface{}) int64 {
+	var total int64
+	for _, image := range images {
+		if content, ok := image.([]byte); ok {
+			total += int64(len(content))
+		}
+	}
+	return total
+}
+
+func validateReferenceImageCount(nextCount int) error {
+	if nextCount > maxReferenceImageCount {
+		return fmt.Errorf("参考图数量超过限制: 当前 %d 张，最多 %d 张", nextCount, maxReferenceImageCount)
+	}
+	return nil
+}
+
+func validateReferenceImageSize(name string, size int64) error {
+	if size > maxReferenceImageSizeBytes {
+		return fmt.Errorf("参考图 %s 大小超过限制: 当前 %.2fMB，单张最多 %dMB", name, float64(size)/1024/1024, referenceImageLimitMB(maxReferenceImageSizeBytes))
+	}
+	return nil
+}
+
+func validateReferenceImageRegularFile(name string, isRegular bool) error {
+	if !isRegular {
+		return fmt.Errorf("参考图 %s 不是普通文件", name)
+	}
+	return nil
+}
+
+func validateReferenceImagesTotalBytes(nextTotal int64) error {
+	if nextTotal > maxReferenceImagesTotalByte {
+		return fmt.Errorf("参考图总大小超过限制: 当前 %.2fMB，总计最多 %dMB", float64(nextTotal)/1024/1024, referenceImageLimitMB(maxReferenceImagesTotalByte))
+	}
+	return nil
+}
+
+func validateReferenceImageBytesAppend(currentImages []interface{}, name string, content []byte) error {
+	if err := validateReferenceImageCount(len(currentImages) + 1); err != nil {
+		return err
+	}
+	if err := validateReferenceImageSize(name, int64(len(content))); err != nil {
+		return err
+	}
+	return validateReferenceImagesTotalBytes(totalReferenceImageBytes(currentImages) + int64(len(content)))
+}
+
+func appendReferenceImageBytes(currentImages []interface{}, name string, content []byte) ([]interface{}, error) {
+	if err := validateReferenceImageBytesAppend(currentImages, name, content); err != nil {
+		return currentImages, err
+	}
+	return append(currentImages, content), nil
+}
+
+func readReferenceImageWithLimit(reader io.Reader, name string) ([]byte, error) {
+	content, err := io.ReadAll(io.LimitReader(reader, maxReferenceImageSizeBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("读取文件失败: %w", err)
+	}
+	if err := validateReferenceImageSize(name, int64(len(content))); err != nil {
+		return nil, err
+	}
+	return content, nil
+}
+
+func readAndCloseReferenceImage(file io.ReadCloser, name string) ([]byte, error) {
+	content, readErr := readReferenceImageWithLimit(file, name)
+	closeErr := file.Close()
+	if readErr != nil {
+		return nil, readErr
+	}
+	if closeErr != nil {
+		return nil, fmt.Errorf("关闭参考图失败: %w", closeErr)
+	}
+	return content, nil
+}
+
+func appendMultipartReferenceImage(req *MultipartRequest, name string, content []byte) error {
+	if err := validateReferenceImageCount(len(req.RefImages) + 1); err != nil {
+		return err
+	}
+	if err := validateReferenceImageSize(name, int64(len(content))); err != nil {
+		return err
+	}
+	nextTotal := referenceImagesTotalBytes(req.RefImages) + int64(len(content))
+	if err := validateReferenceImagesTotalBytes(nextTotal); err != nil {
+		return err
+	}
+	req.RefImages = append(req.RefImages, MultipartFile{
+		Name:    name,
+		Content: content,
+	})
+	return nil
+}
+
+func validateFileHeaderBeforeRead(fileHeader *multipart.FileHeader, currentCount int, currentTotal int64) error {
+	if err := validateReferenceImageCount(currentCount + 1); err != nil {
+		return err
+	}
+	if fileHeader == nil {
+		return nil
+	}
+	if err := validateReferenceImageSize(fileHeader.Filename, fileHeader.Size); err != nil {
+		return err
+	}
+	return validateReferenceImagesTotalBytes(currentTotal + fileHeader.Size)
 }
 
 // ParseGenerateRequestFromMultipart 使用 formstream 解析图生图请求
@@ -148,19 +276,22 @@ func ParseGenerateRequestFromMultipart(c *gin.Context) (*MultipartRequest, error
 
 	// 注册文件处理器 (匹配前端的 refImages)
 	p.Parser.Register("refImages", func(reader io.Reader, header formstream.Header) error {
-		content, err := io.ReadAll(reader)
-		if err != nil {
-			return fmt.Errorf("读取文件失败: %w", err)
+		name := header.FileName()
+		if err := validateReferenceImageCount(len(req.RefImages) + 1); err != nil {
+			return err
 		}
-		req.RefImages = append(req.RefImages, MultipartFile{
-			Name:    header.FileName(),
-			Content: content,
-		})
-		return nil
+		content, err := readReferenceImageWithLimit(reader, name)
+		if err != nil {
+			return err
+		}
+		return appendMultipartReferenceImage(req, name, content)
 	})
 
 	// 执行解析
 	if err := p.Parse(); err != nil {
+		if strings.Contains(err.Error(), "参考图") {
+			return nil, err
+		}
 		// 如果 formstream 解析失败，尝试回退到标准库
 		log.Printf("[回退] formstream 解析失败: %v, 尝试使用标准库\n", err)
 		return parseWithStandardLibrary(c)
@@ -199,19 +330,20 @@ func parseWithStandardLibrary(c *gin.Context) (*MultipartRequest, error) {
 	if err == nil && form.File != nil {
 		files := form.File["refImages"]
 		for _, fileHeader := range files {
+			if err := validateFileHeaderBeforeRead(fileHeader, len(req.RefImages), referenceImagesTotalBytes(req.RefImages)); err != nil {
+				return nil, err
+			}
 			file, err := fileHeader.Open()
 			if err != nil {
-				continue
+				return nil, fmt.Errorf("打开参考图失败: %w", err)
 			}
-			content, err := io.ReadAll(file)
-			file.Close()
+			content, err := readAndCloseReferenceImage(file, fileHeader.Filename)
 			if err != nil {
-				continue
+				return nil, err
 			}
-			req.RefImages = append(req.RefImages, MultipartFile{
-				Name:    fileHeader.Filename,
-				Content: content,
-			})
+			if err := appendMultipartReferenceImage(req, fileHeader.Filename, content); err != nil {
+				return nil, err
+			}
 		}
 	}
 

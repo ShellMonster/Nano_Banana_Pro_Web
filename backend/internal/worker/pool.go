@@ -183,11 +183,6 @@ func (wp *WorkerPool) processTask(task *Task) {
 	ctx, cancel := context.WithTimeout(wp.ctx, timeout)
 	defer cancel()
 
-	type generateResult struct {
-		result *provider.ProviderResult
-		err    error
-	}
-
 	callStartedAt := time.Now()
 	log.Printf("任务 %s 调用 Provider 开始: provider=%s model=%s timeout=%s", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, timeout)
 	diagnostic.Logf(task.Params, "provider_call_start",
@@ -213,76 +208,65 @@ func (wp *WorkerPool) processTask(task *Task) {
 		return
 	}
 
-	done := make(chan generateResult, 1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				done <- generateResult{
-					err: fmt.Errorf("Provider 执行异常崩溃: %v", r),
-				}
-			}
-		}()
-		result, err := p.Generate(ctx, task.Params)
-		elapsed := time.Since(callStartedAt)
-		if err != nil {
-			log.Printf("任务 %s 调用 Provider 失败: provider=%s model=%s elapsed=%s err=%v", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, elapsed, err)
-			summary := diagnostic.SummarizeError(err)
-			diagnostic.Logf(task.Params, "provider_call_error",
-				"provider=%s model=%s elapsed=%s error_type=%s error_code=%s category=%s retryable=%t request_id=%s user_message=%q raw_error=%q",
-				task.TaskModel.ProviderName,
-				task.TaskModel.ModelID,
-				elapsed,
-				summary.Type,
-				summary.Code,
-				summary.Category,
-				summary.Retryable,
-				summary.RequestID,
-				summary.UserMessage,
-				err.Error(),
-			)
-		} else {
-			imageCount := 0
-			if result != nil {
-				imageCount = len(result.Images)
-			}
-			log.Printf("任务 %s 调用 Provider 成功: provider=%s model=%s elapsed=%s images=%d", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, elapsed, imageCount)
-			diagnostic.Logf(task.Params, "provider_call_success",
-				"provider=%s model=%s elapsed=%s images=%d metadata=%v",
-				task.TaskModel.ProviderName,
-				task.TaskModel.ModelID,
-				elapsed,
-				imageCount,
-				func() map[string]interface{} {
-					if result == nil || result.Metadata == nil {
-						return map[string]interface{}{}
-					}
-					return result.Metadata
-				}(),
-			)
+	result, err := callProviderWithRecovery(p, ctx, task.Params)
+	elapsed := time.Since(callStartedAt)
+	ctxErr := ctx.Err()
+	callErr := err
+	if ctxErr != nil {
+		callErr = ctxErr
+	}
+	if callErr != nil {
+		log.Printf("任务 %s 调用 Provider 失败: provider=%s model=%s elapsed=%s err=%v", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, elapsed, callErr)
+		summary := diagnostic.SummarizeError(callErr)
+		diagnostic.Logf(task.Params, "provider_call_error",
+			"provider=%s model=%s elapsed=%s error_type=%s error_code=%s category=%s retryable=%t request_id=%s user_message=%q raw_error=%q",
+			task.TaskModel.ProviderName,
+			task.TaskModel.ModelID,
+			elapsed,
+			summary.Type,
+			summary.Code,
+			summary.Category,
+			summary.Retryable,
+			summary.RequestID,
+			summary.UserMessage,
+			callErr.Error(),
+		)
+	} else {
+		imageCount := 0
+		if result != nil {
+			imageCount = len(result.Images)
 		}
-		done <- generateResult{result: result, err: err}
-	}()
+		log.Printf("任务 %s 调用 Provider 成功: provider=%s model=%s elapsed=%s images=%d", task.TaskModel.TaskID, task.TaskModel.ProviderName, task.TaskModel.ModelID, elapsed, imageCount)
+		diagnostic.Logf(task.Params, "provider_call_success",
+			"provider=%s model=%s elapsed=%s images=%d metadata=%v",
+			task.TaskModel.ProviderName,
+			task.TaskModel.ModelID,
+			elapsed,
+			imageCount,
+			func() map[string]interface{} {
+				if result == nil || result.Metadata == nil {
+					return map[string]interface{}{}
 
-	var result *provider.ProviderResult
-	select {
-	case <-ctx.Done():
-		err := ctx.Err()
+				}
+				return result.Metadata
+			}(),
+		)
+	}
+	if ctxErr != nil {
+		if errors.Is(ctxErr, context.DeadlineExceeded) {
+			wp.failTask(task, fmt.Errorf("生成超时(%s)", timeout))
+		} else {
+			wp.failTask(task, ctxErr)
+		}
+		return
+	}
+	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			wp.failTask(task, fmt.Errorf("生成超时(%s)", timeout))
 		} else {
 			wp.failTask(task, err)
 		}
 		return
-	case out := <-done:
-		if out.err != nil {
-			if errors.Is(out.err, context.DeadlineExceeded) {
-				wp.failTask(task, fmt.Errorf("生成超时(%s)", timeout))
-			} else {
-				wp.failTask(task, out.err)
-			}
-			return
-		}
-		result = out.result
 	}
 
 	// 记录配置快照
@@ -352,6 +336,15 @@ func (wp *WorkerPool) processTask(task *Task) {
 	} else {
 		wp.failTask(task, fmt.Errorf("未生成任何图片"))
 	}
+}
+
+func callProviderWithRecovery(p provider.Provider, ctx context.Context, params map[string]interface{}) (result *provider.ProviderResult, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("Provider 执行异常崩溃: %v", r)
+		}
+	}()
+	return p.Generate(ctx, params)
 }
 
 func (wp *WorkerPool) optimizePromptForTask(ctx context.Context, task *Task) error {

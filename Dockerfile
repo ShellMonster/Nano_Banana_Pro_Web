@@ -100,9 +100,9 @@ VOLUME ["/app/storage"]
 # 暴露端口
 EXPOSE 80
 
-# 健康检查
+# 健康检查：同时覆盖 Nginx/前端入口和经 Nginx 代理的后端 API
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD wget -q --spider http://localhost:8080/api/v1/health || wget -q --spider http://localhost:80/api/v1/health || exit 1
+    CMD wget -q -T 3 -t 1 --spider http://localhost/ && wget -q -T 3 -t 1 --spider http://localhost/api/v1/health || exit 1
 
 # 启动脚本：同时运行 Nginx 和后端服务
 CMD sh -c "mkdir -p /app/storage/local && nginx && cd /app && ./server"

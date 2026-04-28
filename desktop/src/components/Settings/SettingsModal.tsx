@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Eye, EyeOff, Key, Globe, Box, Save, Loader2, FileText, FolderOpen, Copy, RefreshCw, Languages, MessageSquare, Github, ScanEye, HelpCircle, Image as ImageIcon, Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useShallow } from 'zustand/react/shallow';
 import { useConfigStore } from '../../store/configStore';
 import { Input } from '../common/Input';
 import { Select } from '../common/Select';
@@ -11,12 +12,13 @@ import { getProviders, updateProviderConfig, ProviderConfig } from '../../servic
 import { toast } from '../../store/toastStore';
 import { getDiagnosticVerbose, setDiagnosticVerbose } from '../../utils/diagnosticLogger';
 import { useUpdaterStore } from '../../store/updaterStore';
-import i18n, { DEFAULT_LANGUAGE } from '../../i18n';
+import i18n, { changeAppLanguage, DEFAULT_LANGUAGE } from '../../i18n';
 import { getSystemLocale } from '../../i18n/systemLocale';
 import appIcon from '../../assets/app-icon.png';
 import { getDefaultImageModelForProvider, getImageModelOptions, VISION_MODEL_OPTIONS, CUSTOM_MODEL_VALUE } from '../../store/configStore';
 import { getPromptOptimizeConfigIssue } from '../../utils/promptOptimizeConfig';
 import { ensureNotificationPermission, sendTestSystemNotification } from '../../hooks/useGenerationNotifications';
+import { ProviderConnectionFields } from './ProviderConnectionFields';
 
 const CHAT_PROVIDER_OPTIONS = [
   { value: 'gemini-chat', label: 'Gemini(/v1beta)', defaultBase: 'https://generativelanguage.googleapis.com' },
@@ -183,7 +185,63 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setLanguage,
     setLanguageResolved,
     setShowOnboarding
-  } = useConfigStore();
+  } = useConfigStore(
+    useShallow((s) => ({
+      imageProvider: s.imageProvider,
+      setImageProvider: s.setImageProvider,
+      imageApiKey: s.imageApiKey,
+      setImageApiKey: s.setImageApiKey,
+      imageApiBaseUrl: s.imageApiBaseUrl,
+      setImageApiBaseUrl: s.setImageApiBaseUrl,
+      imageModel: s.imageModel,
+      setImageModel: s.setImageModel,
+      imageTimeoutSeconds: s.imageTimeoutSeconds,
+      setImageTimeoutSeconds: s.setImageTimeoutSeconds,
+      imageMaxRetries: s.imageMaxRetries,
+      setImageMaxRetries: s.setImageMaxRetries,
+      enableRefImageCompression: s.enableRefImageCompression,
+      setEnableRefImageCompression: s.setEnableRefImageCompression,
+      visionProvider: s.visionProvider,
+      setVisionProvider: s.setVisionProvider,
+      visionApiBaseUrl: s.visionApiBaseUrl,
+      setVisionApiBaseUrl: s.setVisionApiBaseUrl,
+      visionApiKey: s.visionApiKey,
+      setVisionApiKey: s.setVisionApiKey,
+      visionModel: s.visionModel,
+      setVisionModel: s.setVisionModel,
+      visionTimeoutSeconds: s.visionTimeoutSeconds,
+      setVisionTimeoutSeconds: s.setVisionTimeoutSeconds,
+      visionMaxRetries: s.visionMaxRetries,
+      setVisionMaxRetries: s.setVisionMaxRetries,
+      setVisionSyncedConfig: s.setVisionSyncedConfig,
+      chatProvider: s.chatProvider,
+      setChatProvider: s.setChatProvider,
+      chatApiBaseUrl: s.chatApiBaseUrl,
+      setChatApiBaseUrl: s.setChatApiBaseUrl,
+      chatApiKey: s.chatApiKey,
+      setChatApiKey: s.setChatApiKey,
+      chatModel: s.chatModel,
+      setChatModel: s.setChatModel,
+      chatTimeoutSeconds: s.chatTimeoutSeconds,
+      setChatTimeoutSeconds: s.setChatTimeoutSeconds,
+      chatMaxRetries: s.chatMaxRetries,
+      setChatMaxRetries: s.setChatMaxRetries,
+      setChatSyncedConfig: s.setChatSyncedConfig,
+      defaultPromptOptimizeMode: s.defaultPromptOptimizeMode,
+      setDefaultPromptOptimizeMode: s.setDefaultPromptOptimizeMode,
+      enableSystemNotifications: s.enableSystemNotifications,
+      setEnableSystemNotifications: s.setEnableSystemNotifications,
+      notifyOnlyWhenBackground: s.notifyOnlyWhenBackground,
+      setNotifyOnlyWhenBackground: s.setNotifyOnlyWhenBackground,
+      notifyOnFailure: s.notifyOnFailure,
+      setNotifyOnFailure: s.setNotifyOnFailure,
+      language: s.language,
+      languageResolved: s.languageResolved,
+      setLanguage: s.setLanguage,
+      setLanguageResolved: s.setLanguageResolved,
+      setShowOnboarding: s.setShowOnboarding
+    }))
+  );
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('image');
   const [showImageKey, setShowImageKey] = useState(false);
@@ -605,7 +663,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const resolved = resolveSystemLanguage(systemLocale);
       setLanguageResolved(resolved);
       if (i18n.language !== resolved) {
-        void i18n.changeLanguage(resolved);
+        void changeAppLanguage(resolved);
       }
       return;
     }
@@ -615,7 +673,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setLanguageResolved(null);
     }
     if (i18n.language !== nextLanguage) {
-      void i18n.changeLanguage(nextLanguage);
+      void changeAppLanguage(nextLanguage);
     }
   };
 
@@ -1061,57 +1119,24 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </Select>
             </div>
 
-            {/* API Base URL */}
-            <div className="space-y-3">
-            <div className="flex items-center justify-between px-1">
-              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
-                <Globe className="w-4 h-4 text-blue-600" />
-                Base URL
-              </label>
-              <span className="text-xs text-slate-500">
-                {t('settings.provider.recommended')}
-                <button
-                  type="button"
-                  onClick={handleOpenYunwu}
-                  className="text-blue-600 hover:text-blue-700 underline underline-offset-2"
-                >
-                  {t('settings.provider.yunwu')}
-                </button>
-              </span>
-            </div>
-              <Input
-                type="text"
-                value={imageApiBaseUrl || ''}
-                onChange={(e) => setImageApiBaseUrl(e.target.value)}
-                placeholder="https://generativelanguage.googleapis.com"
-                className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
-              />
-              {imageBaseWarn && <BaseUrlWarning yunwuWarn={imageYunwuWarn} />}
-            </div>
-
-            {/* API Key */}
-            <div className="space-y-3">
-              <label className="text-[13px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
-                <Key className="w-4 h-4 text-blue-600" />
-                API Key
-              </label>
-              <div className="relative">
-                <Input
-                  type={showImageKey ? 'text' : 'password'}
-                  value={imageApiKey || ''}
-                  onChange={(e) => setImageApiKey(e.target.value)}
-                  placeholder="sk-******************"
-                  className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 pr-14 focus:bg-white border border-slate-200 transition-all shadow-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowImageKey(!showImageKey)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-blue-600 transition-colors bg-white/80 rounded-xl shadow-sm"
-                >
-                  {showImageKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
+            <ProviderConnectionFields
+              baseUrl={imageApiBaseUrl}
+              onBaseUrlChange={setImageApiBaseUrl}
+              baseUrlPlaceholder="https://generativelanguage.googleapis.com"
+              apiKey={imageApiKey}
+              onApiKeyChange={setImageApiKey}
+              apiKeyPlaceholder="sk-******************"
+              showApiKey={showImageKey}
+              onToggleApiKey={() => {
+                setShowImageKey(!showImageKey);
+              }}
+              recommendedLabel={t('settings.provider.recommended')}
+              yunwuLabel={t('settings.provider.yunwu')}
+              onOpenYunwu={() => {
+                void handleOpenYunwu();
+              }}
+              warning={imageBaseWarn ? <BaseUrlWarning yunwuWarn={imageYunwuWarn} /> : undefined}
+            />
 
             {/* Model Name */}
             <div className="space-y-3" data-onboarding="settings-ref-compression">

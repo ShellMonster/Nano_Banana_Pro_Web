@@ -12,6 +12,8 @@ import (
 var sensitiveValuePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)("api[_-]?key"\s*:\s*")([^"]+)(")`),
 	regexp.MustCompile(`(?i)("authorization"\s*:\s*")([^"]+)(")`),
+	regexp.MustCompile(`(?i)(\bapi[_-]?key\s*=\s*"?)([^"\s,}]+)("?)`),
+	regexp.MustCompile(`(?i)(\bauthorization\s*=\s*"?)([^"\s,}]+)("?)`),
 	regexp.MustCompile(`(?i)([?&]key=)([^&\s]+)`),
 	regexp.MustCompile(`(?i)(bearer\s+)([A-Za-z0-9._\-]+)`),
 }
@@ -88,6 +90,23 @@ func Preview(text string, maxRunes int) string {
 		return trimmed
 	}
 	return string(runes[:maxRunes]) + "...(truncated)"
+}
+
+type ResponseSummary struct {
+	Length  int
+	Preview string
+}
+
+func ResponseBodySummary(body []byte, maxPreviewRunes int) ResponseSummary {
+	return ResponseSummary{
+		Length:  len(body),
+		Preview: Preview(RedactSensitive(string(body)), maxPreviewRunes),
+	}
+}
+
+func ResponseBodyErrorPreview(body []byte, maxPreviewRunes int) string {
+	summary := ResponseBodySummary(body, maxPreviewRunes)
+	return fmt.Sprintf("body_length=%d body_preview=%s", summary.Length, summary.Preview)
 }
 
 func RedactSensitive(text string) string {

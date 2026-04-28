@@ -1,9 +1,6 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import zhCN from './locales/zh-CN.json';
-import enUS from './locales/en-US.json';
-import jaJP from './locales/ja-JP.json';
-import koKR from './locales/ko-KR.json';
 import { getSystemLocale } from './systemLocale';
 
 export const SUPPORTED_LANGUAGES = ['zh-CN', 'en-US', 'ja-JP', 'ko-KR'] as const;
@@ -27,6 +24,23 @@ type StoredLanguageState = {
   languageResolved?: string | null;
 };
 
+type TranslationResource = Record<string, unknown>;
+
+const loadLanguageResource = (lang: SupportedLanguage): Promise<TranslationResource> => {
+  switch (lang) {
+    case 'zh-CN':
+      return Promise.resolve(zhCN);
+    case 'en-US':
+      return import('./locales/en-US.json').then((module) => module.default);
+    case 'ja-JP':
+      return import('./locales/ja-JP.json').then((module) => module.default);
+    case 'ko-KR':
+      return import('./locales/ko-KR.json').then((module) => module.default);
+  }
+};
+
+const loadedLanguages = new Set<SupportedLanguage>([DEFAULT_LANGUAGE]);
+
 const getStoredLanguageState = (): StoredLanguageState | null => {
   if (typeof localStorage === 'undefined') return null;
   try {
@@ -44,9 +58,21 @@ const getStoredLanguageState = (): StoredLanguageState | null => {
 
 const resources = {
   'zh-CN': { translation: zhCN },
-  'en-US': { translation: enUS },
-  'ja-JP': { translation: jaJP },
-  'ko-KR': { translation: koKR }
+};
+
+const ensureLanguageResource = async (lang: SupportedLanguage): Promise<void> => {
+  if (loadedLanguages.has(lang)) return;
+
+  const translation = await loadLanguageResource(lang);
+  i18n.addResourceBundle(lang, 'translation', translation, true, true);
+  loadedLanguages.add(lang);
+};
+
+export const changeAppLanguage = async (lang: string): Promise<SupportedLanguage> => {
+  const normalized = normalizeLanguage(lang) || DEFAULT_LANGUAGE;
+  await ensureLanguageResource(normalized);
+  await i18n.changeLanguage(normalized);
+  return i18n.language as SupportedLanguage;
 };
 
 const updateDocumentLanguage = (lang: string) => {
@@ -55,7 +81,7 @@ const updateDocumentLanguage = (lang: string) => {
     document.title = i18n.t('app.title');
   }
 
-  if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+  if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
     import('@tauri-apps/api/window')
       .then(({ getCurrentWindow }) => getCurrentWindow().setTitle(i18n.t('app.title')))
       .catch(() => undefined);
@@ -94,6 +120,8 @@ export const initI18n = async (): Promise<SupportedLanguage> => {
       fallbackLng: DEFAULT_LANGUAGE,
       interpolation: { escapeValue: false }
     });
+
+  await changeAppLanguage(resolved);
 
   updateDocumentLanguage(i18n.language);
   i18n.on('languageChanged', updateDocumentLanguage);

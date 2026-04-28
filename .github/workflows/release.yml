@@ -18,7 +18,7 @@ jobs:
       - name: 安装 Go 环境
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version-file: './backend/go.mod'
           cache-dependency-path: './backend/go.sum'
 
       - name: 后端代码检查
@@ -119,7 +119,7 @@ jobs:
       - name: 安装 Go 环境
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version-file: './backend/go.mod'
           cache-dependency-path: './backend/go.sum'
 
       - name: 生成 Release Notes
@@ -148,7 +148,7 @@ jobs:
           fi
 
       - name: 安装前端依赖
-        run: npm install
+        run: npm ci
         working-directory: ./desktop
 
       - name: 导入 Apple 签名证书 (macOS)

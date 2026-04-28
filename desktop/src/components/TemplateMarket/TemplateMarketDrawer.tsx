@@ -17,8 +17,6 @@ import {
   Maximize2,
   MessageCircle,
   Printer,
-  RefreshCw,
-  Search,
   ShoppingBag,
   Smile,
   Sparkles,
@@ -28,7 +26,6 @@ import {
   ZoomIn,
   ZoomOut
 } from 'lucide-react';
-import { Input } from '../common/Input';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { useConfigStore } from '../../store/configStore';
@@ -47,6 +44,7 @@ import {
   templateLabelKeys,
   TEMPLATE_ALL_VALUE
 } from '../../data/templateMarket';
+import { TemplateMarketFilters, type ActiveTemplateFilter } from './TemplateMarketFilters';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const hashString = async (value: string) => {
@@ -73,6 +71,35 @@ const mimeToExtension = (mime: string) => {
   return 'jpg';
 };
 const ALL_VALUE = TEMPLATE_ALL_VALUE;
+const TEMPLATE_GRID_GAP = 20;
+const TEMPLATE_GRID_MIN_CARD_WIDTH = 180;
+const TEMPLATE_GRID_CARD_HEIGHT = 320;
+const TEMPLATE_GRID_COLUMNS = {
+  MIN: 2,
+  MEDIUM: 3,
+  LARGE: 4
+} as const;
+const TEMPLATE_GRID_BREAKPOINTS = {
+  MEDIUM: 768,
+  LARGE: 1280
+} as const;
+
+const getTemplateColumnCount = (containerWidth: number, viewportWidth: number | undefined) => {
+  const basis = viewportWidth ?? containerWidth;
+  let count: number = TEMPLATE_GRID_COLUMNS.MIN;
+  if (basis >= TEMPLATE_GRID_BREAKPOINTS.LARGE) {
+    count = TEMPLATE_GRID_COLUMNS.LARGE;
+  } else if (basis >= TEMPLATE_GRID_BREAKPOINTS.MEDIUM) {
+    count = TEMPLATE_GRID_COLUMNS.MEDIUM;
+  }
+
+  while (count > TEMPLATE_GRID_COLUMNS.MIN) {
+    const requiredWidth = count * TEMPLATE_GRID_MIN_CARD_WIDTH + (count - 1) * TEMPLATE_GRID_GAP;
+    if (containerWidth >= requiredWidth) break;
+    count -= 1;
+  }
+  return count;
+};
 
 const buildDefaultTemplateImage = (label: string) => `data:image/svg+xml;utf8,${encodeURIComponent(
   `<?xml version="1.0" encoding="UTF-8"?>
@@ -104,7 +131,7 @@ const fallbackMeta: TemplateMeta = {
 
 const FILTER_LABEL_KEYS: Record<string, string> = templateLabelKeys;
 
-const getFilterLabel = (value: string, translate: (key: string, options?: any) => string) => {
+const getFilterLabel = (value: string, translate: (key: string, options?: Record<string, unknown>) => string) => {
   const key = FILTER_LABEL_KEYS[value];
   return key ? translate(key) : value;
 };
@@ -178,7 +205,7 @@ const formatSourceName = (name: string) => (name.startsWith('@') ? name : `@${na
 
 const openExternalUrl = async (url: string) => {
   if (!url) return;
-  if ((window as any).__TAURI_INTERNALS__) {
+  if (window.__TAURI_INTERNALS__) {
     try {
       const { openUrl } = await import('@tauri-apps/plugin-opener');
       await openUrl(url);
@@ -189,45 +216,6 @@ const openExternalUrl = async (url: string) => {
   }
   window.open(url, '_blank', 'noopener,noreferrer');
 };
-
-const ActiveFilterChip = ({
-  label,
-  onClear
-}: {
-  label: string;
-  onClear: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={onClear}
-    className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/80 border border-white/60 px-3 py-1 text-xs text-slate-600 hover:bg-white"
-  >
-    <span>{label}</span>
-    <X className="w-3 h-3" />
-  </button>
-);
-
-const FilterChip = ({
-  label,
-  active,
-  onClick
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-      active
-        ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-        : 'bg-white/70 text-slate-600 hover:bg-white'
-    }`}
-  >
-    {label}
-  </button>
-);
 
 const buildSearchText = (item: TemplateItem) => {
   const tags = item.tags ? item.tags.join(' ') : '';
@@ -416,7 +404,7 @@ const TemplatePreviewModal = ({
       }
       const blob = await response.blob();
 
-      const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+      const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
       if (isTauri) {
         try {
           const { invoke } = await import('@tauri-apps/api/core');
@@ -436,7 +424,7 @@ const TemplatePreviewModal = ({
         }
       }
 
-      const ClipboardItemCtor = (window as any).ClipboardItem as typeof ClipboardItem | undefined;
+      const ClipboardItemCtor = typeof ClipboardItem !== 'undefined' ? ClipboardItem : undefined;
       if (ClipboardItemCtor && navigator.clipboard?.write) {
         await navigator.clipboard.write([new ClipboardItemCtor({ [blob.type || 'image/png']: blob })]);
         toast.success(t('toast.copyImageSuccess'));
@@ -1049,6 +1037,108 @@ const TemplateCard = React.memo(function TemplateCard({
   );
 });
 
+const VirtualTemplateGrid = ({
+  templates,
+  applyingId,
+  onPreview,
+  onApply,
+  isFiltering,
+  scrollTop,
+  viewportHeight
+}: {
+  templates: TemplateItem[];
+  applyingId: string | null;
+  onPreview: (item: TemplateItem) => void;
+  onApply: (item: TemplateItem) => void;
+  isFiltering: boolean;
+  scrollTop: number;
+  viewportHeight: number;
+}) => {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const element = wrapperRef.current;
+    if (!element) return;
+
+    const updateWidth = () => {
+      setWidth(element.clientWidth);
+    };
+    updateWidth();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateWidth);
+      return () => {
+        window.removeEventListener('resize', updateWidth);
+      };
+    }
+
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  const viewportWidth =
+    typeof window !== 'undefined'
+      ? window.innerWidth || document.documentElement.clientWidth
+      : width;
+  const columnCount = width > 0 ? getTemplateColumnCount(width, viewportWidth) : 2;
+  const columnWidth = Math.max(
+    TEMPLATE_GRID_MIN_CARD_WIDTH,
+    Math.floor((Math.max(width, 1) - TEMPLATE_GRID_GAP * (columnCount - 1)) / columnCount)
+  );
+  const rowHeight = TEMPLATE_GRID_CARD_HEIGHT + TEMPLATE_GRID_GAP;
+  const rowCount = Math.ceil(templates.length / columnCount);
+  const totalHeight = rowCount * rowHeight;
+  const gridOffsetTop = wrapperRef.current?.offsetTop ?? 0;
+  const relativeScrollTop = Math.max(0, scrollTop - gridOffsetTop);
+  const overscanRows = 2;
+  const startRow = Math.max(0, Math.floor(relativeScrollTop / rowHeight) - overscanRows);
+  const endRow = Math.min(
+    rowCount - 1,
+    Math.ceil((relativeScrollTop + viewportHeight) / rowHeight) + overscanRows
+  );
+  const visibleCells: Array<{ item: TemplateItem; index: number; rowIndex: number; columnIndex: number }> = [];
+
+  if (width > 0 && rowCount > 0 && endRow >= startRow) {
+    for (let rowIndex = startRow; rowIndex <= endRow; rowIndex += 1) {
+      const rowStartIndex = rowIndex * columnCount;
+      templates.slice(rowStartIndex, rowStartIndex + columnCount).forEach((item, columnIndex) => {
+        visibleCells.push({ item, index: rowStartIndex + columnIndex, rowIndex, columnIndex });
+      });
+    }
+  }
+
+  return (
+    <div
+      ref={wrapperRef}
+      className={`relative transition-opacity duration-200 ${isFiltering ? 'opacity-70' : 'opacity-100'}`}
+      style={{ height: totalHeight }}
+    >
+      {visibleCells.map(({ item, index, rowIndex, columnIndex }) => (
+        <div
+          key={item.id || index}
+          className="absolute"
+          style={{
+            width: columnWidth,
+            height: TEMPLATE_GRID_CARD_HEIGHT,
+            transform: `translate(${columnIndex * (columnWidth + TEMPLATE_GRID_GAP)}px, ${rowIndex * rowHeight}px)`
+          }}
+        >
+          <TemplateCard
+            item={item}
+            applyingId={applyingId}
+            onPreview={onPreview}
+            onApply={onApply}
+          />
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export function TemplateMarketDrawer({
   onOpenChange
 }: {
@@ -1084,15 +1174,18 @@ export function TemplateMarketDrawer({
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isFiltering, setIsFiltering] = useState(false);
+  const [listScrollTop, setListScrollTop] = useState(0);
+  const [listViewportHeight, setListViewportHeight] = useState(0);
   const dragStartRef = useRef(0);
   const toastOnceRef = useRef(false);
   const previousOverflowRef = useRef<string | null>(null);
   const previousOverscrollRef = useRef<string | null>(null);
   const requestIdRef = useRef(0);
-  const listRef = useRef<HTMLDivElement | null>(null);
   const templateDataRef = useRef(templateData);
+  const listRef = useRef<HTMLDivElement | null>(null);
   const templateSourceRef = useRef(templateSource);
   const scrollTopRef = useRef(0);
+  const filteringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousTabRef = useRef<'generate' | 'history'>('generate');
   const deferredSearch = useDeferredValue(search);
 
@@ -1137,7 +1230,7 @@ export function TemplateMarketDrawer({
   }, [isDormant, deferredSearch, channel, material, industry, ratio, templateData.items, searchIndex]);
 
   const activeFilters = useMemo(() => {
-    const filters: { label: string; onClear: () => void }[] = [];
+    const filters: ActiveTemplateFilter[] = [];
     if (search.trim()) {
       filters.push({ label: t('templateMarket.active.search', { keyword: search.trim() }), onClear: () => setSearch('') });
     }
@@ -1165,6 +1258,7 @@ export function TemplateMarketDrawer({
     setIndustry(ALL_VALUE);
     setRatio(ALL_VALUE);
   };
+
 
   const fetchTemplates = useCallback(async (fromUser = false) => {
     const requestId = ++requestIdRef.current;
@@ -1216,11 +1310,63 @@ export function TemplateMarketDrawer({
     fetchTemplates();
   }, [fetchTemplates]);
 
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const container = listRef.current;
+    if (!container) return;
+
+    const updateViewport = () => {
+      setListViewportHeight(container.clientHeight);
+    };
+    updateViewport();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateViewport);
+      return () => {
+        window.removeEventListener('resize', updateViewport);
+      };
+    }
+
+    const observer = new ResizeObserver(updateViewport);
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+    };
+  }, [isOpen]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || isDormant) return;
+    const container = listRef.current;
+    if (!container) return;
+    const top = scrollTopRef.current;
+    if (top <= 0) return;
+    requestAnimationFrame(() => {
+      container.scrollTop = top;
+      setListScrollTop(top);
+    });
+  }, [isOpen, isDormant, filteredTemplates.length]);
+
   useEffect(() => {
-    if (isDormant || isFiltering) return;
+    if (filteringTimerRef.current) {
+      clearTimeout(filteringTimerRef.current);
+      filteringTimerRef.current = null;
+    }
+    if (isDormant) {
+      setIsFiltering(false);
+      return;
+    }
     setIsFiltering(true);
-    const timer = setTimeout(() => setIsFiltering(false), 180);
-    return () => clearTimeout(timer);
+    filteringTimerRef.current = setTimeout(() => {
+      setIsFiltering(false);
+      filteringTimerRef.current = null;
+    }, 180);
+    return () => {
+      if (filteringTimerRef.current) {
+        clearTimeout(filteringTimerRef.current);
+        filteringTimerRef.current = null;
+      }
+    };
   }, [isDormant, deferredSearch, channel, material, industry, ratio, templateData.items]);
 
 
@@ -1238,17 +1384,6 @@ export function TemplateMarketDrawer({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, previewTemplate]);
-
-  useLayoutEffect(() => {
-    if (!isOpen || isDormant) return;
-    const container = listRef.current;
-    if (!container) return;
-    const top = scrollTopRef.current;
-    if (top <= 0) return;
-    requestAnimationFrame(() => {
-      container.scrollTop = top;
-    });
-  }, [isOpen, isDormant, filteredTemplates.length]);
 
   useEffect(() => {
     const element = document.documentElement;
@@ -1294,7 +1429,6 @@ export function TemplateMarketDrawer({
     nextTab: 'generate' | 'history',
     options?: { deferClose?: boolean }
   ) => {
-    scrollTopRef.current = listRef.current?.scrollTop ?? 0;
     setTab(nextTab);
     const doClose = () => setIsOpen(false);
     if (options?.deferClose) {
@@ -1428,110 +1562,38 @@ export function TemplateMarketDrawer({
           </div>
         )}
 
-        <div ref={listRef} className="flex-1 min-h-0 flex flex-col px-6 pb-6 overflow-y-auto">
-          <div className="pt-6 space-y-6">
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={t('templateMarket.searchPlaceholder')}
-                className="pl-10 bg-white/80"
-              />
-            </div>
-            <div className="flex items-center gap-2 overflow-x-auto flex-nowrap min-h-[34px] pb-1">
-              <span className="text-xs text-slate-400 shrink-0">{t('templateMarket.activeFilters.title')}</span>
-              {hasActiveFilters ? (
-                <>
-                  {activeFilters.map((filter) => (
-                    <ActiveFilterChip key={filter.label} label={filter.label} onClear={filter.onClear} />
-                  ))}
-                  <button
-                    type="button"
-                    onClick={clearAllFilters}
-                    className="text-xs text-blue-600 hover:underline shrink-0"
-                  >
-                    {t('templateMarket.actions.clearFilters')}
-                  </button>
-                </>
-              ) : (
-                <span className="text-xs text-slate-400 shrink-0">{t('templateMarket.activeFilters.empty')}</span>
-              )}
-            </div>
+        <div
+          ref={listRef}
+          className="flex-1 min-h-0 flex flex-col px-6 pb-6 overflow-y-auto overscroll-contain scrollbar-none"
+          onScroll={(event) => {
+            const nextScrollTop = event.currentTarget.scrollTop;
+            scrollTopRef.current = nextScrollTop;
+            setListScrollTop(nextScrollTop);
+          }}
+        >
+          <TemplateMarketFilters
+            search={search}
+            onSearchChange={setSearch}
+            activeFilters={activeFilters}
+            onClearAllFilters={clearAllFilters}
+            meta={normalizedMeta}
+            channel={channel}
+            material={material}
+            industry={industry}
+            ratio={ratio}
+            onChannelChange={setChannel}
+            onMaterialChange={setMaterial}
+            onIndustryChange={setIndustry}
+            onRatioChange={setRatio}
+            formatFilterLabel={formatFilterLabel}
+            isLoading={isLoading}
+            resultCount={filteredTemplates.length}
+            onRefresh={() => {
+              void fetchTemplates(true);
+            }}
+          />
 
-            <div className="space-y-4">
-              <div>
-                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">{t('templateMarket.filters.channel')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {normalizedMeta.channels.map((item) => (
-                    <FilterChip
-                      key={item}
-                      label={formatFilterLabel(item)}
-                      active={channel === item}
-                      onClick={() => setChannel(item)}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">{t('templateMarket.filters.material')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {normalizedMeta.materials.map((item) => (
-                    <FilterChip
-                      key={item}
-                      label={formatFilterLabel(item)}
-                      active={material === item}
-                      onClick={() => setMaterial(item)}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">{t('templateMarket.filters.industry')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {normalizedMeta.industries.map((item) => (
-                    <FilterChip
-                      key={item}
-                      label={formatFilterLabel(item)}
-                      active={industry === item}
-                      onClick={() => setIndustry(item)}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs uppercase text-slate-400 tracking-widest mb-2">{t('templateMarket.filters.ratio')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {normalizedMeta.ratios.map((item) => (
-                    <FilterChip
-                      key={item}
-                      label={formatFilterLabel(item)}
-                      active={ratio === item}
-                      onClick={() => setRatio(item)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">
-                  {isLoading ? t('templateMarket.list.loading') : t('templateMarket.list.count', { count: filteredTemplates.length })}
-                </p>
-              </div>
-                <button
-                type="button"
-                onClick={() => fetchTemplates(true)}
-                disabled={isLoading}
-                className="w-8 h-8 rounded-full bg-white/70 border border-white/60 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-6">
+          <div className="mt-6 shrink-0">
             {isDormant ? (
               <div
                 className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5"
@@ -1567,21 +1629,25 @@ export function TemplateMarketDrawer({
                 )}
               </div>
             ) : (
-              <div className={`${isFiltering ? 'opacity-70' : 'opacity-100'}`}>
-                <div
-                  className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5 pr-1"
-                  onContextMenu={(event) => event.preventDefault()}
-                >
-                  {filteredTemplates.map((item) => (
-                    <TemplateCard
-                      key={item.id}
-                      item={item}
-                      applyingId={applyingId}
-                      onPreview={setPreviewTemplate}
-                      onApply={applyTemplate}
-                    />
-                  ))}
-                </div>
+              <div
+                className="pr-1"
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                }}
+              >
+                <VirtualTemplateGrid
+                  templates={filteredTemplates}
+                  applyingId={applyingId}
+                  onPreview={(template) => {
+                    setPreviewTemplate(template);
+                  }}
+                  onApply={(template) => {
+                    void applyTemplate(template);
+                  }}
+                  isFiltering={isFiltering}
+                  scrollTop={listScrollTop}
+                  viewportHeight={listViewportHeight}
+                />
               </div>
             )}
           </div>
@@ -1591,9 +1657,15 @@ export function TemplateMarketDrawer({
       <TemplatePreviewModal
         template={previewTemplate}
         templates={filteredTemplates}
-        onTemplateChange={setPreviewTemplate}
-        onClose={() => setPreviewTemplate(null)}
-        onUse={applyTemplate}
+        onTemplateChange={(template) => {
+          setPreviewTemplate(template);
+        }}
+        onClose={() => {
+          setPreviewTemplate(null);
+        }}
+        onUse={(template) => {
+          void applyTemplate(template);
+        }}
         applying={Boolean(applyingId)}
       />
     </>

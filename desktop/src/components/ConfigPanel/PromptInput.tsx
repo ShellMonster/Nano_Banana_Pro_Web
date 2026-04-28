@@ -8,10 +8,29 @@ import { useGenerateStore } from '../../store/generateStore';
 import { useTranslation } from 'react-i18next';
 
 const BACKEND_ERROR_MATCHES = {
-  providerMissing: '\u672a\u627e\u5230\u6307\u5b9a\u7684 Provider',
-  providerKeyMissing: 'Provider API Key \u672a\u914d\u7f6e',
-  modelMissing: '\u672a\u627e\u5230\u53ef\u7528\u7684\u6a21\u578b',
-  promptEmpty: 'prompt \u4e0d\u80fd\u4e3a\u7a7a'
+  providerMissing: String.fromCharCode(26410, 25214, 21040, 25351, 23450, 30340) + ' Provider',
+  providerKeyMissing: 'Provider API Key ' + String.fromCharCode(26410, 37197, 32622),
+  modelMissing: String.fromCharCode(26410, 25214, 21040, 21487, 29992, 30340, 27169, 22411),
+  promptEmpty: 'prompt ' + String.fromCharCode(19981, 33021, 20026, 31354)
+};
+
+type PromptOptimizeError = Error & {
+  response?: {
+    status?: number;
+    data?: {
+      message?: unknown;
+    };
+  };
+};
+
+const getPromptOptimizeErrorInfo = (error: unknown) => {
+  const candidate = error instanceof Error ? (error as PromptOptimizeError) : null;
+  const status = candidate?.response?.status;
+  const backendMessage = candidate && typeof candidate.response?.data?.message === 'string'
+    ? candidate.response.data.message
+    : '';
+  const fallbackMessage = error instanceof Error ? error.message : '';
+  return { status, rawMessage: backendMessage || fallbackMessage };
 };
 
 export function PromptInput() {
@@ -20,7 +39,7 @@ export function PromptInput() {
   const { history, index, record, undo, redo, reset } = usePromptHistoryStore();
   const status = useGenerateStore((s) => s.status);
   const isSubmitting = useGenerateStore((s) => s.isSubmitting);
-  const isGenerating = status === 'processing' || isSubmitting;
+  const _isGenerating = status === 'processing' || isSubmitting;
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizingMode, setOptimizingMode] = useState<'normal' | 'json' | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -140,11 +159,8 @@ export function PromptInput() {
       record(nextPrompt);
       skipRecordRef.current = true;
       setPrompt(nextPrompt);
-    } catch (error: any) {
-      const status = error?.response?.status;
-      const backendMessage = typeof error?.response?.data?.message === 'string' ? error.response.data.message : '';
-      const fallbackMessage = error instanceof Error ? error.message : '';
-      const rawMessage = backendMessage || fallbackMessage;
+    } catch (error: unknown) {
+      const { status, rawMessage } = getPromptOptimizeErrorInfo(error);
       const isAxiosStatusMessage = rawMessage.startsWith('Request failed with status code');
 
       let message = rawMessage || t('prompt.toast.optimizeFailed');

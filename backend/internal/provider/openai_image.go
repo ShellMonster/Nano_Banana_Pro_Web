@@ -232,20 +232,22 @@ func (p *OpenAIImageProvider) doImagesGenerationRequest(ctx context.Context, bod
 		requestID,
 		diagnostic.Preview(strings.Join(headerLines(resp.Header), " | "), 1000),
 	)
+	bodySummary := diagnostic.ResponseBodySummary(respBody, 1200)
 	diagnostic.Logf(params, "response_body",
-		"status=%s elapsed=%s request_id=%s body=%q",
+		"status=%s elapsed=%s request_id=%s body_length=%d body_preview=%q",
 		resp.Status,
 		elapsed,
 		requestID,
-		diagnostic.RedactSensitive(string(respBody)),
+		bodySummary.Length,
+		bodySummary.Preview,
 	)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		bodyPreview := diagnostic.Preview(parseOpenAIError(respBody), 1200)
+		bodyPreview := openAIErrorBodyPreview(respBody, 1200)
 		if requestID == "" {
 			requestID = diagnostic.ExtractRequestID(string(respBody))
 		}
-		return nil, resp.Header.Clone(), fmt.Errorf("OpenAI HTTP %d request_id=%s body=%s", resp.StatusCode, requestID, bodyPreview)
+		return nil, resp.Header.Clone(), fmt.Errorf("OpenAI HTTP %d request_id=%s %s", resp.StatusCode, requestID, bodyPreview)
 	}
 
 	if len(respBody) == 0 {
@@ -272,7 +274,7 @@ func (p *OpenAIImageProvider) doImagesEditRequest(ctx context.Context, body *ope
 	maxRetries := providerMaxRetries(p.config)
 	var elapsed time.Duration
 	resp, _, err := doRequestWithRetry(ctx, params, p.Name(), maxRetries, func(attempt int) (*http.Response, error) {
-		reader, contentType := openAIImageEditBody(fields, refs)
+		reader, contentType := openAIImageEditBody(ctx, fields, refs)
 		req, buildErr := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, reader)
 		if buildErr != nil {
 			return nil, fmt.Errorf("构建 OpenAI Images Edit 请求失败: %w", buildErr)
@@ -308,20 +310,22 @@ func (p *OpenAIImageProvider) doImagesEditRequest(ctx context.Context, body *ope
 		requestID,
 		diagnostic.Preview(strings.Join(headerLines(resp.Header), " | "), 1000),
 	)
+	bodySummary := diagnostic.ResponseBodySummary(respBody, 1200)
 	diagnostic.Logf(params, "response_body",
-		"status=%s elapsed=%s request_id=%s body=%q",
+		"status=%s elapsed=%s request_id=%s body_length=%d body_preview=%q",
 		resp.Status,
 		elapsed,
 		requestID,
-		diagnostic.RedactSensitive(string(respBody)),
+		bodySummary.Length,
+		bodySummary.Preview,
 	)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		bodyPreview := diagnostic.Preview(parseOpenAIError(respBody), 1200)
+		bodyPreview := openAIErrorBodyPreview(respBody, 1200)
 		if requestID == "" {
 			requestID = diagnostic.ExtractRequestID(string(respBody))
 		}
-		return nil, resp.Header.Clone(), fmt.Errorf("OpenAI HTTP %d request_id=%s body=%s", resp.StatusCode, requestID, bodyPreview)
+		return nil, resp.Header.Clone(), fmt.Errorf("OpenAI HTTP %d request_id=%s %s", resp.StatusCode, requestID, bodyPreview)
 	}
 
 	if len(respBody) == 0 {
@@ -345,10 +349,15 @@ func openAIImageEditFields(body *openAIImagesGenerationRequest) map[string]strin
 	return fields
 }
 
-func openAIImageEditBody(fields map[string]string, refs []openAIImageReference) (io.Reader, string) {
+func openAIImageEditBody(ctx context.Context, fields map[string]string, refs []openAIImageReference) (io.Reader, string) {
 	reader, writer := io.Pipe()
 	multipartWriter := multipart.NewWriter(writer)
 	contentType := multipartWriter.FormDataContentType()
+
+	go func() {
+		<-ctx.Done()
+		_ = writer.CloseWithError(ctx.Err())
+	}()
 
 	go func() {
 		err := writeOpenAIImageEditMultipart(multipartWriter, fields, refs)
