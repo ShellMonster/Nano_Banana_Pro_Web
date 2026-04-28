@@ -1,8 +1,6 @@
 import React, { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
-import { AutoSizer } from 'react-virtualized-auto-sizer';
-import { Grid, type CellComponentProps, type GridImperativeAPI } from 'react-window';
 import {
   ArrowLeft,
   AtSign,
@@ -1030,155 +1028,101 @@ const TemplateCard = React.memo(function TemplateCard({
   );
 });
 
-type TemplateGridCellData = {
-  templates: TemplateItem[];
-  columnCount: number;
-  itemWidth: number;
-  itemHeight: number;
-  gap: number;
-  applyingId: string | null;
-  onPreview: (item: TemplateItem) => void;
-  onApply: (item: TemplateItem) => void;
-};
-
 const VirtualTemplateGrid = ({
   templates,
   applyingId,
   onPreview,
   onApply,
   isFiltering,
-  scrollTopRef
+  scrollTop,
+  viewportHeight
 }: {
   templates: TemplateItem[];
   applyingId: string | null;
   onPreview: (item: TemplateItem) => void;
   onApply: (item: TemplateItem) => void;
   isFiltering: boolean;
-  scrollTopRef: React.MutableRefObject<number>;
+  scrollTop: number;
+  viewportHeight: number;
 }) => {
-  const gridRef = useRef<GridImperativeAPI | null>(null);
-  const gridMetricsRef = useRef({ innerHeight: 0, rowHeight: 0, rowCount: 0 });
-  const prevTemplatesLengthRef = useRef(templates.length);
-
-  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    scrollTopRef.current = event.currentTarget.scrollTop;
-  }, [scrollTopRef]);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
 
   useLayoutEffect(() => {
-    const prevLength = prevTemplatesLengthRef.current;
-    prevTemplatesLengthRef.current = templates.length;
-    const grid = gridRef.current?.element;
-    if (!grid) return;
+    const element = wrapperRef.current;
+    if (!element) return;
 
-    const { innerHeight, rowHeight, rowCount } = gridMetricsRef.current;
-    if (innerHeight && rowHeight && rowCount) {
-      const maxScrollTop = Math.max(0, rowCount * rowHeight - innerHeight);
-      if (templates.length < prevLength || scrollTopRef.current > maxScrollTop) {
-        scrollTopRef.current = Math.min(scrollTopRef.current, maxScrollTop);
-      }
+    const updateWidth = () => setWidth(element.clientWidth);
+    updateWidth();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateWidth);
+      return () => window.removeEventListener('resize', updateWidth);
     }
 
-    requestAnimationFrame(() => {
-      grid.scrollTo({ left: 0, top: scrollTopRef.current });
-    });
-  }, [templates.length, scrollTopRef]);
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
-  const Cell = useCallback(
-    ({
-      columnIndex,
-      rowIndex,
-      style,
-      ariaAttributes,
-      templates,
-      columnCount,
-      itemWidth,
-      itemHeight,
-      gap,
-      applyingId,
-      onPreview,
-      onApply
-    }: CellComponentProps<TemplateGridCellData>) => {
-      const index = rowIndex * columnCount + columnIndex;
-      const cellStyle: React.CSSProperties = {
-        ...style,
-        width: itemWidth + gap,
-        height: itemHeight + gap,
-        paddingRight: gap,
-        paddingBottom: gap,
-        boxSizing: 'border-box'
-      };
-
-      if (index >= templates.length) {
-        return <div {...ariaAttributes} style={cellStyle} />;
-      }
-
-      const item = templates[index];
-      return (
-        <div {...ariaAttributes} style={cellStyle}>
-          <div style={{ width: itemWidth, height: itemHeight }}>
-            <TemplateCard
-              item={item}
-              applyingId={applyingId}
-              onPreview={onPreview}
-              onApply={onApply}
-            />
-          </div>
-        </div>
-      );
-    },
-    []
+  const viewportWidth =
+    typeof window !== 'undefined'
+      ? window.innerWidth || document.documentElement.clientWidth
+      : width;
+  const columnCount = width > 0 ? getTemplateColumnCount(width, viewportWidth) : 2;
+  const columnWidth = Math.max(
+    TEMPLATE_GRID_MIN_CARD_WIDTH,
+    Math.floor((Math.max(width, 1) - TEMPLATE_GRID_GAP * (columnCount - 1)) / columnCount)
   );
+  const rowHeight = TEMPLATE_GRID_CARD_HEIGHT + TEMPLATE_GRID_GAP;
+  const rowCount = Math.ceil(templates.length / columnCount);
+  const totalHeight = rowCount * rowHeight;
+  const gridOffsetTop = wrapperRef.current?.offsetTop ?? 0;
+  const relativeScrollTop = Math.max(0, scrollTop - gridOffsetTop);
+  const overscanRows = 2;
+  const startRow = Math.max(0, Math.floor(relativeScrollTop / rowHeight) - overscanRows);
+  const endRow = Math.min(
+    rowCount - 1,
+    Math.ceil((relativeScrollTop + viewportHeight) / rowHeight) + overscanRows
+  );
+  const visibleCells: Array<{ item: TemplateItem; index: number; rowIndex: number; columnIndex: number }> = [];
+
+  if (width > 0 && rowCount > 0 && endRow >= startRow) {
+    for (let rowIndex = startRow; rowIndex <= endRow; rowIndex += 1) {
+      for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+        const index = rowIndex * columnCount + columnIndex;
+        const item = templates[index];
+        if (item) {
+          visibleCells.push({ item, index, rowIndex, columnIndex });
+        }
+      }
+    }
+  }
 
   return (
-    <div className={`h-full min-h-0 transition-opacity duration-200 ${isFiltering ? 'opacity-70' : 'opacity-100'}`}>
-      <AutoSizer
-        className="h-full w-full"
-        renderProp={({ width, height }) => {
-          if (!width || !height) return null;
-          const innerWidth = Math.max(0, width);
-          const innerHeight = Math.max(0, height);
-          if (innerWidth <= 0 || innerHeight <= 0) return null;
-
-          const viewportWidth =
-            typeof window !== 'undefined'
-              ? window.innerWidth || document.documentElement.clientWidth
-              : innerWidth;
-          const columnCount = getTemplateColumnCount(innerWidth, viewportWidth);
-          const columnWidth = Math.floor((innerWidth - TEMPLATE_GRID_GAP * columnCount) / columnCount);
-          const rowCount = Math.ceil(templates.length / columnCount);
-          gridMetricsRef.current = {
-            innerHeight,
-            rowHeight: TEMPLATE_GRID_CARD_HEIGHT + TEMPLATE_GRID_GAP,
-            rowCount
-          };
-
-          const cellProps: TemplateGridCellData = {
-            templates,
-            columnCount,
-            itemWidth: columnWidth,
-            itemHeight: TEMPLATE_GRID_CARD_HEIGHT,
-            gap: TEMPLATE_GRID_GAP,
-            applyingId,
-            onPreview,
-            onApply
-          };
-
-          return (
-            <Grid
-              gridRef={gridRef}
-              columnCount={columnCount}
-              columnWidth={columnWidth + TEMPLATE_GRID_GAP}
-              rowCount={rowCount}
-              rowHeight={TEMPLATE_GRID_CARD_HEIGHT + TEMPLATE_GRID_GAP}
-              cellComponent={Cell}
-              cellProps={cellProps}
-              overscanCount={2}
-              style={{ height: innerHeight, width: innerWidth }}
-              onScroll={handleScroll}
-            />
-          );
-        }}
-      />
+    <div
+      ref={wrapperRef}
+      className={`relative transition-opacity duration-200 ${isFiltering ? 'opacity-70' : 'opacity-100'}`}
+      style={{ height: totalHeight }}
+    >
+      {visibleCells.map(({ item, index, rowIndex, columnIndex }) => (
+        <div
+          key={item.id || index}
+          className="absolute"
+          style={{
+            width: columnWidth,
+            height: TEMPLATE_GRID_CARD_HEIGHT,
+            transform: `translate(${columnIndex * (columnWidth + TEMPLATE_GRID_GAP)}px, ${rowIndex * rowHeight}px)`
+          }}
+        >
+          <TemplateCard
+            item={item}
+            applyingId={applyingId}
+            onPreview={onPreview}
+            onApply={onApply}
+          />
+        </div>
+      ))}
     </div>
   );
 };
@@ -1218,12 +1162,15 @@ export function TemplateMarketDrawer({
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isFiltering, setIsFiltering] = useState(false);
+  const [listScrollTop, setListScrollTop] = useState(0);
+  const [listViewportHeight, setListViewportHeight] = useState(0);
   const dragStartRef = useRef(0);
   const toastOnceRef = useRef(false);
   const previousOverflowRef = useRef<string | null>(null);
   const previousOverscrollRef = useRef<string | null>(null);
   const requestIdRef = useRef(0);
   const templateDataRef = useRef(templateData);
+  const listRef = useRef<HTMLDivElement | null>(null);
   const templateSourceRef = useRef(templateSource);
   const scrollTopRef = useRef(0);
   const filteringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1300,6 +1247,7 @@ export function TemplateMarketDrawer({
     setRatio(ALL_VALUE);
   };
 
+
   const fetchTemplates = useCallback(async (fromUser = false) => {
     const requestId = ++requestIdRef.current;
     setIsLoading(true);
@@ -1349,6 +1297,37 @@ export function TemplateMarketDrawer({
   useEffect(() => {
     fetchTemplates();
   }, [fetchTemplates]);
+
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const container = listRef.current;
+    if (!container) return;
+
+    const updateViewport = () => setListViewportHeight(container.clientHeight);
+    updateViewport();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateViewport);
+      return () => window.removeEventListener('resize', updateViewport);
+    }
+
+    const observer = new ResizeObserver(updateViewport);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [isOpen]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || isDormant) return;
+    const container = listRef.current;
+    if (!container) return;
+    const top = scrollTopRef.current;
+    if (top <= 0) return;
+    requestAnimationFrame(() => {
+      container.scrollTop = top;
+      setListScrollTop(top);
+    });
+  }, [isOpen, isDormant, filteredTemplates.length]);
 
   useEffect(() => {
     if (filteringTimerRef.current) {
@@ -1565,7 +1544,15 @@ export function TemplateMarketDrawer({
           </div>
         )}
 
-        <div className="flex-1 min-h-0 flex flex-col px-6 pb-6">
+        <div
+          ref={listRef}
+          className="flex-1 min-h-0 flex flex-col px-6 pb-6 overflow-y-auto overscroll-contain scrollbar-none"
+          onScroll={(event) => {
+            const nextScrollTop = event.currentTarget.scrollTop;
+            scrollTopRef.current = nextScrollTop;
+            setListScrollTop(nextScrollTop);
+          }}
+        >
           <TemplateMarketFilters
             search={search}
             onSearchChange={setSearch}
@@ -1586,7 +1573,7 @@ export function TemplateMarketDrawer({
             onRefresh={() => fetchTemplates(true)}
           />
 
-          <div className="mt-6 flex-1 min-h-0">
+          <div className="mt-6 shrink-0">
             {isDormant ? (
               <div
                 className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5"
@@ -1622,14 +1609,15 @@ export function TemplateMarketDrawer({
                 )}
               </div>
             ) : (
-              <div className="h-full pr-1" onContextMenu={(event) => event.preventDefault()}>
+              <div className="pr-1" onContextMenu={(event) => event.preventDefault()}>
                 <VirtualTemplateGrid
                   templates={filteredTemplates}
                   applyingId={applyingId}
                   onPreview={setPreviewTemplate}
                   onApply={applyTemplate}
                   isFiltering={isFiltering}
-                  scrollTopRef={scrollTopRef}
+                  scrollTop={listScrollTop}
+                  viewportHeight={listViewportHeight}
                 />
               </div>
             )}

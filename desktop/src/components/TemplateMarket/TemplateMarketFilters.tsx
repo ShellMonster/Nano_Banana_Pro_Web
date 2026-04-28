@@ -41,7 +41,7 @@ const ActiveFilterChip = ({
   <button
     type="button"
     onClick={onClear}
-    className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/80 border border-white/60 px-3 py-1 text-xs text-slate-600 hover:bg-white"
+    className="inline-flex items-center gap-1.5 rounded-full bg-white/80 border border-white/60 px-3 py-1 text-xs text-slate-600 hover:bg-white"
   >
     <span>{label}</span>
     <X className="w-3 h-3" />
@@ -93,7 +93,7 @@ export function TemplateMarketFilters({
   const hasActiveFilters = activeFilters.length > 0;
 
   return (
-    <div className="pt-6 space-y-6 shrink-0">
+    <div className="pt-6 space-y-4 shrink-0">
       <div className="relative">
         <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
         <Input
@@ -103,8 +103,8 @@ export function TemplateMarketFilters({
           className="pl-10 bg-white/80"
         />
       </div>
-      <div className="flex items-center gap-2 overflow-x-auto flex-nowrap min-h-[34px] pb-1">
-        <span className="text-xs text-slate-400 shrink-0">{t('templateMarket.activeFilters.title')}</span>
+      <div className="flex items-center gap-2 flex-wrap min-h-[34px] pb-1">
+        <span className="text-xs text-slate-400">{t('templateMarket.activeFilters.title')}</span>
         {hasActiveFilters ? (
           <>
             {activeFilters.map((filter) => (
@@ -113,13 +113,13 @@ export function TemplateMarketFilters({
             <button
               type="button"
               onClick={onClearAllFilters}
-              className="text-xs text-blue-600 hover:underline shrink-0"
+              className="text-xs text-blue-600 hover:underline"
             >
               {t('templateMarket.actions.clearFilters')}
             </button>
           </>
         ) : (
-          <span className="text-xs text-slate-400 shrink-0">{t('templateMarket.activeFilters.empty')}</span>
+          <span className="text-xs text-slate-400">{t('templateMarket.activeFilters.empty')}</span>
         )}
       </div>
 
