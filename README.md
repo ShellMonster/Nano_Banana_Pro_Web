@@ -319,6 +319,8 @@ npm run tauri:build:local
 
 桌面端参考图上传已将粘贴逻辑拆到 `desktop/src/components/ConfigPanel/useReferenceImagePaste.ts`：该 hook 负责剪贴板图片提取、Tauri 原生剪贴板兜底和全局 paste 捕获；`ReferenceImageUpload.tsx` 继续负责区域 UI、点击/拖拽添加、压缩、持久化、预览与排序。调整参考图粘贴行为时请优先修改该 hook，并保持添加、删除、拖拽、粘贴和现有样式不变。
 
+桌面端参考图拖拽的临时二进制缓存使用固定的 `window.__BANANA_DRAG_IMAGE_DATA__` 字段，并通过运行时类型守卫读取，避免动态全局索引带来的静态扫描误报。
+
 桌面端设置弹窗按 section/field group 渐进拆分：`SettingsModal.tsx` 仍负责标签页、provider 切换、保存、测试连接和跨 section 状态；`desktop/src/components/Settings/ProviderConnectionFields.tsx` 负责 provider 连接字段（Base URL、API Key、显隐按钮、云雾推荐入口和警告/提示插槽）。后续拆分设置页时请一次只抽一个清晰职责，保持现有行为和 Tailwind 样式不变。
 
 ### 4. Web 前端开发
