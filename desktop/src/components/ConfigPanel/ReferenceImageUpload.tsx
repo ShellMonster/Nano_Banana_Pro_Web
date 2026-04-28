@@ -12,6 +12,28 @@ import { useTranslation } from 'react-i18next';
 import { imageToPrompt } from '../../services/promptApi';
 import { useReferenceImagePaste } from './useReferenceImagePaste';
 
+type PersistMiddlewareApi = {
+  hasHydrated?: () => boolean;
+  onFinishHydration?: (callback: () => void) => (() => void) | undefined;
+};
+
+type StoreWithPersist = typeof useConfigStore & {
+  persist?: PersistMiddlewareApi;
+};
+
+type CachedDragImageData = {
+  blob?: Blob | null;
+  blobPromise?: Promise<Blob | null>;
+  createdAt?: number;
+  path?: string;
+  url?: string;
+  name?: string;
+};
+
+type DragSafeStyle = React.CSSProperties & {
+  WebkitAppRegion?: string;
+};
+
 const REF_IMAGE_DIR = 'ref_images';
 const REORDER_DRAG_THRESHOLD = 6;
 const BUSY_ERROR_MESSAGE = 'REF_IMAGE_BUSY';
@@ -50,6 +72,16 @@ const hashString = (value: string) => SparkMD5.hash(value);
 
 const isUrlLike = (value: string) =>
   /^https?:|^asset:|^blob:|^data:|^tauri:|^ipc:|^file:/i.test(value);
+
+const noDragStyle: DragSafeStyle = { WebkitAppRegion: 'no-drag' };
+
+const isCachedDragImageData = (value: unknown): value is CachedDragImageData => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  const hasBlob = candidate.blob instanceof Blob || candidate.blob === null || typeof candidate.blob === 'undefined';
+  const hasCreatedAt = typeof candidate.createdAt === 'number' || typeof candidate.createdAt === 'undefined';
+  return hasBlob && hasCreatedAt;
+};
 
 const normalizePathFromUri = (raw: string): string => {
   const trimmed = (raw || '').trim();
@@ -165,12 +197,13 @@ export function ReferenceImageUpload() {
 
   // 清理 ObjectURL 防止内存泄漏
   useEffect(() => {
+    const objectUrls = objectUrlsRef.current;
     return () => {
       // 组件卸载时清理所有 ObjectURL
-      objectUrlsRef.current.forEach((url) => {
+      objectUrls.forEach((url) => {
         URL.revokeObjectURL(url);
       });
-      objectUrlsRef.current.clear();
+      objectUrls.clear();
     };
   }, []);
 
@@ -373,7 +406,7 @@ export function ReferenceImageUpload() {
   }, [refFiles, calculateMd5Callback]);
 
   useEffect(() => {
-    const persistApi = (useConfigStore as any).persist;
+    const persistApi = (useConfigStore as StoreWithPersist).persist;
     if (!persistApi?.hasHydrated || persistApi.hasHydrated()) {
       void restorePersistedRefFiles();
       return;
@@ -559,7 +592,7 @@ export function ReferenceImageUpload() {
         void syncPersistedRefFiles();
       }
     }
-  }, [calculateMd5Callback, getAppDataDir, refFiles, setRefImageEntries]);
+  }, [calculateMd5Callback, getAppDataDir, persistExternalRefImage, refFiles, setRefImageEntries]);
 
   useEffect(() => {
     void syncPersistedRefFiles();
@@ -573,7 +606,7 @@ export function ReferenceImageUpload() {
   }, [setDropTarget]);
 
   // 带并发保护的包装函数（添加超时机制）
-  const withProcessingLock = useCallback(async (fn: () => Promise<any>, timeoutMs: number = 60000) => {
+  const withProcessingLock = useCallback(async <T,>(fn: () => Promise<T>, timeoutMs: number = 60000): Promise<T> => {
     if (isProcessingRef.current) {
       throw new Error(BUSY_ERROR_MESSAGE);
     }
@@ -645,14 +678,11 @@ export function ReferenceImageUpload() {
       // 智能压缩判断：综合考虑文件大小和图片尺寸
       const sizeMB = file.size / 1024 / 1024;
       let shouldCompress = false;
-      let compressReason = '';
-
       // 判断是否需要压缩（仅在开启压缩时）
       if (enableRefImageCompression) {
         if (sizeMB > 2) {
           // 文件超过 2MB，必须压缩
           shouldCompress = true;
-          compressReason = t('refImage.compressReason.fileTooLarge', { size: sizeMB.toFixed(2) });
         } else if (sizeMB > 1) {
           // 文件在 1-2MB 之间，检查图片尺寸
           let objectUrl = '';
@@ -669,9 +699,8 @@ export function ReferenceImageUpload() {
             if (maxDimension > 2048) {
               // 图片尺寸超过 2048px，建议压缩
               shouldCompress = true;
-              compressReason = t('refImage.compressReason.dimensions', { width: dimensions.width, height: dimensions.height });
             }
-          } catch (error) {
+          } catch {
             // 尺寸检查失败，跳过压缩
           } finally {
             // 确保在所有情况下都清理 ObjectURL
@@ -700,7 +729,7 @@ export function ReferenceImageUpload() {
           finalFile = compressedFile;
           finalMd5 = compressedMd5;
           (compressedFile as ExtendedFile).__md5 = compressedMd5;
-        } catch (error) {
+        } catch {
           // 压缩失败，使用原始文件
           if (md5Set.has(md5)) {
             continue;
@@ -793,7 +822,7 @@ export function ReferenceImageUpload() {
         toast.error(t('refImage.toast.addFailed', { message }));
       }
     }
-  }, [addRefFiles, createImageFileFromUrl, isExpanded, processFilesWithMd5, refFiles.length, withProcessingLock]);
+  }, [addRefFiles, createImageFileFromUrl, isExpanded, processFilesWithMd5, refFiles.length, t, withProcessingLock]);
 
   useEffect(() => {
     if (!dropPayload) return;
@@ -848,7 +877,7 @@ export function ReferenceImageUpload() {
 
     // 重置 input 值，允许重复选择同一张图
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5]);
+  }, [refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5, t]);
 
   const { handlePaste } = useReferenceImagePaste({
     isExpanded,
@@ -915,9 +944,10 @@ export function ReferenceImageUpload() {
           return;
         }
 
-        const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+        const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
         const dragBlobSymbol = Symbol.for('__dragImageBlob');
-        const cachedData = (window as any)[dragBlobSymbol];
+        const cachedDragValue = window[dragBlobSymbol];
+        const cachedData = isCachedDragImageData(cachedDragValue) ? cachedDragValue : null;
         const cachedCreatedAt = typeof cachedData?.createdAt === 'number' ? cachedData.createdAt : 0;
         const isCachedFresh = cachedCreatedAt > 0 && Date.now() - cachedCreatedAt < 60_000;
 
@@ -1002,7 +1032,7 @@ export function ReferenceImageUpload() {
                     toast.error(t('refImage.toast.tooLarge'));
                   }
                 }
-              } catch (err) {
+              } catch {
                 // 忽略：继续走 URL / 文件兜底
               }
             }
@@ -1074,7 +1104,6 @@ export function ReferenceImageUpload() {
             if (file) {
               // createImageFileFromUrl 已处理MD5，直接加入已验证列表
               validatedFiles.push(file);
-            } else {
             }
           }
         } catch (error) {
@@ -1131,7 +1160,7 @@ export function ReferenceImageUpload() {
         toast.error(t('refImage.toast.addFailed', { message }));
       }
     }
-  }, [isExpanded, refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5, createImageFileFromUrl, normalizePathFromUri]);
+  }, [isExpanded, refFiles.length, addRefFiles, withProcessingLock, processFilesWithMd5, createImageFileFromUrl, t]);
 
   // 处理删除文件（同时清理MD5和ObjectURL）
   // 使用 useConfigStore.getState() 避免依赖 refFiles 数组
@@ -1474,7 +1503,7 @@ export function ReferenceImageUpload() {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      style={{ WebkitAppRegion: 'no-drag' } as any}
+      style={noDragStyle}
     >
       {/* 标题行 + 折叠按钮 */}
       <div

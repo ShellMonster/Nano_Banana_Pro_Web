@@ -17,12 +17,12 @@ type UseReferenceImagePasteOptions = {
 };
 
 const isTextInputTarget = (target: EventTarget | null) => {
-  const element = target as HTMLElement | null;
+  if (!(target instanceof HTMLElement)) return false;
+  const element = target;
   return Boolean(
-    element &&
-    ((element as any).isContentEditable ||
+    element.isContentEditable ||
       element.tagName === 'INPUT' ||
-      element.tagName === 'TEXTAREA')
+      element.tagName === 'TEXTAREA'
   );
 };
 
@@ -32,7 +32,7 @@ const extractImageFilesFromClipboard = (clipboardData: DataTransfer | null): Fil
 
   // 1) items（最常见：截图/复制图片）
   const items = clipboardData.items;
-  if (items && items.length > 0) {
+  if (items.length > 0) {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (item.type && item.type.startsWith('image/')) {
@@ -43,7 +43,7 @@ const extractImageFilesFromClipboard = (clipboardData: DataTransfer | null): Fil
   }
 
   // 2) files（部分平台会把图片放在 files 里）
-  if (clipboardData.files && clipboardData.files.length > 0) {
+  if (clipboardData.files.length > 0) {
     Array.from(clipboardData.files).forEach((file) => {
       if (file.type && file.type.startsWith('image/')) files.push(file);
     });
@@ -155,7 +155,7 @@ export function useReferenceImagePaste({
       return;
     }
 
-    const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+    const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
     if (!isTauri) return;
 
     // 如果用户在粘贴纯文本（且当前在输入框内），不要触发原生读取，避免拖慢输入体验
@@ -179,7 +179,7 @@ export function useReferenceImagePaste({
         return;
       }
 
-      const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+      const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
       if (!isTauri) return;
 
       const plain = (event.clipboardData.getData('text/plain') || '').trim();

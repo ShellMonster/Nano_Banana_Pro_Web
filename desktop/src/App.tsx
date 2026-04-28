@@ -25,7 +25,7 @@ function App() {
   }, [language, languageResolved]);
 
   useEffect(() => {
-    const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+    const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
     if (!isTauri) return;
 
     const active = generateStatus === 'processing' || isSubmitting;
@@ -34,7 +34,7 @@ function App() {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('set_generation_active', { active });
       } catch (error) {
-        console.warn('[quit-guard] 同步生成状态失败', error);
+        console.warn('[quit-guard] Failed to sync generation state', error);
       }
     })();
   }, [generateStatus, isSubmitting]);
