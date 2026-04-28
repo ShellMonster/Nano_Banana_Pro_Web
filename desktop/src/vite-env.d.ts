@@ -2,5 +2,5 @@
 
 interface Window {
   __TAURI_INTERNALS__?: unknown;
-  [key: symbol]: unknown;
+  __BANANA_DRAG_IMAGE_DATA__?: unknown;
 }

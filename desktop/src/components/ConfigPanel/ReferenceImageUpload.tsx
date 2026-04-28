@@ -945,8 +945,7 @@ export function ReferenceImageUpload() {
         }
 
         const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
-        const dragBlobSymbol = Symbol.for('__dragImageBlob');
-        const cachedDragValue = window[dragBlobSymbol];
+        const cachedDragValue = window.__BANANA_DRAG_IMAGE_DATA__;
         const cachedData = isCachedDragImageData(cachedDragValue) ? cachedDragValue : null;
         const cachedCreatedAt = typeof cachedData?.createdAt === 'number' ? cachedData.createdAt : 0;
         const isCachedFresh = cachedCreatedAt > 0 && Date.now() - cachedCreatedAt < 60_000;
@@ -1005,7 +1004,7 @@ export function ReferenceImageUpload() {
         // 调试日志
 
         // 优先处理缓存的 Blob 数据（避免 CORS / asset:// 导致 URL fetch 失败）
-        // 使用 Symbol 避免全局变量污染（拖拽源会写入 window[Symbol.for('__dragImageBlob')]）
+        // 使用固定 window 字段缓存拖拽 Blob，避免 WebView 丢失二进制数据
         const hasBlobFlag = (e.dataTransfer.getData('application/x-has-blob') || '').trim();
         const canUseCachedBlob =
           cachedData &&
