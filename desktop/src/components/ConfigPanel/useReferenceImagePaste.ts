@@ -31,15 +31,14 @@ const extractImageFilesFromClipboard = (clipboardData: DataTransfer | null): Fil
   const files: File[] = [];
 
   // 1) items（最常见：截图/复制图片）
-  const items = clipboardData.items;
+  const items = Array.from(clipboardData.items);
   if (items.length > 0) {
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
+    items.forEach((item) => {
       if (item.type && item.type.startsWith('image/')) {
         const file = item.getAsFile();
         if (file) files.push(file);
       }
-    }
+    });
   }
 
   // 2) files（部分平台会把图片放在 files 里）
