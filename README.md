@@ -301,6 +301,8 @@ npm run tauri:build:local
 
 模板市场使用单一纵向滚动容器：搜索、筛选和模板卡片会像普通页面一样一起滚动，用户下滑后筛选区自然离开视口；模板卡片区域仍按当前视口只渲染可见卡片，避免 935+ 模板一次性挂载。
 
+模板市场虚拟网格的列数和断点统一维护在 `TemplateMarketDrawer.tsx` 顶部的 `TEMPLATE_GRID_COLUMNS` 与 `TEMPLATE_GRID_BREAKPOINTS` 常量中；调整 2/3/4 列布局时请改这些常量，不要在计算函数里散落魔法数字。
+
 桌面端图片 URL 生成位于批量渲染热路径，默认不会为每张图片输出 `getImageUrl` 转换/回退日志，避免历史记录或模板大量渲染时刷屏。需要排查 asset/http URL 生成问题时，可在开发者工具中执行 `localStorage.setItem('diagnostic.verbose', '1')` 后刷新应用启用诊断日志；关闭时执行 `localStorage.setItem('diagnostic.verbose', '0')` 或清理该键。
 
 桌面端组件读取 Zustand 状态时应使用精确 selector，避免 `useConfigStore()` / `useGenerateStore()` / `useToastStore()` 这类整仓订阅；同一组件需要多个字段或 action 时，请使用 `useShallow` 包裹对象 selector，以减少无关状态变化带来的重渲染，并保持现有 store 持久化结构不变。
@@ -337,6 +339,7 @@ git push origin v2.8.0
 
 > **注意**：v2.8.0 支持通过推送 Tag 自动生成 Release 并上传多平台二进制文件。
 > CI 中的 Go 版本统一跟随 `backend/go.mod` 的 `go` 指令，更新 Go 版本时请先修改该文件，不要在 GitHub Actions workflow 中写死版本号。
+> PR smoke test 会先 `go build` 出后端二进制再启动健康检查，避免首次依赖下载/编译时间被算进 30 秒启动窗口；启动时会设置 `DISABLE_STDIN_MONITOR=1` 并读取后端输出的 `SERVER_PORT` 做健康检查，兼容端口自动递增。
 > Release 构建会在 `desktop/` 目录使用 `npm ci` 安装前端依赖，确保依赖版本严格跟随 `desktop/package-lock.json`。
 
 ### 6. 自动更新 (Updater)
