@@ -98,7 +98,9 @@ export function TemplateMarketFilters({
         <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
         <Input
           value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={(e) => {
+            onSearchChange(e.target.value);
+          }}
           placeholder={t('templateMarket.searchPlaceholder')}
           className="pl-10 bg-white/80"
         />
@@ -132,7 +134,9 @@ export function TemplateMarketFilters({
                 key={item}
                 label={formatFilterLabel(item)}
                 active={channel === item}
-                onClick={() => onChannelChange(item)}
+                onClick={() => {
+                  onChannelChange(item);
+                }}
               />
             ))}
           </div>
@@ -145,7 +149,9 @@ export function TemplateMarketFilters({
                 key={item}
                 label={formatFilterLabel(item)}
                 active={material === item}
-                onClick={() => onMaterialChange(item)}
+                onClick={() => {
+                  onMaterialChange(item);
+                }}
               />
             ))}
           </div>
@@ -158,7 +164,9 @@ export function TemplateMarketFilters({
                 key={item}
                 label={formatFilterLabel(item)}
                 active={industry === item}
-                onClick={() => onIndustryChange(item)}
+                onClick={() => {
+                  onIndustryChange(item);
+                }}
               />
             ))}
           </div>
@@ -171,7 +179,9 @@ export function TemplateMarketFilters({
                 key={item}
                 label={formatFilterLabel(item)}
                 active={ratio === item}
-                onClick={() => onRatioChange(item)}
+                onClick={() => {
+                  onRatioChange(item);
+                }}
               />
             ))}
           </div>

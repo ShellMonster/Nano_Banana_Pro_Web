@@ -57,7 +57,9 @@ export function ProviderConnectionFields({
         <Input
           type="text"
           value={baseUrl || ''}
-          onChange={(e) => onBaseUrlChange(e.target.value)}
+          onChange={(e) => {
+            onBaseUrlChange(e.target.value);
+          }}
           placeholder={baseUrlPlaceholder}
           className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 focus:bg-white border border-slate-200 transition-all shadow-none"
         />
@@ -74,7 +76,9 @@ export function ProviderConnectionFields({
           <Input
             type={showApiKey ? 'text' : 'password'}
             value={apiKey || ''}
-            onChange={(e) => onApiKeyChange(e.target.value)}
+            onChange={(e) => {
+              onApiKeyChange(e.target.value);
+            }}
             placeholder={apiKeyPlaceholder}
             className="h-10 bg-slate-100 text-slate-900 font-medium rounded-2xl text-sm px-5 pr-14 focus:bg-white border border-slate-200 transition-all shadow-none"
           />

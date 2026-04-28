@@ -1127,10 +1127,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               onApiKeyChange={setImageApiKey}
               apiKeyPlaceholder="sk-******************"
               showApiKey={showImageKey}
-              onToggleApiKey={() => setShowImageKey(!showImageKey)}
+              onToggleApiKey={() => {
+                setShowImageKey(!showImageKey);
+              }}
               recommendedLabel={t('settings.provider.recommended')}
               yunwuLabel={t('settings.provider.yunwu')}
-              onOpenYunwu={handleOpenYunwu}
+              onOpenYunwu={() => {
+                void handleOpenYunwu();
+              }}
               warning={imageBaseWarn ? <BaseUrlWarning yunwuWarn={imageYunwuWarn} /> : undefined}
             />
 
