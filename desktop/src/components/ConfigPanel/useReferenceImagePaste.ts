@@ -16,7 +16,7 @@ type UseReferenceImagePasteOptions = {
   t: TFunction;
 };
 
-const isTextInputTarget = (target: EventTarget | null) => {
+const isTextInputTarget = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) return false;
   const element = target;
   return Boolean(
