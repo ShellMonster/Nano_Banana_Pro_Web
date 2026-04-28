@@ -150,11 +150,12 @@ export function useReferenceImagePaste({
     // 如果用户在粘贴纯文本（且当前在输入框内），不要触发原生读取，避免拖慢输入体验
     const plain = (event.clipboardData?.getData('text/plain') || '').trim();
     const target = event.target;
-    const isEditableTarget =
-      target instanceof HTMLInputElement ||
-      target instanceof HTMLTextAreaElement ||
-      (target instanceof HTMLElement && target.isContentEditable);
-    if (plain && isEditableTarget) return;
+    if (
+      plain &&
+      (target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable))
+    ) return;
 
     // 兜底：Tauri 打包环境下 Web ClipboardData 可能拿不到图片数据，尝试原生读取
     void tryPasteFromTauriClipboard();
@@ -178,11 +179,12 @@ export function useReferenceImagePaste({
 
       const plain = (event.clipboardData.getData('text/plain') || '').trim();
       const target = event.target;
-      const isEditableTarget =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLElement && target.isContentEditable);
-      if (plain && isEditableTarget) return;
+      if (
+        plain &&
+        (target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          (target instanceof HTMLElement && target.isContentEditable))
+      ) return;
 
       void tryPasteFromTauriClipboard();
     };
