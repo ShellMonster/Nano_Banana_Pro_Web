@@ -74,17 +74,26 @@ const ALL_VALUE = TEMPLATE_ALL_VALUE;
 const TEMPLATE_GRID_GAP = 20;
 const TEMPLATE_GRID_MIN_CARD_WIDTH = 180;
 const TEMPLATE_GRID_CARD_HEIGHT = 320;
+const TEMPLATE_GRID_COLUMNS = {
+  MIN: 2,
+  MEDIUM: 3,
+  LARGE: 4
+} as const;
+const TEMPLATE_GRID_BREAKPOINTS = {
+  MEDIUM: 768,
+  LARGE: 1280
+} as const;
 
 const getTemplateColumnCount = (containerWidth: number, viewportWidth: number | undefined) => {
   const basis = viewportWidth ?? containerWidth;
-  let count = 2;
-  if (basis >= 1280) {
-    count = 4;
-  } else if (basis >= 768) {
-    count = 3;
+  let count: number = TEMPLATE_GRID_COLUMNS.MIN;
+  if (basis >= TEMPLATE_GRID_BREAKPOINTS.LARGE) {
+    count = TEMPLATE_GRID_COLUMNS.LARGE;
+  } else if (basis >= TEMPLATE_GRID_BREAKPOINTS.MEDIUM) {
+    count = TEMPLATE_GRID_COLUMNS.MEDIUM;
   }
 
-  while (count > 2) {
+  while (count > TEMPLATE_GRID_COLUMNS.MIN) {
     const requiredWidth = count * TEMPLATE_GRID_MIN_CARD_WIDTH + (count - 1) * TEMPLATE_GRID_GAP;
     if (containerWidth >= requiredWidth) break;
     count -= 1;
@@ -122,7 +131,7 @@ const fallbackMeta: TemplateMeta = {
 
 const FILTER_LABEL_KEYS: Record<string, string> = templateLabelKeys;
 
-const getFilterLabel = (value: string, translate: (key: string, options?: any) => string) => {
+const getFilterLabel = (value: string, translate: (key: string, options?: Record<string, unknown>) => string) => {
   const key = FILTER_LABEL_KEYS[value];
   return key ? translate(key) : value;
 };
@@ -196,7 +205,7 @@ const formatSourceName = (name: string) => (name.startsWith('@') ? name : `@${na
 
 const openExternalUrl = async (url: string) => {
   if (!url) return;
-  if ((window as any).__TAURI_INTERNALS__) {
+  if (window.__TAURI_INTERNALS__) {
     try {
       const { openUrl } = await import('@tauri-apps/plugin-opener');
       await openUrl(url);
@@ -395,7 +404,7 @@ const TemplatePreviewModal = ({
       }
       const blob = await response.blob();
 
-      const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+      const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
       if (isTauri) {
         try {
           const { invoke } = await import('@tauri-apps/api/core');
@@ -415,7 +424,7 @@ const TemplatePreviewModal = ({
         }
       }
 
-      const ClipboardItemCtor = (window as any).ClipboardItem as typeof ClipboardItem | undefined;
+      const ClipboardItemCtor = typeof ClipboardItem !== 'undefined' ? ClipboardItem : undefined;
       if (ClipboardItemCtor && navigator.clipboard?.write) {
         await navigator.clipboard.write([new ClipboardItemCtor({ [blob.type || 'image/png']: blob })]);
         toast.success(t('toast.copyImageSuccess'));
@@ -1052,12 +1061,16 @@ const VirtualTemplateGrid = ({
     const element = wrapperRef.current;
     if (!element) return;
 
-    const updateWidth = () => setWidth(element.clientWidth);
+    const updateWidth = () => {
+      setWidth(element.clientWidth);
+    };
     updateWidth();
 
     if (typeof ResizeObserver === 'undefined') {
       window.addEventListener('resize', updateWidth);
-      return () => window.removeEventListener('resize', updateWidth);
+      return () => {
+        window.removeEventListener('resize', updateWidth);
+      };
     }
 
     const observer = new ResizeObserver(updateWidth);
