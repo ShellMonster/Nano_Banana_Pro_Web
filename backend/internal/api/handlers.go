@@ -591,8 +591,8 @@ func GenerateWithImagesHandler(c *gin.Context) {
 				return
 			}
 			targetPath = filepath.Clean(validatedPath)
-			// #nosec G304 -- validateRefPathForTauri resolves symlinks, restricts paths to app config/cache/temp roots, and checks regular file + size before open.
-			file, err := os.Open(targetPath)
+			// nosemgrep -- validateRefPathForTauri resolves symlinks, restricts paths to app config/cache/temp roots, and checks regular file + size before open.
+			file, err := os.Open(targetPath) // #nosec G304
 			if err != nil {
 				log.Printf("[API] 打开本地参考图失败: %s, err: %v\n", targetPath, err)
 				Error(c, http.StatusBadRequest, 400, "读取本地参考图失败")
