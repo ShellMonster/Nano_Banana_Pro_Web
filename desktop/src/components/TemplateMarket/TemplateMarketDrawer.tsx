@@ -1629,12 +1629,21 @@ export function TemplateMarketDrawer({
                 )}
               </div>
             ) : (
-              <div className="pr-1" onContextMenu={(event) => event.preventDefault()}>
+              <div
+                className="pr-1"
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                }}
+              >
                 <VirtualTemplateGrid
                   templates={filteredTemplates}
                   applyingId={applyingId}
-                  onPreview={setPreviewTemplate}
-                  onApply={applyTemplate}
+                  onPreview={(template) => {
+                    setPreviewTemplate(template);
+                  }}
+                  onApply={(template) => {
+                    void applyTemplate(template);
+                  }}
                   isFiltering={isFiltering}
                   scrollTop={listScrollTop}
                   viewportHeight={listViewportHeight}
@@ -1648,9 +1657,15 @@ export function TemplateMarketDrawer({
       <TemplatePreviewModal
         template={previewTemplate}
         templates={filteredTemplates}
-        onTemplateChange={setPreviewTemplate}
-        onClose={() => setPreviewTemplate(null)}
-        onUse={applyTemplate}
+        onTemplateChange={(template) => {
+          setPreviewTemplate(template);
+        }}
+        onClose={() => {
+          setPreviewTemplate(null);
+        }}
+        onUse={(template) => {
+          void applyTemplate(template);
+        }}
         applying={Boolean(applyingId)}
       />
     </>
